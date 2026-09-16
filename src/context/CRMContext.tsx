@@ -19,6 +19,7 @@ import {
   FolioPayment,
   FolioCharge,
   PaymentMethod,
+  StaffAccount,
 } from '@/types/crm';
 import {
   INITIAL_PHYSICAL_ROOMS,
@@ -31,6 +32,7 @@ import {
   INITIAL_EXPENSES,
   INITIAL_TRANSFER_ROUTES,
   INITIAL_RENTAL_VEHICLES,
+  INITIAL_STAFF_ACCOUNTS,
 } from '@/lib/crm-data';
 
 interface ToastState {
@@ -82,6 +84,15 @@ interface CRMContextType {
   settleFolio: (folioId: string, paymentMethod: PaymentMethod, notes?: string) => void;
   checkInRoom: (bookingId: string) => void;
   checkOutRoom: (bookingId: string) => void;
+
+  // Staff User Management (Admin Managed)
+  staffAccounts: StaffAccount[];
+  currentUser: StaffAccount | null;
+  setCurrentUser: (user: StaffAccount | null) => void;
+  addStaffAccount: (account: Omit<StaffAccount, 'id' | 'createdAt'>) => Promise<StaffAccount>;
+  updateStaffAccount: (id: string, updates: Partial<StaffAccount>) => Promise<void>;
+  deleteStaffAccount: (id: string) => Promise<{ success: boolean; error?: string }>;
+  authenticateStaff: (identifier: string, password: string) => Promise<{ success: boolean; user?: StaffAccount; error?: string }>;
 }
 
 export function recalculateFolioTotals(
@@ -136,6 +147,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
   const [transferRoutes] = useState<TransferRoute[]>(INITIAL_TRANSFER_ROUTES);
   const [rentalVehicles] = useState<RentalVehicle[]>(INITIAL_RENTAL_VEHICLES);
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(INITIAL_STAFF_ACCOUNTS);
+  const [currentUser, setCurrentUserState] = useState<StaffAccount | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -176,6 +189,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       const savedFolios = localStorage.getItem('wp_crm_folios');
       if (savedFolios) setFolios(JSON.parse(savedFolios));
+
+      const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
+      if (savedStaff) {
+        const parsed = JSON.parse(savedStaff);
+        if (Array.isArray(parsed) && parsed.length > 0) setStaffAccounts(parsed);
+      }
+
+      const savedUser = localStorage.getItem('wp_crm_current_user');
+      if (savedUser) {
+        setCurrentUserState(JSON.parse(savedUser));
+      }
     } catch {
       // ignore
     }
@@ -682,6 +706,118 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     showToast(`Room ${bk.roomNumber} checked out. Turnover deep cleaning scheduled.`);
   };
 
+  // Staff Account & Authentication Actions
+  const setCurrentUser = (user: StaffAccount | null) => {
+    setCurrentUserState(user);
+    try {
+      if (user) {
+        localStorage.setItem('wp_crm_current_user', JSON.stringify(user));
+        setRoleState(user.role);
+        localStorage.setItem('wp_crm_role', user.role);
+      } else {
+        localStorage.removeItem('wp_crm_current_user');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const addStaffAccount = async (accountData: Omit<StaffAccount, 'id' | 'createdAt'>): Promise<StaffAccount> => {
+    const newAccount: StaffAccount = {
+      ...accountData,
+      id: `staff-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setStaffAccounts((prev) => {
+      const updated = [...prev, newAccount];
+      try {
+        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Staff member "${newAccount.fullName}" added as ${newAccount.role.replace('_', ' ').toUpperCase()}`);
+    return newAccount;
+  };
+
+  const updateStaffAccount = async (id: string, updates: Partial<StaffAccount>): Promise<void> => {
+    setStaffAccounts((prev) => {
+      const updated = prev.map((acc) => (acc.id === id ? { ...acc, ...updates } : acc));
+      try {
+        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    if (currentUser?.id === id) {
+      setCurrentUserState((prev) => (prev ? { ...prev, ...updates } : null));
+      try {
+        const stored = localStorage.getItem('wp_crm_current_user');
+        if (stored) {
+          localStorage.setItem('wp_crm_current_user', JSON.stringify({ ...JSON.parse(stored), ...updates }));
+        }
+      } catch {}
+    }
+    showToast('Staff profile updated successfully');
+  };
+
+  const deleteStaffAccount = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const target = staffAccounts.find((a) => a.id === id);
+    if (!target) return { success: false, error: 'Staff account not found' };
+
+    if (currentUser?.id === id) {
+      showToast('Cannot delete your own active account while logged in.', 'error');
+      return { success: false, error: 'Cannot delete your own active account.' };
+    }
+
+    if (target.role === 'admin') {
+      const activeAdmins = staffAccounts.filter((a) => a.role === 'admin' && a.id !== id && a.isActive);
+      if (activeAdmins.length === 0) {
+        showToast('Cannot delete the last active administrator account.', 'error');
+        return { success: false, error: 'At least one active admin account is required.' };
+      }
+    }
+
+    setStaffAccounts((prev) => {
+      const updated = prev.filter((acc) => acc.id !== id);
+      try {
+        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Account for "${target.fullName}" removed`);
+    return { success: true };
+  };
+
+  const authenticateStaff = async (
+    identifier: string,
+    password: string
+  ): Promise<{ success: boolean; user?: StaffAccount; error?: string }> => {
+    const cleanId = identifier.trim().toLowerCase();
+    const found = staffAccounts.find(
+      (acc) =>
+        (acc.email.toLowerCase() === cleanId || acc.fullName.toLowerCase() === cleanId) &&
+        acc.password === password
+    );
+
+    if (!found) {
+      return { success: false, error: 'Invalid email or password. Please check your credentials.' };
+    }
+
+    if (!found.isActive) {
+      return { success: false, error: 'This account has been deactivated. Please contact the administrator.' };
+    }
+
+    setCurrentUser(found);
+    setRoleState(found.role);
+    try {
+      localStorage.setItem('wp_crm_role', found.role);
+      localStorage.setItem('wp_crm_current_user', JSON.stringify(found));
+    } catch {}
+
+    showToast(`Signed in as ${found.fullName} (${found.role.replace('_', ' ').toUpperCase()})`);
+    return { success: true, user: found };
+  };
+
   return (
     <CRMContext.Provider
       value={{
@@ -716,6 +852,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         settleFolio,
         checkInRoom,
         checkOutRoom,
+        staffAccounts,
+        currentUser,
+        setCurrentUser,
+        addStaffAccount,
+        updateStaffAccount,
+        deleteStaffAccount,
+        authenticateStaff,
       }}
     >
       {children}

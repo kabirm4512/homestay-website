@@ -300,3 +300,15 @@ export interface Expense {
   loggedByName: string;
   createdAt: string;
 }
+
+export interface StaffAccount {
+  id: string;
+  email: string;
+  password: string;
+  fullName: string;
+  phone?: string;
+  role: StaffRole;
+  isActive: boolean;
+  createdAt: string;
+}
+

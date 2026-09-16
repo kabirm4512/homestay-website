@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   QrCode,
+  Users,
 } from 'lucide-react';
 
 import AdminAuth from '@/components/admin/AdminAuth';
@@ -28,6 +29,7 @@ import AdminRooms from '@/components/admin/AdminRooms';
 import AdminBookings from '@/components/admin/AdminBookings';
 import AdminInquiries from '@/components/admin/AdminInquiries';
 import AdminCMS from '@/components/admin/AdminCMS';
+import AdminStaffManagement from '@/components/admin/AdminStaffManagement';
 
 // New Boutique CRM Modules
 import TapeChart from '@/components/crm/TapeChart';
@@ -50,7 +52,15 @@ import {
 } from '@/lib/mock-data';
 
 export default function AdminPage() {
-  const { role, toast: crmToast, showToast: showCrmToast, dispatchRequests, foodOrders } = useCRM();
+  const {
+    role,
+    toast: crmToast,
+    showToast: showCrmToast,
+    dispatchRequests,
+    foodOrders,
+    currentUser,
+    setCurrentUser,
+  } = useCRM();
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true); // Authenticated by default for instant CRM access
   const [authChecking, setAuthChecking] = useState<boolean>(false);
@@ -161,10 +171,12 @@ export default function AdminPage() {
     try {
       localStorage.removeItem('homestay_admin_token');
       localStorage.removeItem('homestay_admin_user');
+      localStorage.removeItem('wp_crm_current_user');
       sessionStorage.removeItem('homestay_admin_token');
     } catch {
       // ignore
     }
+    setCurrentUser(null);
     setIsAuthenticated(false);
     showToast('Signed out of staff platform.');
   };
@@ -228,6 +240,21 @@ export default function AdminPage() {
               <QrCode className="w-4 h-4 text-amber-300" />
               <span>In-Room QR</span>
             </Link>
+
+            {/* Logged-in Staff Badge */}
+            <div className="hidden md:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60">
+              <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center">
+                {(currentUser?.fullName || adminUser.name).charAt(0)}
+              </div>
+              <div className="text-left">
+                <span className="text-[11px] font-bold text-white block leading-none truncate max-w-[130px]">
+                  {currentUser?.fullName || adminUser.name}
+                </span>
+                <span className="text-[9px] text-amber-300 uppercase tracking-wider font-semibold">
+                  {(currentUser?.role || role).replace('_', ' ')}
+                </span>
+              </div>
+            </div>
 
             <div className="h-5 w-px bg-forest-700 hidden sm:block" />
 
@@ -324,6 +351,24 @@ export default function AdminPage() {
               )}
             </button>
 
+            {/* Staff & User Management (Admin Only) */}
+            <button
+              onClick={() => setActiveTab('staff')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'staff'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Staff & Logins</span>
+              {role !== 'admin' && (
+                <span className="text-[10px] bg-rose-900/70 text-rose-300 font-mono px-1.5 py-0.2 rounded">
+                  Admin Only
+                </span>
+              )}
+            </button>
+
             <div className="h-4 w-px bg-forest-800 mx-1 hidden lg:block" />
 
             {/* Website CMS Tabs */}
@@ -393,6 +438,29 @@ export default function AdminPage() {
 
         {/* Module D: Financial Ledger (Admin Only, RBAC Guarded) */}
         {activeTab === 'ledger' && <FinancialLedger />}
+
+        {/* Staff & User Access Management (Admin Only, RBAC Guarded) */}
+        {activeTab === 'staff' && (
+          role === 'admin' ? (
+            <AdminStaffManagement />
+          ) : (
+            <div className="bg-white rounded-3xl p-8 border border-sand-200 text-center max-w-md mx-auto my-12 shadow-sm animate-in fade-in">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="font-serif font-bold text-lg text-forest-950 mb-1">Admin Access Required</h3>
+              <p className="text-xs text-forest-700/80 mb-4">
+                Only Estate Administrators have authority to create and manage individual employee accounts, access levels, and credentials.
+              </p>
+              <button
+                onClick={() => setActiveTab('tape_chart')}
+                className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors"
+              >
+                Return to Tape Chart
+              </button>
+            </div>
+          )
+        )}
 
         {/* Website CMS Tabs */}
         {activeTab === 'overview' && (

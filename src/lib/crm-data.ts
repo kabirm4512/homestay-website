@@ -10,6 +10,7 @@ import {
   TransportRequest,
   HousekeepingTask,
   Expense,
+  StaffAccount,
 } from '@/types/crm';
 
 export const INITIAL_ROOM_CATEGORIES: RoomCategory[] = [
@@ -1099,3 +1100,37 @@ export const INITIAL_EXPENSES: Expense[] = [
     createdAt: '2026-09-05T09:00:00Z',
   },
 ];
+
+export const INITIAL_STAFF_ACCOUNTS: StaffAccount[] = [
+  {
+    id: 'staff-1',
+    email: 'admin@whisperingpines.com',
+    password: 'admin123',
+    fullName: 'Tenzing Norbu (Owner & Admin)',
+    phone: '+91 98765 43210',
+    role: 'admin',
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'staff-2',
+    email: 'manager@whisperingpines.com',
+    password: 'manager123',
+    fullName: 'Rinchen Dorje (Duty Manager)',
+    phone: '+91 98765 43211',
+    role: 'manager',
+    isActive: true,
+    createdAt: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'staff-3',
+    email: 'kitchen@whisperingpines.com',
+    password: 'kitchen123',
+    fullName: 'Chef Sonam Bhutia (Head Chef)',
+    phone: '+91 98765 43212',
+    role: 'kitchen_staff',
+    isActive: true,
+    createdAt: '2026-02-01T00:00:00Z',
+  },
+];
+
