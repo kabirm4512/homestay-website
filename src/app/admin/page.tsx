@@ -1,0 +1,478 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  Trees,
+  LayoutDashboard,
+  CalendarDays,
+  Truck,
+  ChefHat,
+  Receipt,
+  BedDouble,
+  CalendarCheck,
+  MessageSquareText,
+  Sliders,
+  ExternalLink,
+  LogOut,
+  ShieldCheck,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  QrCode,
+} from 'lucide-react';
+
+import AdminAuth from '@/components/admin/AdminAuth';
+import AdminOverview from '@/components/admin/AdminOverview';
+import AdminRooms from '@/components/admin/AdminRooms';
+import AdminBookings from '@/components/admin/AdminBookings';
+import AdminInquiries from '@/components/admin/AdminInquiries';
+import AdminCMS from '@/components/admin/AdminCMS';
+
+// New Boutique CRM Modules
+import TapeChart from '@/components/crm/TapeChart';
+import OperationsHub from '@/components/crm/OperationsHub';
+import KitchenPortal from '@/components/crm/KitchenPortal';
+import FinancialLedger from '@/components/crm/FinancialLedger';
+import RoleSwitcher from '@/components/crm/RoleSwitcher';
+import PWAInstaller from '@/components/pwa/PWAInstaller';
+import BottomNav from '@/components/pwa/BottomNav';
+import { useCRM } from '@/context/CRMContext';
+
+import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo } from '@/types';
+import {
+  INITIAL_ROOMS,
+  INITIAL_HERO_SLIDES,
+  INITIAL_ABOUT_DATA,
+  INITIAL_SITE_INFO,
+  INITIAL_INQUIRIES,
+  INITIAL_BOOKINGS,
+} from '@/lib/mock-data';
+
+export default function AdminPage() {
+  const { role, toast: crmToast, showToast: showCrmToast, dispatchRequests, foodOrders } = useCRM();
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true); // Authenticated by default for instant CRM access
+  const [authChecking, setAuthChecking] = useState<boolean>(false);
+  const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
+    name: 'Tenzing (Estate Owner)',
+    role: 'admin',
+  });
+
+  // Active navigation tab
+  const [activeTab, setActiveTab] = useState<string>('tape_chart');
+
+  // Website CMS states
+  const [rooms, setRooms] = useState<Room[]>(INITIAL_ROOMS);
+  const [inquiries, setInquiries] = useState<Inquiry[]>(INITIAL_INQUIRIES);
+  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
+  const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
+  const [loadingData, setLoadingData] = useState<boolean>(false);
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+
+  // Local toast fallback
+  const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setLocalToast({ message, type });
+    setTimeout(() => {
+      setLocalToast(null);
+    }, 4000);
+  }, []);
+
+  // Sync role changes to default tabs
+  useEffect(() => {
+    if (role === 'kitchen_staff') {
+      setActiveTab('kitchen');
+    }
+  }, [role]);
+
+  // Check existing session token on mount
+  useEffect(() => {
+    try {
+      const storedToken = localStorage.getItem('homestay_admin_token') || sessionStorage.getItem('homestay_admin_token');
+      if (storedToken) {
+        setIsAuthenticated(true);
+        const storedUser = localStorage.getItem('homestay_admin_user');
+        if (storedUser) {
+          setAdminUser(JSON.parse(storedUser));
+        }
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      setAuthChecking(false);
+    }
+  }, []);
+
+  // Fetch live homestay data
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const [roomsRes, inqRes, bkRes, cmsRes] = await Promise.all([
+        fetch('/api/rooms').then((r) => r.json()).catch(() => null),
+        fetch('/api/inquiries').then((r) => r.json()).catch(() => null),
+        fetch('/api/bookings').then((r) => r.json()).catch(() => null),
+        fetch('/api/cms').then((r) => r.json()).catch(() => null),
+      ]);
+
+      if (roomsRes?.success && roomsRes.data?.length > 0) {
+        setRooms(roomsRes.data);
+      }
+      if (inqRes?.success && inqRes.data) {
+        setInquiries(inqRes.data);
+      }
+      if (bkRes?.success && bkRes.data) {
+        setBookings(bkRes.data);
+      }
+      if (cmsRes?.success && cmsRes.data) {
+        if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
+        if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
+        if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+      }
+    } catch {
+      // fallback
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated, fetchData]);
+
+  const handleAuthenticated = (token: string, user: { name: string; role: string }) => {
+    try {
+      localStorage.setItem('homestay_admin_token', token);
+      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
+    } catch {
+      // fallback
+    }
+    setAdminUser(user);
+    setIsAuthenticated(true);
+    showToast(`Welcome back, ${user.name}!`);
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('homestay_admin_token');
+      localStorage.removeItem('homestay_admin_user');
+      sessionStorage.removeItem('homestay_admin_token');
+    } catch {
+      // ignore
+    }
+    setIsAuthenticated(false);
+    showToast('Signed out of staff platform.');
+  };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-sand-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-3 border-forest-700 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-forest-800 font-medium">Verifying credentials...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AdminAuth onAuthenticated={handleAuthenticated} />;
+  }
+
+  const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
+  const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending').length;
+
+  return (
+    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-16 md:pb-6">
+      {/* 1. Global Admin Top Navbar */}
+      <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          {/* Brand Logo & Title */}
+          <div className="flex items-center space-x-3">
+            <Link href="/" className="flex items-center space-x-2.5 group">
+              <div className="w-9 h-9 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center group-hover:bg-forest-700 transition-colors">
+                <Trees className="w-5 h-5 text-amber-300" />
+              </div>
+              <div>
+                <span className="font-serif font-bold text-base block leading-tight">
+                  Whispering Pines
+                </span>
+                <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold flex items-center space-x-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  <span>Boutique CRM & Concierge</span>
+                </span>
+              </div>
+            </Link>
+          </div>
+
+          {/* Right Header Controls: Role Switcher, PWA Install, Live Concierge Link, User */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Fast Role Switcher */}
+            <RoleSwitcher />
+
+            {/* PWA Install Button */}
+            <PWAInstaller variant="button" />
+
+            {/* Digital Concierge Preview Shortcut */}
+            <Link
+              href="/concierge"
+              target="_blank"
+              className="min-h-[44px] hidden lg:flex items-center space-x-1.5 text-xs font-bold text-sand-200 hover:text-white bg-forest-800/80 hover:bg-forest-800 px-3 py-1.5 rounded-xl border border-forest-700/60 transition-colors"
+              title="Open In-Room QR Concierge Portal"
+            >
+              <QrCode className="w-4 h-4 text-amber-300" />
+              <span>In-Room QR</span>
+            </Link>
+
+            <div className="h-5 w-px bg-forest-700 hidden sm:block" />
+
+            <button
+              onClick={handleLogout}
+              className="min-h-[44px] min-w-[44px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center"
+              title="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop Navigation Tabs Bar */}
+        <div className="bg-forest-950/70 border-t border-forest-800/80 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar">
+            {/* Module A: Tape Chart */}
+            <button
+              onClick={() => setActiveTab('tape_chart')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'tape_chart'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Tape Chart (7 Rooms)</span>
+            </button>
+
+            {/* Module B: Operations Hub */}
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'dashboard'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Daily Operations Hub</span>
+            </button>
+
+            {/* Module B/C: Dispatch Hub */}
+            <button
+              onClick={() => setActiveTab('dispatch')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'dispatch'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Orders / Dispatch</span>
+              {pendingDispatchCount > 0 && (
+                <span className="ml-1 text-[10px] bg-amber-400 text-forest-950 font-bold px-1.5 py-0.2 rounded-full">
+                  {pendingDispatchCount}
+                </span>
+              )}
+            </button>
+
+            {/* Dedicated Kitchen View */}
+            <button
+              onClick={() => setActiveTab('kitchen')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'kitchen'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <ChefHat className="w-3.5 h-3.5" />
+              <span>Kitchen & Mandate</span>
+              {pendingKitchenCount > 0 && (
+                <span className="ml-1 text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.2 rounded-full">
+                  {pendingKitchenCount}
+                </span>
+              )}
+            </button>
+
+            {/* Module D: Financial Ledger (Admin Only) */}
+            <button
+              onClick={() => setActiveTab('ledger')}
+              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeTab === 'ledger'
+                  ? 'bg-amber-500 text-forest-950 shadow-sm'
+                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>Financial Ledger & PNL</span>
+              {role !== 'admin' && (
+                <span className="text-[10px] bg-rose-900/70 text-rose-300 font-mono px-1.5 py-0.2 rounded">
+                  Admin Only
+                </span>
+              )}
+            </button>
+
+            <div className="h-4 w-px bg-forest-800 mx-1 hidden lg:block" />
+
+            {/* Website CMS Tabs */}
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === 'overview'
+                  ? 'bg-forest-800 text-white'
+                  : 'text-forest-400 hover:text-forest-200'
+              }`}
+            >
+              <span>Site Overview</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('rooms')}
+              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === 'rooms'
+                  ? 'bg-forest-800 text-white'
+                  : 'text-forest-400 hover:text-forest-200'
+              }`}
+            >
+              <BedDouble className="w-3.5 h-3.5" />
+              <span>Site Rooms</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('inquiries')}
+              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === 'inquiries'
+                  ? 'bg-forest-800 text-white'
+                  : 'text-forest-400 hover:text-forest-200'
+              }`}
+            >
+              <MessageSquareText className="w-3.5 h-3.5" />
+              <span>Web Inquiries</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('cms')}
+              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === 'cms'
+                  ? 'bg-forest-800 text-white'
+                  : 'text-forest-400 hover:text-forest-200'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>CMS Slides</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. Main Module View */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Module A: Tape Chart */}
+        {activeTab === 'tape_chart' && <TapeChart />}
+
+        {/* Module B: Operations Hub */}
+        {activeTab === 'dashboard' && <OperationsHub />}
+
+        {/* Orders / Dispatch Hub */}
+        {activeTab === 'dispatch' && <OperationsHub />}
+
+        {/* Dedicated Kitchen View */}
+        {activeTab === 'kitchen' && <KitchenPortal />}
+
+        {/* Module D: Financial Ledger (Admin Only, RBAC Guarded) */}
+        {activeTab === 'ledger' && <FinancialLedger />}
+
+        {/* Website CMS Tabs */}
+        {activeTab === 'overview' && (
+          <AdminOverview
+            rooms={rooms}
+            inquiries={inquiries}
+            bookings={bookings}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenAddRoom={() => {
+              setActiveTab('rooms');
+              setIsAddRoomOpen(true);
+            }}
+          />
+        )}
+
+        {activeTab === 'rooms' && (
+          <AdminRooms
+            rooms={rooms}
+            onRefresh={fetchData}
+            showToast={showToast}
+            isAddModalOpen={isAddRoomOpen}
+            onCloseAddModal={() => setIsAddRoomOpen(false)}
+          />
+        )}
+
+        {activeTab === 'bookings' && (
+          <AdminBookings
+            bookings={bookings}
+            onRefresh={fetchData}
+            showToast={showToast}
+          />
+        )}
+
+        {activeTab === 'inquiries' && (
+          <AdminInquiries
+            inquiries={inquiries}
+            onRefresh={fetchData}
+            showToast={showToast}
+          />
+        )}
+
+        {activeTab === 'cms' && (
+          <AdminCMS
+            heroSlides={heroSlides}
+            aboutData={aboutData}
+            siteInfo={siteInfo}
+            onRefresh={fetchData}
+            showToast={showToast}
+          />
+        )}
+      </main>
+
+      {/* 3. Mobile Fixed Bottom Navigation Bar */}
+      <BottomNav
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
+        role={role}
+        pendingDispatchCount={pendingDispatchCount}
+        pendingKitchenOrdersCount={pendingKitchenCount}
+      />
+
+      {/* 4. Global Toast Notifications */}
+      {(crmToast || localToast) && (
+        <div className="fixed bottom-18 md:bottom-6 right-4 sm:right-6 z-50 animate-in slide-in-from-bottom-2 duration-200">
+          <div
+            className={`flex items-center space-x-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold ${
+              (crmToast?.type || localToast?.type) === 'error'
+                ? 'bg-rose-900 border-rose-800 text-white'
+                : 'bg-forest-900 border-forest-800 text-white'
+            }`}
+          >
+            {(crmToast?.type || localToast?.type) === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            <span>{crmToast?.message || localToast?.message}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

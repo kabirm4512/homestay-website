@@ -1,0 +1,527 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// 1. RBAC & STAFF USERS
+// -----------------------------------------------------------------------------
+
+enum StaffRole {
+  ADMIN
+  MANAGER
+  KITCHEN_STAFF
+}
+
+model StaffUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  phone        String?
+  role         StaffRole @default(KITCHEN_STAFF)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  createdBookings    Booking[]           @relation("BookingCreatedBy")
+  settledFolios      GuestFolio[]        @relation("FolioSettledBy")
+  postedCharges      FolioCharge[]       @relation("ChargePostedBy")
+  collectedPayments  FolioPayment[]      @relation("PaymentCollectedBy")
+  confirmedTransfers TransportRequest[]  @relation("TransferConfirmedBy")
+  assignedHousework  HousekeepingTask[]  @relation("HousekeepingAssignedTo")
+  loggedExpenses     Expense[]           @relation("ExpenseLoggedBy")
+  auditLogs          AuditLog[]
+
+  @@map("staff_users")
+}
+
+// -----------------------------------------------------------------------------
+// 2. ROOM CATEGORIES & 7 PHYSICAL ROOMS
+// -----------------------------------------------------------------------------
+
+enum RoomCategoryCode {
+  LUXURY_SUITE
+  COTTAGE
+  DELUXE_PINE
+}
+
+model RoomCategory {
+  id                String           @id @default(uuid())
+  code              RoomCategoryCode @unique
+  name              String
+  description       String?
+  basePriceWeekday  Decimal          @map("base_price_weekday") @db.Decimal(10, 2)
+  basePriceWeekend  Decimal          @map("base_price_weekend") @db.Decimal(10, 2)
+  maxAdults         Int              @default(2) @map("max_adults")
+  maxChildren       Int              @default(1) @map("max_children")
+  amenities         String[]         @default([])
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  rooms PhysicalRoom[]
+
+  @@map("room_categories")
+}
+
+enum RoomTapeStatus {
+  HOLD
+  CONFIRMED
+  CHECKED_IN
+  MAINTENANCE
+  AVAILABLE
+}
+
+enum HousekeepingStatus {
+  CLEAN
+  LIGHT_REFRESH
+  DEEP_CLEAN_TURNOVER
+  MAINTENANCE_INSPECTION
+}
+
+model PhysicalRoom {
+  id             String             @id @default(uuid())
+  roomNumber     Int                @unique @map("room_number") // 1 to 7
+  name           String             // e.g. "Room 1 - Pine Haven"
+  categoryId     String             @map("category_id")
+  floorLevel     Int                @default(1) @map("floor_level")
+  currentStatus  RoomTapeStatus     @default(AVAILABLE) @map("current_status")
+  housekeeping   HousekeepingStatus @default(CLEAN)
+  qrSecretToken  String             @unique @map("qr_secret_token")
+  notes          String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  category          RoomCategory       @relation(fields: [categoryId], references: [id])
+  bookings          Booking[]
+  foodOrders        FoodOrder[]
+  transportRequests TransportRequest[]
+  housekeepingTasks HousekeepingTask[]
+
+  @@map("physical_rooms")
+}
+
+// -----------------------------------------------------------------------------
+// 3. GUEST PROFILES & PREFERENCES
+// -----------------------------------------------------------------------------
+
+model Guest {
+  id                     String    @id @default(uuid())
+  fullName               String    @map("full_name")
+  phone                  String    @map("phone")
+  email                  String?
+  idType                 String?   @map("id_type")
+  idDocumentUrl          String?   @map("id_document_url")
+  idNumber               String?   @map("id_number")
+  dietaryPreferences     String?   @map("dietary_preferences")
+  hospitalityPreferences String?   @map("hospitality_preferences")
+  whatsappNumber         String?   @map("whatsapp_number")
+  totalLifetimeStays     Int       @default(1) @map("total_lifetime_stays")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  bookings    Booking[]
+  guestFolios GuestFolio[]
+
+  @@map("guests")
+}
+
+// -----------------------------------------------------------------------------
+// 4. THE TAPE CHART (CORE CRM & BOOKINGS)
+// -----------------------------------------------------------------------------
+
+enum MealPlan {
+  EP // European Plan: Room Only
+  CP // Continental Plan: Room + Breakfast
+  MAP // Modified American Plan: Room + Breakfast + Lunch or Dinner
+  AP // American Plan: Room + All 3 Meals
+}
+
+enum BookingStatus {
+  HOLD
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+model Booking {
+  id                String         @id @default(uuid())
+  bookingReference  String         @unique @map("booking_reference")
+  roomId            String         @map("room_id")
+  guestId           String         @map("guest_id")
+  checkInDate       DateTime       @map("check_in_date") @db.Date
+  checkOutDate      DateTime       @map("check_out_date") @db.Date
+  tapeStatus        RoomTapeStatus @default(CONFIRMED) @map("tape_status")
+  bookingStatus     BookingStatus  @default(CONFIRMED) @map("booking_status")
+  mealPlan          MealPlan       @default(CP) @map("meal_plan")
+  adultsCount       Int            @default(2) @map("adults_count")
+  childrenCount     Int            @default(0) @map("children_count")
+  roomRatePerNight  Decimal        @map("room_rate_per_night") @db.Decimal(10, 2)
+  specialRequests   String?        @map("special_requests")
+  checkedInAt       DateTime?      @map("checked_in_at")
+  checkedOutAt      DateTime?      @map("checked_out_at")
+  createdByStaffId  String?        @map("created_by")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  room              PhysicalRoom       @relation(fields: [roomId], references: [id])
+  guest             Guest              @relation(fields: [guestId], references: [id])
+  createdBy         StaffUser?         @relation("BookingCreatedBy", fields: [createdByStaffId], references: [id])
+  folio             GuestFolio?
+  foodOrders        FoodOrder[]
+  transportRequests TransportRequest[]
+
+  @@map("bookings")
+}
+
+// -----------------------------------------------------------------------------
+// 5. GUEST FOLIOS (UNIFIED ACCOUNTING SPINE)
+// -----------------------------------------------------------------------------
+
+enum FolioStatus {
+  OPEN
+  SETTLED
+  VOID
+}
+
+enum ChargeCategory {
+  ROOM_TARIFF
+  FOOD_BEVERAGE
+  TRANSPORT_TRANSFER
+  VEHICLE_RENTAL
+  LAUNDRY
+  MISCELLANEOUS
+}
+
+enum ChargeStatus {
+  PENDING
+  POSTED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CARD
+}
+
+model GuestFolio {
+  id                 String      @id @default(uuid())
+  bookingId          String      @unique @map("booking_id")
+  guestId            String      @map("guest_id")
+  folioNumber        String      @unique @map("folio_number")
+  status             FolioStatus @default(OPEN)
+  totalRoomCharges   Decimal     @default(0) @map("total_room_charges") @db.Decimal(10, 2)
+  totalFbCharges     Decimal     @default(0) @map("total_fb_charges") @db.Decimal(10, 2)
+  totalAddonCharges  Decimal     @default(0) @map("total_addon_charges") @db.Decimal(10, 2)
+  totalTax           Decimal     @default(0) @map("total_tax") @db.Decimal(10, 2)
+  discountAmount     Decimal     @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  netPayable         Decimal     @default(0) @map("net_payable") @db.Decimal(10, 2)
+  totalPaid          Decimal     @default(0) @map("total_paid") @db.Decimal(10, 2)
+  balanceDue         Decimal     @default(0) @map("balance_due") @db.Decimal(10, 2)
+  settledAt          DateTime?   @map("settled_at")
+  settledByStaffId   String?     @map("settled_by")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  booking           Booking            @relation(fields: [bookingId], references: [id])
+  guest             Guest              @relation(fields: [guestId], references: [id])
+  settledBy         StaffUser?         @relation("FolioSettledBy", fields: [settledByStaffId], references: [id])
+  charges           FolioCharge[]
+  payments          FolioPayment[]
+  foodOrders        FoodOrder[]
+  transportRequests TransportRequest[]
+
+  @@map("guest_folios")
+}
+
+model FolioCharge {
+  id                   String         @id @default(uuid())
+  folioId              String         @map("folio_id")
+  category             ChargeCategory
+  chargeStatus         ChargeStatus   @default(PENDING) @map("charge_status")
+  title                String
+  amount               Decimal        @db.Decimal(10, 2)
+  sourceReferenceType  String?        @map("source_reference_type")
+  sourceReferenceId    String?        @map("source_reference_id")
+  notes                String?
+  postedByStaffId      String?        @map("posted_by")
+  postedAt             DateTime       @default(now()) @map("posted_at")
+
+  folio    GuestFolio @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  postedBy StaffUser? @relation("ChargePostedBy", fields: [postedByStaffId], references: [id])
+
+  @@map("folio_charges")
+}
+
+model FolioPayment {
+  id                   String        @id @default(uuid())
+  folioId              String        @map("folio_id")
+  amount               Decimal       @db.Decimal(10, 2)
+  paymentMethod        PaymentMethod @map("payment_method")
+  transactionReference String?       @map("transaction_reference")
+  collectedByStaffId   String        @map("collected_by")
+  receiptNotes         String?       @map("receipt_notes")
+  collectedAt          DateTime      @default(now()) @map("collected_at")
+
+  folio       GuestFolio @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  collectedBy StaffUser  @relation("PaymentCollectedBy", fields: [collectedByStaffId], references: [id])
+
+  @@map("folio_payments")
+}
+
+// -----------------------------------------------------------------------------
+// 6. IN-ROOM DIGITAL CONCIERGE: DINING & ORDERS
+// -----------------------------------------------------------------------------
+
+model MenuCategory {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  items     MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                  String   @id @default(uuid())
+  categoryId          String   @map("category_id")
+  name                String
+  description         String?
+  price               Decimal  @db.Decimal(10, 2)
+  itemType            String   @default("main") @map("item_type") // beverage, snack, main
+  isAvailable         Boolean  @default(true) @map("is_available")
+  isLateNightEligible Boolean  @default(false) @map("is_late_night_eligible")
+  prepTimeMinutes     Int      @default(20) @map("prep_time_minutes")
+  imageUrl            String?  @map("image_url")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  category   MenuCategory     @relation(fields: [categoryId], references: [id])
+  orderItems FoodOrderItem[]
+
+  @@map("menu_items")
+}
+
+enum FoodOrderStatus {
+  PENDING
+  ACCEPTED_KITCHEN
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model FoodOrder {
+  id                       String          @id @default(uuid())
+  orderNumber              String          @unique @map("order_number")
+  roomId                   String          @map("room_id")
+  bookingId                String          @map("booking_id")
+  folioId                  String          @map("folio_id")
+  status                   FoodOrderStatus @default(PENDING)
+  specialInstructions      String?         @map("special_cooking_instructions")
+  subtotal                 Decimal         @default(0) @db.Decimal(10, 2)
+  deliveryCharge           Decimal         @default(0) @map("delivery_charge") @db.Decimal(10, 2)
+  totalAmount              Decimal         @default(0) @map("total_amount") @db.Decimal(10, 2)
+  chargePostedToFolio      Boolean         @default(true) @map("charge_posted_to_folio")
+  whatsappNotificationSent Boolean         @default(false) @map("whatsapp_notification_sent")
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+
+  room       PhysicalRoom    @relation(fields: [roomId], references: [id])
+  booking    Booking         @relation(fields: [bookingId], references: [id])
+  folio      GuestFolio      @relation(fields: [folioId], references: [id])
+  orderItems FoodOrderItem[]
+
+  @@map("food_orders")
+}
+
+model FoodOrderItem {
+  id         String   @id @default(uuid())
+  orderId    String   @map("order_id")
+  menuItemId String   @map("menu_item_id")
+  itemName   String   @map("item_name")
+  unitPrice  Decimal  @map("unit_price") @db.Decimal(10, 2)
+  quantity   Int
+  lineTotal  Decimal  @map("line_total") @db.Decimal(10, 2)
+  itemNotes  String?  @map("item_notes")
+
+  order    FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem  @relation(fields: [menuItemId], references: [id])
+
+  @@map("food_order_items")
+}
+
+// -----------------------------------------------------------------------------
+// 7. IN-ROOM CONCIERGE: TRAVEL, TRANSFERS & DISPATCH
+// -----------------------------------------------------------------------------
+
+model TransferRoute {
+  id                     String          @id @default(uuid())
+  title                  String
+  origin                 String          @default("Homestay (Darjeeling)")
+  destination            String
+  priceWagonR            Decimal         @map("price_wagonr") @db.Decimal(10, 2)
+  priceSedan             Decimal         @map("price_sedan") @db.Decimal(10, 2)
+  priceSUV               Decimal         @map("price_suv") @db.Decimal(10, 2)
+  estimatedDurationHours Decimal?        @map("estimated_duration_hours") @db.Decimal(3, 1)
+  isActive               Boolean         @default(true) @map("is_active")
+  modifiers              RouteModifier[]
+  requests               TransportRequest[]
+
+  @@map("transfer_routes")
+}
+
+model RouteModifier {
+  id                 String        @id @default(uuid())
+  routeId            String        @map("route_id")
+  name               String
+  extraCharge        Decimal       @map("extra_charge") @db.Decimal(10, 2)
+  extraDurationHours Decimal       @default(2.0) @map("extra_duration_hours") @db.Decimal(3, 1)
+  route              TransferRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@map("route_modifiers")
+}
+
+model RentalVehicle {
+  id              String             @id @default(uuid())
+  vehicleName     String             @map("vehicle_name")
+  vehicleType     String             @map("vehicle_type") // scooty, bike, car
+  ratePerDay      Decimal            @map("rate_per_day") @db.Decimal(10, 2)
+  depositRequired Decimal            @default(1000) @map("deposit_required") @db.Decimal(10, 2)
+  isAvailable     Boolean            @default(true) @map("is_available")
+  requests        TransportRequest[]
+
+  @@map("rental_vehicles")
+}
+
+enum DispatchStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED_DISPATCHED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model TransportRequest {
+  id                    String         @id @default(uuid())
+  requestNumber         String         @unique @map("request_number")
+  roomId                String         @map("room_id")
+  bookingId             String         @map("booking_id")
+  folioId               String         @map("folio_id")
+  serviceType           String         @map("service_type") // point_to_point, vehicle_rental
+  routeId               String?        @map("route_id")
+  vehicleTier           String?        @map("vehicle_tier") // wagonr, sedan, suv
+  rentalVehicleId       String?        @map("rental_vehicle_id")
+  selectedModifiers     Json?          @default("[]") @map("selected_modifiers")
+  pickupDatetime        DateTime       @map("pickup_datetime")
+  returnDatetime        DateTime?      @map("return_datetime")
+  pickupLocation        String         @default("Homestay Main Gate") @map("pickup_location")
+  destinationNotes      String?        @map("destination_notes")
+  guestContactPhone     String         @map("guest_contact_phone")
+  quotedPrice           Decimal        @map("quoted_price") @db.Decimal(10, 2)
+  vendorCost            Decimal?       @default(0) @map("vendor_cost") @db.Decimal(10, 2)
+  homestayCommission    Decimal?       @map("homestay_commission") @db.Decimal(10, 2)
+  dispatchStatus        DispatchStatus @default(PENDING_CONFIRMATION) @map("dispatch_status")
+  assignedDriverName    String?        @map("assigned_driver_name")
+  assignedDriverPhone   String?        @map("assigned_driver_phone")
+  vehiclePlateNumber    String?        @map("vehicle_plate_number")
+  confirmedByStaffId    String?        @map("confirmed_by")
+  confirmedAt           DateTime?      @map("confirmed_at")
+  chargePostedToFolio   Boolean        @default(true) @map("charge_posted_to_folio")
+  createdAt             DateTime       @default(now()) @map("created_at")
+
+  room            PhysicalRoom   @relation(fields: [roomId], references: [id])
+  booking         Booking        @relation(fields: [bookingId], references: [id])
+  folio           GuestFolio     @relation(fields: [folioId], references: [id])
+  route           TransferRoute? @relation(fields: [routeId], references: [id])
+  rentalVehicle   RentalVehicle? @relation(fields: [rentalVehicleId], references: [id])
+  confirmedBy     StaffUser?     @relation("TransferConfirmedBy", fields: [confirmedByStaffId], references: [id])
+
+  @@map("transport_requests")
+}
+
+// -----------------------------------------------------------------------------
+// 8. OPERATIONS & HOUSEKEEPING
+// -----------------------------------------------------------------------------
+
+model HousekeepingTask {
+  id           String             @id @default(uuid())
+  roomId       String             @map("room_id")
+  scheduleDate DateTime           @default(now()) @map("schedule_date") @db.Date
+  taskType     HousekeepingStatus @default(LIGHT_REFRESH) @map("task_type")
+  status       String             @default("pending") // pending, in_progress, inspected, completed
+  assignedToId String?            @map("assigned_to")
+  priority     String             @default("normal") // low, normal, high, urgent
+  checklist    Json?              @default("{\"linens_changed\": false, \"toiletries_restocked\": false, \"fireplace_prepped\": false, \"balcony_cleaned\": false}")
+  notes        String?
+  completedAt  DateTime?          @map("completed_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  room       PhysicalRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  assignedTo StaffUser?   @relation("HousekeepingAssignedTo", fields: [assignedToId], references: [id])
+
+  @@map("housekeeping_tasks")
+}
+
+// -----------------------------------------------------------------------------
+// 9. FINANCIAL LEDGER & EXPENSES (ADMIN ONLY)
+// -----------------------------------------------------------------------------
+
+enum ExpenseMasterCategory {
+  GROCERIES
+  UTILITIES
+  HOUSEKEEPING
+  MAINTENANCE
+  STAFF_PAYROLL
+  MARKETING
+  TRANSPORT_VENDOR
+  MISCELLANEOUS
+}
+
+model Expense {
+  id             String                @id @default(uuid())
+  expenseDate    DateTime              @default(now()) @map("expense_date") @db.Date
+  amount         Decimal               @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod         @map("payment_method")
+  masterCategory ExpenseMasterCategory @map("master_category")
+  subTag         String                @map("sub_tag") // Produce, Dairy, Meat, LPG, Electricity, etc.
+  vendorPayee    String?               @map("vendor_payee")
+  description    String
+  billReceiptUrl String?               @map("bill_receipt_url")
+  loggedById     String                @map("logged_by")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  loggedBy StaffUser @relation("ExpenseLoggedBy", fields: [loggedById], references: [id])
+
+  @@map("expenses")
+}
+
+// -----------------------------------------------------------------------------
+// 10. AUDIT LOGS
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id         String     @id @default(uuid())
+  userId     String?    @map("user_id")
+  userRole   StaffRole? @map("user_role")
+  action     String
+  entityType String     @map("entity_type")
+  entityId   String?    @map("entity_id")
+  oldState   Json?      @map("old_state")
+  newState   Json?      @map("new_state")
+  ipAddress  String?    @map("ip_address")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  user StaffUser? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
