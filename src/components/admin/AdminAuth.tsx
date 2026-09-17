@@ -4,18 +4,13 @@ import { useState } from 'react';
 import {
   Lock,
   Trees,
-  ShieldCheck,
   Eye,
   EyeOff,
   ArrowRight,
-  UserCog,
-  ChefHat,
   Mail,
   KeyRound,
-  CheckCircle2,
   Users,
 } from 'lucide-react';
-import { StaffRole } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
 
 interface AdminAuthProps {
@@ -23,14 +18,14 @@ interface AdminAuthProps {
 }
 
 export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
-  const { setRole, authenticateStaff } = useCRM();
+  const { authenticateStaff } = useCRM();
 
   // Login mode: 'credentials' (Email & Password) or 'passcode' (Master Passcode)
   const [authMode, setAuthMode] = useState<'credentials' | 'passcode'>('credentials');
 
   // Credentials state
-  const [email, setEmail] = useState('admin@whisperingpines.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Passcode state
@@ -105,15 +100,6 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
     setEmail(targetEmail);
     setPassword(targetPass);
     setError(null);
-  };
-
-  // Fast RBAC switcher shortcut
-  const handleFastRoleEnter = (selectedRole: StaffRole, name: string) => {
-    setRole(selectedRole);
-    onAuthenticated(`mock-token-${selectedRole}`, {
-      name,
-      role: selectedRole,
-    });
   };
 
   return (
@@ -316,42 +302,11 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
             </form>
           )}
 
-          {/* Fast RBAC Switcher Buttons for instant preview */}
-          <div className="pt-2 border-t border-sand-200">
-            <span className="text-[11px] uppercase tracking-wider font-bold text-forest-700 block mb-2">
-              Instant Demo Access (Skip Login)
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleFastRoleEnter('admin', 'Tenzing (Owner & Admin)')}
-                className="min-h-[44px] p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-center transition-all flex flex-col items-center justify-center group"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-700 group-hover:scale-110 transition-transform" />
-                <span className="text-[11px] font-bold text-emerald-950 mt-1">Admin</span>
-                <span className="text-[9px] text-emerald-700">All Modules</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleFastRoleEnter('manager', 'Rinchen (Duty Manager)')}
-                className="min-h-[44px] p-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl text-center transition-all flex flex-col items-center justify-center group"
-              >
-                <UserCog className="w-4 h-4 text-amber-700 group-hover:scale-110 transition-transform" />
-                <span className="text-[11px] font-bold text-amber-950 mt-1">Manager</span>
-                <span className="text-[9px] text-amber-700">Ops & Dispatch</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleFastRoleEnter('kitchen_staff', 'Chef Sonam (Kitchen)')}
-                className="min-h-[44px] p-2 bg-orange-50 hover:bg-orange-100 border border-orange-300 rounded-xl text-center transition-all flex flex-col items-center justify-center group"
-              >
-                <ChefHat className="w-4 h-4 text-orange-700 group-hover:scale-110 transition-transform" />
-                <span className="text-[11px] font-bold text-orange-950 mt-1">Kitchen</span>
-                <span className="text-[9px] text-orange-700">Food Orders</span>
-              </button>
-            </div>
+          {/* Security Notice */}
+          <div className="pt-2 border-t border-sand-200 text-center">
+            <p className="text-[11px] text-forest-600">
+              Access restricted to authorized personnel. Session will persist until sign out.
+            </p>
           </div>
         </div>
       </div>

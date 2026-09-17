@@ -62,11 +62,11 @@ export default function AdminPage() {
     setCurrentUser,
   } = useCRM();
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true); // Authenticated by default for instant CRM access
-  const [authChecking, setAuthChecking] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false); // Strictly restricted by default
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
-    name: 'Tenzing (Estate Owner)',
-    role: 'admin',
+    name: '',
+    role: 'manager',
   });
 
   // Active navigation tab
@@ -99,19 +99,24 @@ export default function AdminPage() {
     }
   }, [role]);
 
-  // Check existing session token on mount
+  // Check existing session token on mount (Strict Verification)
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem('homestay_admin_token') || sessionStorage.getItem('homestay_admin_token');
-      if (storedToken) {
+      const storedUser = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
+      
+      if (storedToken && storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setAdminUser({
+          name: parsed.fullName || parsed.name || 'Staff User',
+          role: parsed.role || 'admin',
+        });
         setIsAuthenticated(true);
-        const storedUser = localStorage.getItem('homestay_admin_user');
-        if (storedUser) {
-          setAdminUser(JSON.parse(storedUser));
-        }
+      } else {
+        setIsAuthenticated(false);
       }
     } catch {
-      // ignore storage errors
+      setIsAuthenticated(false);
     } finally {
       setAuthChecking(false);
     }

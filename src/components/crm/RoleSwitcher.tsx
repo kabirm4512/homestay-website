@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, UserCog, ChefHat, Info, ChevronDown } from 'lucide-react';
+import { ShieldCheck, UserCog, ChefHat, Info, ChevronDown, Lock } from 'lucide-react';
 import { StaffRole } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
 
 export default function RoleSwitcher() {
-  const { role, setRole } = useCRM();
+  const { role, setRole, currentUser, showToast } = useCRM();
   const [isOpen, setIsOpen] = useState(false);
+
+  const isUserAdmin = !currentUser || currentUser.role === 'admin';
 
   const rolesConfig: Record<
     StaffRole,
@@ -72,7 +74,7 @@ export default function RoleSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`min-h-[44px] flex items-center space-x-2.5 px-3.5 py-1.5 rounded-xl border text-xs font-semibold shadow-sm transition-all hover:brightness-110 active:scale-95 ${current.badgeColor}`}
-        title="Click to switch staff role"
+        title="Click to view staff role and permissions"
       >
         <CurrentIcon className="w-4 h-4 shrink-0" />
         <div className="text-left hidden sm:block">
@@ -93,10 +95,10 @@ export default function RoleSwitcher() {
           <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-forest-900 border border-forest-700/80 shadow-2xl text-sand-100 p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="px-3 py-2 border-b border-forest-800 flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-sand-300">
-                Fast Role Switcher (RBAC)
+                Staff Role Permissions
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-forest-800 text-sand-200">
-                Instant Toggle
+                {isUserAdmin ? 'Admin Switcher' : 'Role Locked'}
               </span>
             </div>
 
@@ -105,17 +107,25 @@ export default function RoleSwitcher() {
                 const item = rolesConfig[rKey];
                 const Icon = item.icon;
                 const isSelected = role === rKey;
+                const isLocked = !isUserAdmin && rKey !== currentUser?.role;
 
                 return (
                   <button
                     key={rKey}
+                    disabled={isLocked}
                     onClick={() => {
+                      if (isLocked) {
+                        showToast(`Access Restricted: Signed in as ${currentUser?.fullName}. To access Admin, please log in with an Administrator account.`, 'error');
+                        return;
+                      }
                       setRole(rKey);
                       setIsOpen(false);
                     }}
                     className={`w-full min-h-[44px] p-2.5 rounded-xl text-left transition-all flex items-start space-x-3 ${
                       isSelected
                         ? 'bg-forest-800/90 border border-amber-500/40 text-white shadow-inner'
+                        : isLocked
+                        ? 'opacity-40 cursor-not-allowed bg-forest-950/40 text-sand-400'
                         : 'hover:bg-forest-800/40 text-sand-200 border border-transparent'
                     }`}
                   >
@@ -124,8 +134,9 @@ export default function RoleSwitcher() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white">
-                          {item.label}
+                        <span className="text-xs font-bold text-white flex items-center space-x-1.5">
+                          <span>{item.label}</span>
+                          {isLocked && <Lock className="w-3 h-3 text-rose-400" />}
                         </span>
                         {isSelected && (
                           <span className="text-[10px] text-amber-300 font-extrabold uppercase">
@@ -134,7 +145,7 @@ export default function RoleSwitcher() {
                         )}
                       </div>
                       <p className="text-[11px] text-sand-300/80 line-clamp-2 mt-0.5">
-                        {item.summary}
+                        {isLocked ? 'Restricted to Administrator accounts.' : item.summary}
                       </p>
                     </div>
                   </button>
