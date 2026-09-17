@@ -11,6 +11,7 @@ import Footer from '@/components/Footer';
 import FloatingCTA from '@/components/FloatingCTA';
 import InquiryModal from '@/components/InquiryModal';
 import BookingModal from '@/components/BookingModal';
+import AvailabilityModal from '@/components/AvailabilityModal';
 
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 import {
@@ -36,6 +37,13 @@ export default function HomePage() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [selectedBookingRoom, setSelectedBookingRoom] = useState<Room | null>(null);
   const [bookingDates, setBookingDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
+
+  const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
+  const [availabilityDates, setAvailabilityDates] = useState<{
+    checkIn?: string;
+    checkOut?: string;
+    roomsCount?: number;
+  }>({});
 
   // Fetch live CMS data and rooms on mount
   useEffect(() => {
@@ -84,6 +92,13 @@ export default function HomePage() {
     setBookingModalOpen(true);
   };
 
+  const handleOpenAvailability = (dates?: { checkIn?: string; checkOut?: string; roomsCount?: number }) => {
+    if (dates) {
+      setAvailabilityDates(dates);
+    }
+    setAvailabilityModalOpen(true);
+  };
+
   return (
     <main className="relative min-h-screen bg-[#faf8f5] text-forest-950 pb-20 sm:pb-16">
       {/* 1. Sticky Navigation */}
@@ -91,6 +106,7 @@ export default function HomePage() {
         homestayName={siteInfo.name}
         phone={siteInfo.phone}
         onOpenInquiry={() => handleOpenGeneralInquiry()}
+        onCheckAvailability={() => handleOpenAvailability()}
       />
 
       {/* 2. Hero Carousel */}
@@ -99,6 +115,7 @@ export default function HomePage() {
         rooms={rooms}
         onOpenInquiry={handleOpenGeneralInquiry}
         onBookRoom={handleBookRoom}
+        onCheckAvailability={handleOpenAvailability}
       />
 
       {/* 3. About Section */}
@@ -145,6 +162,18 @@ export default function HomePage() {
         room={selectedBookingRoom}
         initialDates={bookingDates}
         whatsappNumber={siteInfo.whatsapp}
+      />
+
+      {/* 11. Live Room Inventory & Availability Modal */}
+      <AvailabilityModal
+        isOpen={availabilityModalOpen}
+        onClose={() => setAvailabilityModalOpen(false)}
+        rooms={rooms}
+        initialCheckIn={availabilityDates.checkIn}
+        initialCheckOut={availabilityDates.checkOut}
+        initialRoomsCount={availabilityDates.roomsCount}
+        onBookRoom={handleBookRoom}
+        onOpenInquiry={handleOpenGeneralInquiry}
       />
     </main>
   );

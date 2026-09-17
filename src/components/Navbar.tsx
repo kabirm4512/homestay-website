@@ -8,12 +8,14 @@ interface NavbarProps {
   homestayName?: string;
   phone?: string;
   onOpenInquiry: () => void;
+  onCheckAvailability?: () => void;
 }
 
 export default function Navbar({
   homestayName = 'Whispering Pines Sanctuary',
   phone = '+91 98765 43210',
   onOpenInquiry,
+  onCheckAvailability,
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -126,8 +128,8 @@ export default function Navbar({
             <span>{phone}</span>
           </a>
           <button
-            onClick={onOpenInquiry}
-            className="flex items-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            onClick={onCheckAvailability || onOpenInquiry}
+            className="flex items-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
             <Calendar className="w-4 h-4 text-sand-300" />
             <span>Book Your Stay</span>
@@ -137,8 +139,8 @@ export default function Navbar({
         {/* Mobile menu trigger */}
         <div className="flex md:hidden items-center space-x-2">
           <button
-            onClick={onOpenInquiry}
-            className="text-xs bg-forest-800 text-white font-medium px-3 py-1.5 rounded-lg"
+            onClick={onCheckAvailability || onOpenInquiry}
+            className="text-xs bg-forest-800 hover:bg-forest-900 text-white font-semibold px-3 py-1.5 rounded-lg cursor-pointer"
           >
             Book
           </button>
@@ -199,12 +201,12 @@ export default function Navbar({
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
-                onOpenInquiry();
+                (onCheckAvailability || onOpenInquiry)();
               }}
-              className="w-full bg-forest-800 text-white py-3 rounded-xl font-semibold text-center flex items-center justify-center space-x-2"
+              className="w-full bg-forest-800 hover:bg-forest-900 text-white py-3 rounded-xl font-semibold text-center flex items-center justify-center space-x-2 cursor-pointer shadow-md"
             >
               <Calendar className="w-4 h-4 text-sand-300" />
-              <span>Inquire & Reserve Room</span>
+              <span>Check Availability & Book</span>
             </button>
             <a
               href={`tel:${phone.replace(/\s+/g, '')}`}
