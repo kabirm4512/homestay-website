@@ -32,6 +32,35 @@ export default function BookingModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingRef, setBookingRef] = useState('');
 
+  const getTodayStr = () => {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+  };
+
+  const getTomorrowStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const getNextDayStr = (dateStr: string) => {
+    if (!dateStr) return getTomorrowStr();
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    } catch {
+      return getTomorrowStr();
+    }
+  };
+
+  const handleCheckInChange = (newCheckIn: string) => {
+    setCheckIn(newCheckIn);
+    if (!checkOut || checkOut <= newCheckIn) {
+      setCheckOut(getNextDayStr(newCheckIn));
+    }
+  };
+
   // Sync initial dates when modal is triggered
   useEffect(() => {
     if (isOpen && initialDates) {
@@ -200,8 +229,9 @@ export default function BookingModal({
                     type="date"
                     required
                     value={checkIn}
-                    onChange={(e) => setCheckIn(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
+                    min={getTodayStr()}
+                    onChange={(e) => handleCheckInChange(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
                   />
                 </div>
                 <div>
@@ -213,8 +243,9 @@ export default function BookingModal({
                     type="date"
                     required
                     value={checkOut}
+                    min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
                     onChange={(e) => setCheckOut(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"
+                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
                   />
                 </div>
               </div>

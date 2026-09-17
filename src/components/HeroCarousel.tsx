@@ -58,6 +58,17 @@ export default function HeroCarousel({
     return d.toISOString().split('T')[0];
   };
 
+  const getNextDayStr = (dateStr: string) => {
+    if (!dateStr) return getTomorrowStr();
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    } catch {
+      return getTomorrowStr();
+    }
+  };
+
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
     try {
@@ -106,9 +117,7 @@ export default function HeroCarousel({
   const handleCheckInChange = (newCheckIn: string) => {
     setCheckIn(newCheckIn);
     if (!checkOut || checkOut <= newCheckIn) {
-      const d = new Date(newCheckIn);
-      d.setDate(d.getDate() + 1);
-      setCheckOut(d.toISOString().split('T')[0]);
+      setCheckOut(getNextDayStr(newCheckIn));
     }
   };
 
@@ -334,7 +343,7 @@ export default function HeroCarousel({
                 type="date"
                 required
                 value={checkOut}
-                min={checkIn || getTodayStr()}
+                min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
                 onChange={(e) => setCheckOut(e.target.value)}
                 className="w-full block min-w-full bg-transparent text-sm sm:text-base font-semibold text-forest-950 focus:outline-none cursor-pointer"
               />
@@ -508,9 +517,7 @@ export default function HeroCarousel({
                     const newIn = e.target.value;
                     let newOut = checkOut;
                     if (newOut <= newIn) {
-                      const d = new Date(newIn);
-                      d.setDate(d.getDate() + 1);
-                      newOut = d.toISOString().split('T')[0];
+                      newOut = getNextDayStr(newIn);
                     }
                     handleModalDateChange(newIn, newOut);
                   }}
@@ -520,7 +527,7 @@ export default function HeroCarousel({
                 <input
                   type="date"
                   value={checkOut}
-                  min={checkIn}
+                  min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
                   onChange={(e) => handleModalDateChange(checkIn, e.target.value)}
                   className="bg-white border border-sand-300 rounded-lg px-2 py-1 text-xs text-forest-900 focus:outline-none"
                 />
