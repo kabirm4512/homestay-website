@@ -43,7 +43,10 @@ export default function HomePage() {
     checkIn?: string;
     checkOut?: string;
     roomsCount?: number;
-  }>({});
+    initialStep?: 'form' | 'results';
+  }>({
+    initialStep: 'form',
+  });
 
   // Fetch live CMS data and rooms on mount
   useEffect(() => {
@@ -92,10 +95,18 @@ export default function HomePage() {
     setBookingModalOpen(true);
   };
 
-  const handleOpenAvailability = (dates?: { checkIn?: string; checkOut?: string; roomsCount?: number }) => {
-    if (dates) {
-      setAvailabilityDates(dates);
-    }
+  const handleOpenAvailability = (params?: {
+    checkIn?: string;
+    checkOut?: string;
+    roomsCount?: number;
+    step?: 'form' | 'results';
+  }) => {
+    setAvailabilityDates({
+      checkIn: params?.checkIn,
+      checkOut: params?.checkOut,
+      roomsCount: params?.roomsCount,
+      initialStep: params?.step || (params?.checkIn ? 'results' : 'form'),
+    });
     setAvailabilityModalOpen(true);
   };
 
@@ -106,7 +117,7 @@ export default function HomePage() {
         homestayName={siteInfo.name}
         phone={siteInfo.phone}
         onOpenInquiry={() => handleOpenGeneralInquiry()}
-        onCheckAvailability={() => handleOpenAvailability()}
+        onCheckAvailability={() => handleOpenAvailability({ step: 'form' })}
       />
 
       {/* 2. Hero Carousel */}
@@ -115,7 +126,14 @@ export default function HomePage() {
         rooms={rooms}
         onOpenInquiry={handleOpenGeneralInquiry}
         onBookRoom={handleBookRoom}
-        onCheckAvailability={handleOpenAvailability}
+        onCheckAvailability={(dates) =>
+          handleOpenAvailability({
+            checkIn: dates.checkIn,
+            checkOut: dates.checkOut,
+            roomsCount: dates.roomsCount,
+            step: 'results',
+          })
+        }
       />
 
       {/* 3. About Section */}
@@ -172,6 +190,7 @@ export default function HomePage() {
         initialCheckIn={availabilityDates.checkIn}
         initialCheckOut={availabilityDates.checkOut}
         initialRoomsCount={availabilityDates.roomsCount}
+        initialStep={availabilityDates.initialStep}
         onBookRoom={handleBookRoom}
         onOpenInquiry={handleOpenGeneralInquiry}
       />
