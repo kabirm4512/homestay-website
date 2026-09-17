@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Room } from '@/types';
 import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard } from 'lucide-react';
 
@@ -8,6 +8,7 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   room: Room | null;
+  initialDates?: { checkIn?: string; checkOut?: string } | null;
   whatsappNumber?: string;
 }
 
@@ -15,6 +16,7 @@ export default function BookingModal({
   isOpen,
   onClose,
   room,
+  initialDates = null,
   whatsappNumber = '919876543210',
 }: BookingModalProps) {
   const [guestName, setGuestName] = useState('');
@@ -29,6 +31,14 @@ export default function BookingModal({
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingRef, setBookingRef] = useState('');
+
+  // Sync initial dates when modal is triggered
+  useEffect(() => {
+    if (isOpen && initialDates) {
+      if (initialDates.checkIn) setCheckIn(initialDates.checkIn);
+      if (initialDates.checkOut) setCheckOut(initialDates.checkOut);
+    }
+  }, [isOpen, initialDates]);
 
   if (!isOpen || !room) return null;
 

@@ -35,6 +35,7 @@ export default function HomePage() {
 
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [selectedBookingRoom, setSelectedBookingRoom] = useState<Room | null>(null);
+  const [bookingDates, setBookingDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
 
   // Fetch live CMS data and rooms on mount
   useEffect(() => {
@@ -75,8 +76,11 @@ export default function HomePage() {
     setInquiryModalOpen(true);
   };
 
-  const handleBookRoom = (room: Room) => {
+  const handleBookRoom = (room: Room, dates?: { checkIn: string; checkOut: string }) => {
     setSelectedBookingRoom(room);
+    if (dates) {
+      setBookingDates(dates);
+    }
     setBookingModalOpen(true);
   };
 
@@ -92,7 +96,9 @@ export default function HomePage() {
       {/* 2. Hero Carousel */}
       <HeroCarousel
         slides={heroSlides}
+        rooms={rooms}
         onOpenInquiry={handleOpenGeneralInquiry}
+        onBookRoom={handleBookRoom}
       />
 
       {/* 3. About Section */}
@@ -137,6 +143,7 @@ export default function HomePage() {
         isOpen={bookingModalOpen}
         onClose={() => setBookingModalOpen(false)}
         room={selectedBookingRoom}
+        initialDates={bookingDates}
         whatsappNumber={siteInfo.whatsapp}
       />
     </main>
