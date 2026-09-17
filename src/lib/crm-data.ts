@@ -11,6 +11,8 @@ import {
   HousekeepingTask,
   Expense,
   StaffAccount,
+  SeasonalDateRange,
+  RoomSeasonalTariffs,
 } from '@/types/crm';
 
 export const INITIAL_ROOM_CATEGORIES: RoomCategory[] = [
@@ -1133,4 +1135,97 @@ export const INITIAL_STAFF_ACCOUNTS: StaffAccount[] = [
     createdAt: '2026-02-01T00:00:00Z',
   },
 ];
+
+export const INITIAL_SEASONAL_DATE_RANGES: SeasonalDateRange[] = [
+  {
+    id: 'season-1',
+    name: 'Summer Peak Holidays 2026',
+    seasonType: 'season',
+    startDate: '2026-05-01',
+    endDate: '2026-06-30',
+    description: 'High summer demand, warm mountain days and crisp evenings.',
+  },
+  {
+    id: 'season-2',
+    name: 'Autumn & Durga Puja / Diwali Peak',
+    seasonType: 'season',
+    startDate: '2026-10-01',
+    endDate: '2026-11-15',
+    description: 'Festive mountain holiday season with crystal clear Himalayan views.',
+  },
+  {
+    id: 'season-3',
+    name: 'Christmas & New Year Gala Peak',
+    seasonType: 'season',
+    startDate: '2026-12-20',
+    endDate: '2027-01-05',
+    description: 'Winter festive peak with live bonfires and celebration dinners.',
+  },
+  {
+    id: 'season-4',
+    name: 'Monsoon Green Season (Off-Season)',
+    seasonType: 'off_season',
+    startDate: '2026-07-15',
+    endDate: '2026-08-31',
+    description: 'Lush greenery, misty mountain waterfalls with relaxing discounted tariffs.',
+  },
+  {
+    id: 'season-5',
+    name: 'Post-Winter Lean Period (Off-Season)',
+    seasonType: 'off_season',
+    startDate: '2026-01-15',
+    endDate: '2026-02-28',
+    description: 'Quiet workation and budget solitude retreat months.',
+  },
+];
+
+export const INITIAL_ROOM_SEASONAL_TARIFFS: Record<string, RoomSeasonalTariffs> = {
+  // Master Forest Suites (Rooms 1 & 2)
+  'room-1': {
+    regular: { EP: 5000, CP: 5600, MAP: 6600, AP: 7600 },
+    season: { EP: 7000, CP: 7800, MAP: 9000, AP: 10200 },
+    offSeason: { EP: 4000, CP: 4500, MAP: 5400, AP: 6200 },
+    weekendSurchargePercent: 10,
+  },
+  'room-2': {
+    regular: { EP: 5000, CP: 5600, MAP: 6600, AP: 7600 },
+    season: { EP: 7000, CP: 7800, MAP: 9000, AP: 10200 },
+    offSeason: { EP: 4000, CP: 4500, MAP: 5400, AP: 6200 },
+    weekendSurchargePercent: 10,
+  },
+
+  // Heritage Stone Cottages (Rooms 3 & 4)
+  'room-3': {
+    regular: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
+    season: { EP: 8500, CP: 9500, MAP: 11000, AP: 12500 },
+    offSeason: { EP: 4800, CP: 5500, MAP: 6500, AP: 7500 },
+    weekendSurchargePercent: 12,
+  },
+  'room-4': {
+    regular: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
+    season: { EP: 8500, CP: 9500, MAP: 11000, AP: 12500 },
+    offSeason: { EP: 4800, CP: 5500, MAP: 6500, AP: 7500 },
+    weekendSurchargePercent: 12,
+  },
+
+  // Pine View Deluxe Rooms (Rooms 5, 6 & 7)
+  'room-5': {
+    regular: { EP: 3800, CP: 4300, MAP: 5100, AP: 5900 },
+    season: { EP: 5200, CP: 5800, MAP: 6800, AP: 7800 },
+    offSeason: { EP: 3000, CP: 3400, MAP: 4100, AP: 4800 },
+    weekendSurchargePercent: 10,
+  },
+  'room-6': {
+    regular: { EP: 3800, CP: 4300, MAP: 5100, AP: 5900 },
+    season: { EP: 5200, CP: 5800, MAP: 6800, AP: 7800 },
+    offSeason: { EP: 3000, CP: 3400, MAP: 4100, AP: 4800 },
+    weekendSurchargePercent: 10,
+  },
+  'room-7': {
+    regular: { EP: 3800, CP: 4300, MAP: 5100, AP: 5900 },
+    season: { EP: 5200, CP: 5800, MAP: 6800, AP: 7800 },
+    offSeason: { EP: 3000, CP: 3400, MAP: 4100, AP: 4800 },
+    weekendSurchargePercent: 10,
+  },
+};
 

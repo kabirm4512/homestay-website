@@ -3,7 +3,8 @@ import {
   getCMSContent,
   updateHeroSlides,
   updateAboutSection,
-  updateSiteInfo
+  updateSiteInfo,
+  updateReviews
 } from '@/lib/data-service';
 
 export async function GET() {
@@ -26,6 +27,8 @@ export async function POST(request: Request) {
       await updateAboutSection(payload);
     } else if (type === 'site_info') {
       await updateSiteInfo(payload);
+    } else if (type === 'reviews') {
+      await updateReviews(payload);
     } else {
       return NextResponse.json({ success: false, error: 'Invalid CMS section type' }, { status: 400 });
     }

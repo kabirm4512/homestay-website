@@ -146,6 +146,7 @@ export async function getCMSContent(): Promise<{
   heroSlides: HeroSlide[];
   aboutData: AboutSectionData;
   siteInfo: SiteInfo;
+  reviews: Review[];
 }> {
   if (isSupabaseConfigured()) {
     try {
@@ -154,10 +155,12 @@ export async function getCMSContent(): Promise<{
         const hero = data.find(d => d.id === 'hero_carousel')?.data;
         const about = data.find(d => d.id === 'about_section')?.data;
         const site = data.find(d => d.id === 'site_info')?.data;
+        const revs = data.find(d => d.id === 'reviews')?.data?.reviews;
         return {
           heroSlides: hero?.slides || getStorageItem('homestay_hero_slides', localHeroSlides),
           aboutData: about || getStorageItem('homestay_about_data', localAboutData),
           siteInfo: site || getStorageItem('homestay_site_info', localSiteInfo),
+          reviews: revs || getStorageItem('homestay_reviews', localReviews),
         };
       }
     } catch (err) {
@@ -169,6 +172,7 @@ export async function getCMSContent(): Promise<{
     heroSlides: getStorageItem('homestay_hero_slides', localHeroSlides),
     aboutData: getStorageItem('homestay_about_data', localAboutData),
     siteInfo: getStorageItem('homestay_site_info', localSiteInfo),
+    reviews: getStorageItem('homestay_reviews', localReviews),
   };
 }
 
@@ -220,6 +224,23 @@ export async function updateSiteInfo(siteInfo: SiteInfo): Promise<boolean> {
   }
   localSiteInfo = siteInfo;
   setStorageItem('homestay_site_info', siteInfo);
+  return true;
+}
+
+export async function updateReviews(reviews: Review[]): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from('cms_content').upsert({
+        id: 'reviews',
+        data: { reviews },
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn('Supabase updateReviews fallback:', err);
+    }
+  }
+  localReviews = reviews;
+  setStorageItem('homestay_reviews', reviews);
   return true;
 }
 

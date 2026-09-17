@@ -53,6 +53,7 @@ export default function HomePage() {
           if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
           if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
           if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+          if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
         }
       } catch (err) {
         console.warn('Using local pre-seeded homestay content:', err);

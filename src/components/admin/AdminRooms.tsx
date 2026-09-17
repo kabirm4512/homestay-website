@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
+import { useCRM } from '@/context/CRMContext';
+import { SeasonalDateRange, RoomSeasonalTariffs, MealPlan } from '@/types/crm';
 import {
   Plus,
   Search,
@@ -15,8 +17,21 @@ import {
   Image as ImageIcon,
   AlertTriangle,
   Eye,
-  EyeOff
+  EyeOff,
+  Calendar,
+  Layers,
+  Utensils,
+  Calculator,
+  Sliders,
+  CalendarRange,
+  ArrowRight,
+  Info,
+  CheckCircle2,
+  Sparkles,
+  Percent,
+  Save,
 } from 'lucide-react';
+import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
 
 interface AdminRoomsProps {
   rooms: Room[];
@@ -51,16 +66,28 @@ export default function AdminRooms({
   isAddModalOpen = false,
   onCloseAddModal,
 }: AdminRoomsProps) {
+  const {
+    seasonalDateRanges,
+    roomTariffs,
+    addSeasonalRange,
+    updateSeasonalRange,
+    deleteSeasonalRange,
+    updateRoomTariffs,
+    calculateDynamicTariff,
+  } = useCRM();
+
+  const [activeSubTab, setActiveSubTab] = useState<'inventory' | 'seasons' | 'tariffs' | 'simulator'>('inventory');
+
+  // ==========================================
+  // 1. ROOM INVENTORY & DETAILS STATES
+  // ==========================================
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(isAddModalOpen);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [deleteConfirmRoom, setDeleteConfirmRoom] = useState<Room | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form states
   const [formData, setFormData] = useState<Partial<Room>>({
     name: '',
     slug: '',
@@ -81,6 +108,63 @@ export default function AdminRooms({
   });
   const [imageInput, setImageInput] = useState('');
   const [customAmenityInput, setCustomAmenityInput] = useState('');
+
+  // ==========================================
+  // 2. SEASONAL DATE RANGES STATES
+  // ==========================================
+  const [isSeasonModalOpen, setIsSeasonModalOpen] = useState(false);
+  const [editingSeason, setEditingSeason] = useState<SeasonalDateRange | null>(null);
+  const [seasonForm, setSeasonForm] = useState<Partial<SeasonalDateRange>>({
+    name: '',
+    seasonType: 'season',
+    startDate: '',
+    endDate: '',
+    description: '',
+  });
+
+  // ==========================================
+  // 3. TARIFFS & MEAL PLANS STATES
+  // ==========================================
+  const [selectedTariffRoomId, setSelectedTariffRoomId] = useState<string>(
+    rooms.length > 0 ? rooms[0].id : 'room-1'
+  );
+  const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(
+    roomTariffs[selectedTariffRoomId] ||
+      INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
+        regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
+        season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
+        offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
+        weekendSurchargePercent: 10,
+      }
+  );
+
+  useEffect(() => {
+    if (selectedTariffRoomId) {
+      const found =
+        roomTariffs[selectedTariffRoomId] ||
+        INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
+          regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
+          season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
+          offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
+          weekendSurchargePercent: 10,
+        };
+      setCurrentTariffs(found);
+    }
+  }, [selectedTariffRoomId, roomTariffs]);
+
+  // ==========================================
+  // 4. RATE SIMULATOR STATES
+  // ==========================================
+  const [simRoomId, setSimRoomId] = useState<string>(rooms.length > 0 ? rooms[0].id : 'room-1');
+  const [simCheckIn, setSimCheckIn] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [simCheckOut, setSimCheckOut] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  });
+  const [simMealPlan, setSimMealPlan] = useState<MealPlan>('CP');
 
   // Handle opening Add modal
   const handleOpenAdd = () => {
@@ -113,7 +197,6 @@ export default function AdminRooms({
     }
   }, [isAddModalOpen]);
 
-  // Handle opening Edit modal
   const handleOpenEdit = (room: Room) => {
     setEditingRoom(room);
     setFormData({
@@ -131,7 +214,6 @@ export default function AdminRooms({
     if (onCloseAddModal) onCloseAddModal();
   };
 
-  // Save Room via API
   const handleSaveRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim() || !formData.price_per_night) {
@@ -175,7 +257,6 @@ export default function AdminRooms({
     }
   };
 
-  // Quick Toggle Active Status
   const handleToggleActive = async (room: Room) => {
     try {
       const res = await fetch('/api/rooms', {
@@ -195,7 +276,6 @@ export default function AdminRooms({
     }
   };
 
-  // Quick Adjust Available Inventory
   const handleAdjustInventory = async (room: Room, delta: number) => {
     const nextVal = Math.max(0, Math.min(room.total_inventory, (room.available_inventory || 0) + delta));
     if (nextVal === room.available_inventory) return;
@@ -218,7 +298,6 @@ export default function AdminRooms({
     }
   };
 
-  // Delete Room via API
   const handleDeleteRoom = async () => {
     if (!deleteConfirmRoom) return;
     setSubmitting(true);
@@ -241,7 +320,6 @@ export default function AdminRooms({
     }
   };
 
-  // Filtered rooms
   const filteredRooms = rooms.filter((r) => {
     const matchesSearch =
       r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -255,7 +333,6 @@ export default function AdminRooms({
     return matchesSearch && matchesStatus;
   });
 
-  // Amenity tag toggle
   const toggleAmenity = (amenity: string) => {
     const current = formData.amenities || [];
     if (current.includes(amenity)) {
@@ -274,7 +351,6 @@ export default function AdminRooms({
     setCustomAmenityInput('');
   };
 
-  // Image handlers
   const handleAddImage = () => {
     if (!imageInput.trim()) return;
     const current = formData.images || [];
@@ -287,242 +363,916 @@ export default function AdminRooms({
     setFormData({ ...formData, images: current.filter((_, i) => i !== index) });
   };
 
+  // ==========================================
+  // SEASONAL DATE RANGES HANDLERS
+  // ==========================================
+  const handleOpenAddSeason = () => {
+    setEditingSeason(null);
+    setSeasonForm({
+      name: '',
+      seasonType: 'season',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      description: '',
+    });
+    setIsSeasonModalOpen(true);
+  };
+
+  const handleOpenEditSeason = (range: SeasonalDateRange) => {
+    setEditingSeason(range);
+    setSeasonForm({ ...range });
+    setIsSeasonModalOpen(true);
+  };
+
+  const handleSaveSeasonRange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!seasonForm.name?.trim() || !seasonForm.startDate || !seasonForm.endDate) {
+      showToast('Name, start date, and end date are required', 'error');
+      return;
+    }
+
+    if (seasonForm.startDate > seasonForm.endDate) {
+      showToast('Start date cannot be after end date', 'error');
+      return;
+    }
+
+    if (editingSeason) {
+      updateSeasonalRange(editingSeason.id, {
+        name: seasonForm.name.trim(),
+        seasonType: seasonForm.seasonType || 'season',
+        startDate: seasonForm.startDate,
+        endDate: seasonForm.endDate,
+        description: seasonForm.description?.trim() || '',
+      });
+      showToast(`Updated season period: ${seasonForm.name}`);
+    } else {
+      addSeasonalRange({
+        name: seasonForm.name.trim(),
+        seasonType: seasonForm.seasonType || 'season',
+        startDate: seasonForm.startDate,
+        endDate: seasonForm.endDate,
+        description: seasonForm.description?.trim() || '',
+      });
+      showToast(`Added seasonal date range: ${seasonForm.name}`);
+    }
+    setIsSeasonModalOpen(false);
+  };
+
+  // ==========================================
+  // TARIFF MATRIX SAVE HANDLER
+  // ==========================================
+  const handleSaveTariffMatrix = () => {
+    if (!selectedTariffRoomId) return;
+    updateRoomTariffs(selectedTariffRoomId, currentTariffs);
+    showToast('Updated seasonal and meal plan tariffs for this room!');
+  };
+
+  const handleTariffRateChange = (
+    tier: 'regular' | 'season' | 'offSeason',
+    plan: 'EP' | 'CP' | 'MAP' | 'AP',
+    value: number
+  ) => {
+    setCurrentTariffs((prev) => ({
+      ...prev,
+      [tier]: {
+        ...prev[tier],
+        [plan]: Number(value) || 0,
+      },
+    }));
+  };
+
+  // Live simulation calculation
+  const simResult = calculateDynamicTariff(simRoomId, simCheckIn, simCheckOut, simMealPlan);
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Top Header & Search/Filter Controls */}
-      <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        <div className="flex-1 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search rooms by name or type..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-sand-50/60 border border-sand-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white text-forest-950"
-            />
-          </div>
-
-          <div className="flex items-center space-x-1.5 bg-sand-100 p-1 rounded-xl text-xs">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-white text-forest-900 shadow-sm'
-                  : 'text-gray-600 hover:text-forest-900'
-              }`}
-            >
-              All ({rooms.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                statusFilter === 'active'
-                  ? 'bg-white text-forest-900 shadow-sm'
-                  : 'text-gray-600 hover:text-forest-900'
-              }`}
-            >
-              Active ({rooms.filter((r) => r.is_active).length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('inactive')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                statusFilter === 'inactive'
-                  ? 'bg-white text-forest-900 shadow-sm'
-                  : 'text-gray-600 hover:text-forest-900'
-              }`}
-            >
-              Inactive ({rooms.filter((r) => !r.is_active).length})
-            </button>
-          </div>
+      {/* Sub-tab Navigation */}
+      <div className="bg-white p-4 rounded-2xl border border-sand-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-1 sm:space-x-2 bg-sand-100 p-1 rounded-xl text-xs sm:text-sm overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setActiveSubTab('inventory')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'inventory'
+                ? 'bg-white text-forest-900 shadow-sm'
+                : 'text-gray-600 hover:text-forest-900'
+            }`}
+          >
+            <Bed className="w-4 h-4 text-forest-600" />
+            <span>Room Inventory ({rooms.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('seasons')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'seasons'
+                ? 'bg-white text-forest-900 shadow-sm'
+                : 'text-gray-600 hover:text-forest-900'
+            }`}
+          >
+            <CalendarRange className="w-4 h-4 text-amber-500" />
+            <span>Seasonal Date Ranges ({seasonalDateRanges.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('tariffs')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'tariffs'
+                ? 'bg-white text-forest-900 shadow-sm'
+                : 'text-gray-600 hover:text-forest-900'
+            }`}
+          >
+            <Utensils className="w-4 h-4 text-forest-600" />
+            <span>Tariffs & Meal Plans (EP/CP/MAP/AP)</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('simulator')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
+              activeSubTab === 'simulator'
+                ? 'bg-white text-forest-900 shadow-sm'
+                : 'text-gray-600 hover:text-forest-900'
+            }`}
+          >
+            <Calculator className="w-4 h-4 text-emerald-600" />
+            <span>Rate Simulator</span>
+          </button>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center justify-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 shrink-0"
-        >
-          <Plus className="w-4 h-4 text-sand-300" />
-          <span>Add New Room</span>
-        </button>
+        {activeSubTab === 'tariffs' && (
+          <button
+            onClick={handleSaveTariffMatrix}
+            className="flex items-center space-x-1.5 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm"
+          >
+            <Save className="w-4 h-4 text-sand-300" />
+            <span>Save Tariffs Matrix</span>
+          </button>
+        )}
       </div>
 
-      {/* Rooms Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredRooms.map((room) => {
-          const primaryImage =
-            room.images && room.images.length > 0
-              ? room.images[0]
-              : 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
-
-          return (
-            <div
-              key={room.id}
-              className={`bg-white rounded-2xl border transition-all shadow-sm overflow-hidden flex flex-col ${
-                room.is_active ? 'border-sand-200' : 'border-gray-300 opacity-75'
-              }`}
-            >
-              {/* Room Image & Badges */}
-              <div className="relative h-48 bg-sand-200 overflow-hidden group">
-                <img
-                  src={primaryImage}
-                  alt={room.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      {/* ========================================================================= */}
+      {/* 1. ROOM INVENTORY & DETAILS SUB-TAB */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'inventory' && (
+        <div className="space-y-6">
+          {/* Search/Filter Controls */}
+          <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            <div className="flex-1 flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search rooms by name or type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-sand-50/60 border border-sand-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white text-forest-950"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              </div>
 
-                {/* Status Badge */}
-                <div className="absolute top-3 left-3 flex items-center space-x-1.5">
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 ${
-                      room.is_active
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-700 text-gray-200'
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    <span>{room.is_active ? 'Active' : 'Inactive'}</span>
-                  </span>
-                  <span className="text-[11px] font-medium bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full">
-                    {room.room_type}
-                  </span>
-                </div>
-
-                {/* Price Pill */}
-                <div className="absolute bottom-3 left-3 text-white">
-                  <div className="font-serif text-lg font-bold">
-                    ₹{Number(room.price_per_night).toLocaleString('en-IN')}
-                    <span className="text-xs font-normal text-sand-200"> / night</span>
-                  </div>
-                  {room.weekend_price && (
-                    <div className="text-[11px] text-sand-300">
-                      Weekend: ₹{Number(room.weekend_price).toLocaleString('en-IN')}
-                    </div>
-                  )}
-                </div>
-
-                {/* Quick Toggle Active Button */}
+              <div className="flex items-center space-x-1.5 bg-sand-100 p-1 rounded-xl text-xs">
                 <button
-                  onClick={() => handleToggleActive(room)}
-                  title={room.is_active ? 'Deactivate room' : 'Activate room'}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm text-white flex items-center justify-center transition-colors"
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    statusFilter === 'all'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
                 >
-                  {room.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-gray-300" />}
+                  All ({rooms.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('active')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    statusFilter === 'active'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
+                >
+                  Active ({rooms.filter((r) => r.is_active).length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('inactive')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    statusFilter === 'inactive'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
+                >
+                  Inactive ({rooms.filter((r) => !r.is_active).length})
                 </button>
               </div>
-
-              {/* Room Body Details */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div>
-                  <h3 className="font-serif text-base font-bold text-forest-950">
-                    {room.name}
-                  </h3>
-                  {room.tagline && (
-                    <p className="text-xs text-forest-700 italic mt-0.5">{room.tagline}</p>
-                  )}
-                  <p className="text-xs text-gray-600 line-clamp-2 mt-2">
-                    {room.description}
-                  </p>
-                </div>
-
-                {/* Specifications strip */}
-                <div className="grid grid-cols-3 gap-2 py-2.5 px-3 bg-sand-50 rounded-xl text-center text-xs text-forest-900 border border-sand-200/70">
-                  <div className="flex flex-col items-center">
-                    <Users className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
-                    <span className="text-[11px] font-semibold">{room.capacity_adults} Adults</span>
-                  </div>
-                  <div className="flex flex-col items-center border-x border-sand-200">
-                    <Bed className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
-                    <span className="text-[11px] font-semibold truncate max-w-[80px]">{room.bed_type}</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <Maximize2 className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
-                    <span className="text-[11px] font-semibold">{room.room_size_sqft} sq.ft</span>
-                  </div>
-                </div>
-
-                {/* Inventory Manager Strip */}
-                <div className="flex items-center justify-between p-2.5 bg-forest-50/70 rounded-xl border border-forest-100 text-xs">
-                  <div>
-                    <span className="text-[11px] font-semibold text-forest-900 block">
-                      Available Inventory
-                    </span>
-                    <span className="text-xs text-forest-700">
-                      {room.available_inventory} of {room.total_inventory} available
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => handleAdjustInventory(room, -1)}
-                      disabled={room.available_inventory <= 0}
-                      className="w-7 h-7 rounded-lg bg-white border border-forest-200 font-bold text-forest-800 hover:bg-forest-100 disabled:opacity-40 flex items-center justify-center text-sm shadow-sm"
-                    >
-                      -
-                    </button>
-                    <span className="w-7 text-center font-bold text-forest-950">
-                      {room.available_inventory}
-                    </span>
-                    <button
-                      onClick={() => handleAdjustInventory(room, 1)}
-                      disabled={room.available_inventory >= room.total_inventory}
-                      className="w-7 h-7 rounded-lg bg-white border border-forest-200 font-bold text-forest-800 hover:bg-forest-100 disabled:opacity-40 flex items-center justify-center text-sm shadow-sm"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Card Action Buttons */}
-                <div className="pt-2 border-t border-sand-200 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500">
-                    {room.amenities?.length || 0} amenities listed
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleOpenEdit(room)}
-                      className="flex items-center space-x-1 text-xs font-semibold text-forest-800 bg-sand-100 hover:bg-sand-200 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmRoom(room)}
-                      className="flex items-center space-x-1 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
-          );
-        })}
-      </div>
 
-      {filteredRooms.length === 0 && (
-        <div className="bg-white rounded-2xl border border-sand-200 p-12 text-center">
-          <Bed className="w-12 h-12 text-sand-300 mx-auto mb-3" />
-          <h3 className="font-serif text-base font-bold text-forest-950">No rooms found</h3>
-          <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            Try adjusting your search query or status filter, or create a brand new room.
-          </p>
-          <button
-            onClick={handleOpenAdd}
-            className="mt-4 inline-flex items-center space-x-2 bg-forest-800 text-white text-xs font-semibold px-4 py-2 rounded-xl"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add New Room</span>
-          </button>
+            <button
+              onClick={handleOpenAdd}
+              className="flex items-center justify-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0 shrink-0"
+            >
+              <Plus className="w-4 h-4 text-sand-300" />
+              <span>Add New Room</span>
+            </button>
+          </div>
+
+          {/* Rooms Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRooms.map((room) => {
+              const primaryImage =
+                room.images && room.images.length > 0
+                  ? room.images[0]
+                  : 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+
+              return (
+                <div
+                  key={room.id}
+                  className={`bg-white rounded-2xl border transition-all shadow-sm overflow-hidden flex flex-col ${
+                    room.is_active ? 'border-sand-200' : 'border-gray-300 opacity-75'
+                  }`}
+                >
+                  {/* Room Image & Badges */}
+                  <div className="relative h-48 bg-sand-200 overflow-hidden group">
+                    <img
+                      src={primaryImage}
+                      alt={room.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                    {/* Status Badge */}
+                    <div className="absolute top-3 left-3 flex items-center space-x-1.5">
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 ${
+                          room.is_active
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-gray-700 text-gray-200'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        <span>{room.is_active ? 'Active' : 'Inactive'}</span>
+                      </span>
+                      <span className="text-[11px] font-medium bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full">
+                        {room.room_type}
+                      </span>
+                    </div>
+
+                    {/* Price Pill */}
+                    <div className="absolute bottom-3 left-3 text-white">
+                      <div className="font-serif text-lg font-bold">
+                        ₹{Number(room.price_per_night).toLocaleString('en-IN')}
+                        <span className="text-xs font-normal text-sand-200"> / night</span>
+                      </div>
+                      {room.weekend_price && (
+                        <div className="text-[11px] text-sand-300">
+                          Weekend: ₹{Number(room.weekend_price).toLocaleString('en-IN')}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleToggleActive(room)}
+                      title={room.is_active ? 'Deactivate room' : 'Activate room'}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm text-white flex items-center justify-center transition-colors"
+                    >
+                      {room.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-gray-300" />}
+                    </button>
+                  </div>
+
+                  {/* Room Body Details */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div>
+                      <h3 className="font-serif text-base font-bold text-forest-950">
+                        {room.name}
+                      </h3>
+                      {room.tagline && (
+                        <p className="text-xs text-forest-700 italic mt-0.5">{room.tagline}</p>
+                      )}
+                      <p className="text-xs text-gray-600 line-clamp-2 mt-2">
+                        {room.description}
+                      </p>
+                    </div>
+
+                    {/* Specifications strip */}
+                    <div className="grid grid-cols-3 gap-2 py-2.5 px-3 bg-sand-50 rounded-xl text-center text-xs text-forest-900 border border-sand-200/70">
+                      <div className="flex flex-col items-center">
+                        <Users className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
+                        <span className="text-[11px] font-semibold">{room.capacity_adults} Adults</span>
+                      </div>
+                      <div className="flex flex-col items-center border-x border-sand-200">
+                        <Bed className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
+                        <span className="text-[11px] font-semibold truncate max-w-[80px]">{room.bed_type}</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <Maximize2 className="w-3.5 h-3.5 text-forest-600 mb-0.5" />
+                        <span className="text-[11px] font-semibold">{room.room_size_sqft} sq.ft</span>
+                      </div>
+                    </div>
+
+                    {/* Inventory Manager Strip */}
+                    <div className="flex items-center justify-between p-2.5 bg-forest-50/70 rounded-xl border border-forest-100 text-xs">
+                      <div>
+                        <span className="text-[11px] font-semibold text-forest-900 block">
+                          Available Inventory
+                        </span>
+                        <span className="text-xs text-forest-700">
+                          {room.available_inventory} of {room.total_inventory} available
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => handleAdjustInventory(room, -1)}
+                          disabled={room.available_inventory <= 0}
+                          className="w-7 h-7 rounded-lg bg-white border border-forest-200 font-bold text-forest-800 hover:bg-forest-100 disabled:opacity-40 flex items-center justify-center text-sm shadow-sm"
+                        >
+                          -
+                        </button>
+                        <span className="w-7 text-center font-bold text-forest-950">
+                          {room.available_inventory}
+                        </span>
+                        <button
+                          onClick={() => handleAdjustInventory(room, 1)}
+                          disabled={room.available_inventory >= room.total_inventory}
+                          className="w-7 h-7 rounded-lg bg-white border border-forest-200 font-bold text-forest-800 hover:bg-forest-100 disabled:opacity-40 flex items-center justify-center text-sm shadow-sm"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card Action Buttons */}
+                    <div className="pt-2 border-t border-sand-200 flex items-center justify-between">
+                      <span className="text-[11px] text-gray-500">
+                        {room.amenities?.length || 0} amenities
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleOpenEdit(room)}
+                          className="flex items-center space-x-1 text-xs font-semibold text-forest-800 bg-sand-100 hover:bg-sand-200 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmRoom(room)}
+                          className="flex items-center space-x-1 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* ADD / EDIT ROOM MODAL */}
+      {/* 2. SEASONAL DATE RANGES SUB-TAB */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'seasons' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-sand-200 shadow-sm">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-forest-950">
+                Seasonal Calendar & Tariff Date Ranges
+              </h3>
+              <p className="text-xs text-gray-500">
+                Configure multiple date ranges for Peak Season and Off-Season discount periods.
+                Stays crossing these dates automatically apply their respective meal plan tariffs.
+              </p>
+            </div>
+            <button
+              onClick={handleOpenAddSeason}
+              className="flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-600 text-forest-950 text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Seasonal Period</span>
+            </button>
+          </div>
+
+          {/* Seasonal Date Ranges Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {seasonalDateRanges.map((range) => {
+              const isPeak = range.seasonType === 'season';
+              const startDateFormatted = new Date(range.startDate).toLocaleDateString('en-IN', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+              const endDateFormatted = new Date(range.endDate).toLocaleDateString('en-IN', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+
+              return (
+                <div
+                  key={range.id}
+                  className={`bg-white rounded-2xl border p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all ${
+                    isPeak ? 'border-amber-200' : 'border-emerald-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center space-x-1 ${
+                          isPeak
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${isPeak ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        />
+                        <span>{isPeak ? 'PEAK SEASON TARIFF' : 'OFF-SEASON LEAN TARIFF'}</span>
+                      </span>
+                    </div>
+
+                    <h4 className="font-serif text-base font-bold text-forest-950 mt-3">
+                      {range.name}
+                    </h4>
+
+                    {range.description && (
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                        {range.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-sand-50 rounded-xl border border-sand-200 space-y-1 text-xs">
+                    <div className="flex items-center justify-between text-gray-500 font-medium text-[11px]">
+                      <span>Period Duration:</span>
+                      <Calendar className="w-3.5 h-3.5 text-forest-700" />
+                    </div>
+                    <div className="font-bold text-forest-950 text-xs">
+                      {startDateFormatted} <span className="text-gray-400 font-normal">to</span> {endDateFormatted}
+                    </div>
+                    <div className="text-[10px] text-gray-400 font-mono">
+                      {range.startDate} → {range.endDate}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-sand-100 flex items-center justify-end space-x-2">
+                    <button
+                      onClick={() => handleOpenEditSeason(range)}
+                      className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-sand-100 hover:bg-sand-200 text-forest-900"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Edit Dates</span>
+                    </button>
+                    <button
+                      onClick={() => deleteSeasonalRange(range.id)}
+                      className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600"
+                      title="Delete seasonal range"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. TARIFFS & MEAL PLANS MATRIX SUB-TAB */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'tariffs' && (
+        <div className="space-y-6">
+          {/* Room Selector Strip */}
+          <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-forest-950">
+                  Select Room for Tariff Matrix
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Configure EP, CP, MAP, and AP tariffs across Regular, Season, and Off-Season periods.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-forest-900">Room:</span>
+                <select
+                  value={selectedTariffRoomId}
+                  onChange={(e) => setSelectedTariffRoomId(e.target.value)}
+                  className="px-3.5 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950"
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.room_type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Meal Plan Descriptions Explainer */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-sand-200 text-xs">
+              <div className="p-2.5 bg-sand-50 rounded-xl">
+                <strong className="text-forest-950 block">EP (European Plan)</strong>
+                <span className="text-[11px] text-gray-500">Room Only (No Meals)</span>
+              </div>
+              <div className="p-2.5 bg-sand-50 rounded-xl">
+                <strong className="text-forest-950 block">CP (Continental Plan)</strong>
+                <span className="text-[11px] text-gray-500">Room + Gourmet Breakfast</span>
+              </div>
+              <div className="p-2.5 bg-sand-50 rounded-xl">
+                <strong className="text-forest-950 block">MAP (Modified American)</strong>
+                <span className="text-[11px] text-gray-500">Breakfast + Pahadi Dinner</span>
+              </div>
+              <div className="p-2.5 bg-sand-50 rounded-xl">
+                <strong className="text-forest-950 block">AP (American Plan)</strong>
+                <span className="text-[11px] text-gray-500">All Meals (Breakfast, Lunch, Dinner)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Matrix Card */}
+          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-6">
+            {/* 1. Regular Rates */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-3 h-3 rounded-full bg-forest-700" />
+                  <h4 className="font-serif text-base font-bold text-forest-950">
+                    1. Regular Standard Tariffs (₹ / night)
+                  </h4>
+                </div>
+                <span className="text-xs text-gray-500 font-medium">Applies on non-seasonal dates</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    EP (Room Only)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.regular.EP}
+                    onChange={(e) => handleTariffRateChange('regular', 'EP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    CP (Breakfast Included)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.regular.CP}
+                    onChange={(e) => handleTariffRateChange('regular', 'CP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    MAP (Breakfast + Dinner)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.regular.MAP}
+                    onChange={(e) => handleTariffRateChange('regular', 'MAP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    AP (Full Board - All Meals)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.regular.AP}
+                    onChange={(e) => handleTariffRateChange('regular', 'AP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Peak Season Rates */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-3 h-3 rounded-full bg-amber-500" />
+                  <h4 className="font-serif text-base font-bold text-amber-950">
+                    2. Peak Season Tariffs (₹ / night)
+                  </h4>
+                </div>
+                <span className="text-xs text-amber-800 font-medium">Applies during marked Peak Season ranges</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    EP (Room Only)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.season.EP}
+                    onChange={(e) => handleTariffRateChange('season', 'EP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    CP (Breakfast Included)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.season.CP}
+                    onChange={(e) => handleTariffRateChange('season', 'CP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    MAP (Breakfast + Dinner)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.season.MAP}
+                    onChange={(e) => handleTariffRateChange('season', 'MAP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    AP (Full Board - All Meals)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.season.AP}
+                    onChange={(e) => handleTariffRateChange('season', 'AP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Off-Season Rates */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-600" />
+                  <h4 className="font-serif text-base font-bold text-emerald-950">
+                    3. Off-Season / Lean Discount Tariffs (₹ / night)
+                  </h4>
+                </div>
+                <span className="text-xs text-emerald-800 font-medium">Applies during marked Off-Season ranges</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    EP (Room Only)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.offSeason.EP}
+                    onChange={(e) => handleTariffRateChange('offSeason', 'EP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    CP (Breakfast Included)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.offSeason.CP}
+                    onChange={(e) => handleTariffRateChange('offSeason', 'CP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    MAP (Breakfast + Dinner)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.offSeason.MAP}
+                    onChange={(e) => handleTariffRateChange('offSeason', 'MAP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    AP (Full Board - All Meals)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={currentTariffs.offSeason.AP}
+                    onChange={(e) => handleTariffRateChange('offSeason', 'AP', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Weekend Surcharge */}
+            <div className="p-4 bg-sand-50 rounded-xl border border-sand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-1.5 font-bold text-xs text-forest-950">
+                  <Percent className="w-3.5 h-3.5 text-forest-700" />
+                  <span>Weekend Surcharge Percentage</span>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Applied automatically to Friday & Saturday night stays during Regular periods.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={currentTariffs.weekendSurchargePercent || 0}
+                  onChange={(e) =>
+                    setCurrentTariffs({
+                      ...currentTariffs,
+                      weekendSurchargePercent: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-24 px-3 py-1.5 bg-white border border-sand-300 rounded-xl text-xs font-bold text-center"
+                />
+                <span className="text-xs font-bold text-forest-900">% Surcharge</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={handleSaveTariffMatrix}
+                className="flex items-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-6 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
+              >
+                <Save className="w-4 h-4 text-sand-300" />
+                <span>Save All Tariffs for this Room</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. DYNAMIC RATE SIMULATOR SUB-TAB */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'simulator' && (
+        <div className="space-y-6">
+          {/* Simulator Inputs Card */}
+          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-forest-950">
+                Dynamic Night-by-Night Rate Simulator
+              </h3>
+              <p className="text-xs text-gray-500">
+                Test any check-in/out date range and meal plan to evaluate exact seasonal transitions, weekend surcharges, and total quotation.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Select Room
+                </label>
+                <select
+                  value={simRoomId}
+                  onChange={(e) => setSimRoomId(e.target.value)}
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Check-in Date
+                </label>
+                <input
+                  type="date"
+                  value={simCheckIn}
+                  onChange={(e) => setSimCheckIn(e.target.value)}
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Check-out Date
+                </label>
+                <input
+                  type="date"
+                  value={simCheckOut}
+                  onChange={(e) => setSimCheckOut(e.target.value)}
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Meal Plan
+                </label>
+                <select
+                  value={simMealPlan}
+                  onChange={(e) => setSimMealPlan(e.target.value as MealPlan)}
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                >
+                  <option value="EP">EP (Room Only)</option>
+                  <option value="CP">CP (Gourmet Breakfast)</option>
+                  <option value="MAP">MAP (Breakfast + Dinner)</option>
+                  <option value="AP">AP (All Meals Included)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Simulation Output Card */}
+          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sand-200 pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Dynamic Calculation Verified
+                </span>
+                <h4 className="font-serif text-2xl font-bold text-forest-950 mt-1">
+                  ₹{simResult.totalAmount.toLocaleString('en-IN')}{' '}
+                  <span className="text-xs font-normal text-gray-500">
+                    total for {simResult.nights} {simResult.nights === 1 ? 'night' : 'nights'}
+                  </span>
+                </h4>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <span className="text-xs text-gray-500 block">Average Rate:</span>
+                <span className="font-bold text-base text-forest-900">
+                  ₹{simResult.avgRatePerNight.toLocaleString('en-IN')} / night
+                </span>
+              </div>
+            </div>
+
+            {/* Breakdown Table */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-forest-900 block">
+                Night-by-Night Seasonal Breakdown:
+              </span>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-sand-50 text-gray-500 font-semibold border-b border-sand-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Season / Tariff Applied</th>
+                      <th className="py-2.5 px-3">Type</th>
+                      <th className="py-2.5 px-3 text-right">Night Tariff</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sand-100 font-medium">
+                    {simResult.breakdown.map((b, idx) => (
+                      <tr key={idx} className="hover:bg-sand-50/50">
+                        <td className="py-2 px-3 font-mono text-gray-700">{b.date}</td>
+                        <td className="py-2 px-3 text-forest-950 font-semibold">{b.rateName}</td>
+                        <td className="py-2 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              b.seasonType === 'season'
+                                ? 'bg-amber-100 text-amber-900'
+                                : b.seasonType === 'off_season'
+                                ? 'bg-emerald-100 text-emerald-900'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {b.seasonType.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-forest-950">
+                          ₹{b.amount.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD / EDIT ROOM */}
       {/* ========================================================================= */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-sand-200 overflow-hidden my-8 animate-slide-up">
-            {/* Modal Header */}
             <div className="bg-forest-800 text-white px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="font-serif text-lg font-bold">
@@ -540,9 +1290,7 @@ export default function AdminRooms({
               </button>
             </div>
 
-            {/* Modal Body Form */}
             <form onSubmit={handleSaveRoom} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-              {/* Row 1: Name & Slug */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-forest-900 mb-1">
@@ -571,7 +1319,6 @@ export default function AdminRooms({
                 </div>
               </div>
 
-              {/* Tagline */}
               <div>
                 <label className="block text-xs font-semibold text-forest-900 mb-1">
                   Tagline / Highlights
@@ -585,7 +1332,6 @@ export default function AdminRooms({
                 />
               </div>
 
-              {/* Description */}
               <div>
                 <label className="block text-xs font-semibold text-forest-900 mb-1">
                   Description
@@ -599,11 +1345,10 @@ export default function AdminRooms({
                 />
               </div>
 
-              {/* Rates: Weekday & Weekend */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-sand-50/70 rounded-xl border border-sand-200">
                 <div>
                   <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Nightly Rate (₹ INR) *
+                    Nightly Base Rate (₹ INR) *
                   </label>
                   <input
                     type="number"
@@ -630,7 +1375,6 @@ export default function AdminRooms({
                 </div>
               </div>
 
-              {/* Capacity, Bed & Size */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-forest-900 mb-1">
@@ -681,11 +1425,10 @@ export default function AdminRooms({
                 </div>
               </div>
 
-              {/* Inventory Management */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-sand-50/70 rounded-xl border border-sand-200">
                 <div>
                   <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Total Inventory Units
+                    Total Units
                   </label>
                   <input
                     type="number"
@@ -699,12 +1442,12 @@ export default function AdminRooms({
                         available_inventory: Math.min(formData.available_inventory || 1, tot),
                       });
                     }}
-                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Currently Available
+                    Available Units
                   </label>
                   <input
                     type="number"
@@ -712,7 +1455,7 @@ export default function AdminRooms({
                     max={formData.total_inventory || 1}
                     value={formData.available_inventory ?? 1}
                     onChange={(e) => setFormData({ ...formData, available_inventory: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
                   />
                 </div>
                 <div className="flex flex-col justify-center">
@@ -764,7 +1507,7 @@ export default function AdminRooms({
                     type="text"
                     value={customAmenityInput}
                     onChange={(e) => setCustomAmenityInput(e.target.value)}
-                    placeholder="Add custom amenity (e.g. Jacuzzi Bath, Stargazing Telescope)..."
+                    placeholder="Add custom amenity..."
                     className="flex-1 px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs focus:ring-2 focus:ring-forest-600"
                   />
                   <button
@@ -777,7 +1520,7 @@ export default function AdminRooms({
                 </div>
               </div>
 
-              {/* Photos / Images List */}
+              {/* Photos List */}
               <div>
                 <label className="block text-xs font-semibold text-forest-900 mb-2">
                   Room Images (URLs)
@@ -809,7 +1552,7 @@ export default function AdminRooms({
                     type="url"
                     value={imageInput}
                     onChange={(e) => setImageInput(e.target.value)}
-                    placeholder="Paste Unsplash or direct image URL..."
+                    placeholder="Paste image URL..."
                     className="flex-1 px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs focus:ring-2 focus:ring-forest-600"
                   />
                   <button
@@ -823,7 +1566,6 @@ export default function AdminRooms({
                 </div>
               </div>
 
-              {/* Modal Footer CTA */}
               <div className="pt-4 border-t border-sand-200 flex items-center justify-end space-x-3">
                 <button
                   type="button"
@@ -842,6 +1584,118 @@ export default function AdminRooms({
                   ) : (
                     <span>{editingRoom ? 'Update Room' : 'Save New Room'}</span>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD / EDIT SEASONAL DATE RANGE */}
+      {/* ========================================================================= */}
+      {isSeasonModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-sand-200 animate-slide-up space-y-4">
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+              <h3 className="font-serif text-lg font-bold text-forest-950">
+                {editingSeason ? 'Edit Seasonal Date Range' : 'Add Seasonal Date Range'}
+              </h3>
+              <button
+                onClick={() => setIsSeasonModalOpen(false)}
+                className="p-1 text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSeasonRange} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Season Period Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={seasonForm.name || ''}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, name: e.target.value })}
+                  placeholder="e.g. Summer Vacation Peak 2026"
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Season Type *
+                </label>
+                <select
+                  value={seasonForm.seasonType || 'season'}
+                  onChange={(e) =>
+                    setSeasonForm({
+                      ...seasonForm,
+                      seasonType: e.target.value as 'season' | 'off_season',
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                >
+                  <option value="season">Peak Season (Higher Tariffs)</option>
+                  <option value="off_season">Off-Season / Lean (Discount Tariffs)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    Start Date (Check-in) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={seasonForm.startDate || ''}
+                    onChange={(e) => setSeasonForm({ ...seasonForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    End Date (Check-out) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={seasonForm.endDate || ''}
+                    onChange={(e) => setSeasonForm({ ...seasonForm, endDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Description / Festival Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={seasonForm.description || ''}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, description: e.target.value })}
+                  placeholder="e.g. Major tourist rush during school summer holidays..."
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-sand-200">
+                <button
+                  type="button"
+                  onClick={() => setIsSeasonModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-sand-300 text-xs font-semibold text-gray-600 hover:bg-sand-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-forest-800 hover:bg-forest-900 text-white text-xs font-semibold shadow-sm"
+                >
+                  {editingSeason ? 'Update Period' : 'Save Date Range'}
                 </button>
               </div>
             </form>

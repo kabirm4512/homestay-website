@@ -22,6 +22,7 @@ export default function BookingModal({
   const [email, setEmail] = useState('');
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
+  const [mealPlan, setMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('CP');
   const [specialRequests, setSpecialRequests] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export default function BookingModal({
 
   if (!isOpen || !room) return null;
 
-  // Calculate nights and estimated total
+  // Calculate nights and dynamic estimated total based on meal plan
   let nights = 1;
   if (checkIn && checkOut) {
     const d1 = new Date(checkIn);
@@ -39,7 +40,16 @@ export default function BookingModal({
     const diff = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24));
     if (diff > 0) nights = diff;
   }
-  const estimatedTotal = nights * room.price_per_night;
+
+  const mealPlanOffsets: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
+    EP: -500,
+    CP: 0,
+    MAP: 1000,
+    AP: 2000,
+  };
+
+  const effectiveNightlyRate = Math.max(1000, room.price_per_night + mealPlanOffsets[mealPlan]);
+  const estimatedTotal = nights * effectiveNightlyRate;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +73,7 @@ export default function BookingModal({
         check_out: checkOut,
         nights,
         total_price: estimatedTotal,
-        special_requests: specialRequests.trim(),
+        special_requests: `[Meal Plan: ${mealPlan}] ${specialRequests.trim()}`.trim(),
       };
 
       const res = await fetch('/api/bookings', {
@@ -99,7 +109,7 @@ export default function BookingModal({
   const getWhatsAppBookingLink = () => {
     const cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
     const text = encodeURIComponent(
-      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}\n\nPlease let me know the bank/UPI details to confirm my reservation.`
+      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Meal Plan:* ${mealPlan}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}\n\nPlease let me know the bank/UPI details to confirm my reservation.`
     );
     return `https://wa.me/${cleanNumber}?text=${text}`;
   };
@@ -199,18 +209,99 @@ export default function BookingModal({
                 </div>
               </div>
 
+              {/* Meal Plan Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1.5 flex items-center justify-between">
+                  <span>Select Meal Plan</span>
+                  <span className="text-[10px] text-forest-700 font-medium">Included Dining</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMealPlan('EP')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      mealPlan === 'EP'
+                        ? 'bg-forest-900 border-forest-900 text-white shadow-sm'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-950 hover:bg-sand-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs">EP (Room Only)</span>
+                      <span className="text-[10px] opacity-80">-₹500</span>
+                    </div>
+                    <span className="text-[10px] block opacity-80 mt-0.5">Stay without meals</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMealPlan('CP')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      mealPlan === 'CP'
+                        ? 'bg-forest-900 border-forest-900 text-white shadow-sm'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-950 hover:bg-sand-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs">CP (Breakfast)</span>
+                      <span className="text-[10px] text-amber-300 font-bold">Standard</span>
+                    </div>
+                    <span className="text-[10px] block opacity-80 mt-0.5">Fresh Gourmet Breakfast</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMealPlan('MAP')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      mealPlan === 'MAP'
+                        ? 'bg-forest-900 border-forest-900 text-white shadow-sm'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-950 hover:bg-sand-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs">MAP (Half Board)</span>
+                      <span className="text-[10px] opacity-80">+₹1,000</span>
+                    </div>
+                    <span className="text-[10px] block opacity-80 mt-0.5">Breakfast + Pahadi Dinner</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMealPlan('AP')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      mealPlan === 'AP'
+                        ? 'bg-forest-900 border-forest-900 text-white shadow-sm'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-950 hover:bg-sand-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs">AP (Full Board)</span>
+                      <span className="text-[10px] opacity-80">+₹2,000</span>
+                    </div>
+                    <span className="text-[10px] block opacity-80 mt-0.5">All 3 Meals Included</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Price Calculation Card */}
               {checkIn && checkOut && (
                 <div className="bg-sand-100/70 p-3.5 rounded-xl border border-sand-200 text-xs text-forest-900 space-y-1.5">
                   <div className="flex justify-between">
                     <span>
-                      ₹{room.price_per_night.toLocaleString()} × {nights} {nights === 1 ? 'night' : 'nights'}
+                      Rate ({mealPlan}): ₹{effectiveNightlyRate.toLocaleString()} × {nights} {nights === 1 ? 'night' : 'nights'}
                     </span>
                     <span>₹{estimatedTotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-forest-700">
-                    <span>Organic Breakfast & Afternoon Tea</span>
-                    <span className="font-semibold text-emerald-700">Included (Free)</span>
+                    <span>Selected Plan</span>
+                    <span className="font-semibold text-emerald-700">
+                      {mealPlan === 'EP'
+                        ? 'Room Only'
+                        : mealPlan === 'CP'
+                        ? 'Breakfast Included'
+                        : mealPlan === 'MAP'
+                        ? 'Breakfast + Dinner Included'
+                        : 'All Meals (Breakfast, Lunch, Dinner)'}
+                    </span>
                   </div>
                   <div className="border-t border-sand-300 pt-1 flex justify-between font-bold text-sm text-forest-950">
                     <span>Estimated Total</span>

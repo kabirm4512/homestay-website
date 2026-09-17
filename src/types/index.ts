@@ -1,3 +1,6 @@
+import { MealPlanRates, RoomSeasonalTariffs, SeasonalDateRange } from './crm';
+export type { MealPlanRates, RoomSeasonalTariffs, SeasonalDateRange };
+
 export interface Room {
   id: string;
   name: string;
@@ -16,6 +19,7 @@ export interface Room {
   total_inventory: number;
   available_inventory: number;
   is_active: boolean;
+  tariffs?: RoomSeasonalTariffs;
   created_at?: string;
   updated_at?: string;
 }
@@ -87,6 +91,9 @@ export interface SiteInfo {
   check_in_time: string;
   check_out_time: string;
   map_embed_url: string;
+  directions?: string;
+  policies?: { title: string; desc: string }[];
+  amenitiesList?: string[];
 }
 
 export interface Review {

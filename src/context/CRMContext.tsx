@@ -20,6 +20,9 @@ import {
   FolioCharge,
   PaymentMethod,
   StaffAccount,
+  MealPlan,
+  SeasonalDateRange,
+  RoomSeasonalTariffs,
 } from '@/types/crm';
 import {
   INITIAL_PHYSICAL_ROOMS,
@@ -33,6 +36,8 @@ import {
   INITIAL_TRANSFER_ROUTES,
   INITIAL_RENTAL_VEHICLES,
   INITIAL_STAFF_ACCOUNTS,
+  INITIAL_SEASONAL_DATE_RANGES,
+  INITIAL_ROOM_SEASONAL_TARIFFS,
 } from '@/lib/crm-data';
 
 interface ToastState {
@@ -54,6 +59,8 @@ interface CRMContextType {
   expenses: Expense[];
   transferRoutes: TransferRoute[];
   rentalVehicles: RentalVehicle[];
+  seasonalDateRanges: SeasonalDateRange[];
+  roomTariffs: Record<string, RoomSeasonalTariffs>;
   toast: ToastState | null;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 
@@ -84,6 +91,36 @@ interface CRMContextType {
   settleFolio: (folioId: string, paymentMethod: PaymentMethod, notes?: string) => void;
   checkInRoom: (bookingId: string) => void;
   checkOutRoom: (bookingId: string) => void;
+
+  // Menu Management CRUD (In-Room Dining)
+  addMenuItem: (item: Omit<MenuItem, 'id'>) => MenuItem;
+  updateMenuItem: (id: string, updates: Partial<MenuItem>) => void;
+  deleteMenuItem: (id: string) => void;
+
+  // Travel & Add-ons CRUD
+  addTransferRoute: (route: Omit<TransferRoute, 'id'>) => TransferRoute;
+  updateTransferRoute: (id: string, updates: Partial<TransferRoute>) => void;
+  deleteTransferRoute: (id: string) => void;
+  addRentalVehicle: (vehicle: Omit<RentalVehicle, 'id'>) => RentalVehicle;
+  updateRentalVehicle: (id: string, updates: Partial<RentalVehicle>) => void;
+  deleteRentalVehicle: (id: string) => void;
+
+  // Seasonal Pricing & Dynamic Tariffs
+  addSeasonalRange: (range: Omit<SeasonalDateRange, 'id'>) => SeasonalDateRange;
+  updateSeasonalRange: (id: string, updates: Partial<SeasonalDateRange>) => void;
+  deleteSeasonalRange: (id: string) => void;
+  updateRoomTariffs: (roomId: string, tariffs: RoomSeasonalTariffs) => void;
+  calculateDynamicTariff: (
+    roomId: string,
+    checkIn: string,
+    checkOut: string,
+    mealPlan?: MealPlan
+  ) => {
+    totalAmount: number;
+    nights: number;
+    avgRatePerNight: number;
+    breakdown: { date: string; rateName: string; seasonType: 'season' | 'off_season' | 'regular'; amount: number }[];
+  };
 
   // Staff User Management (Admin Managed)
   staffAccounts: StaffAccount[];
@@ -145,8 +182,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [dispatchRequests, setDispatchRequests] = useState<TransportRequest[]>(INITIAL_DISPATCH_REQUESTS);
   const [housekeepingTasks, setHousekeepingTasks] = useState<HousekeepingTask[]>(INITIAL_HOUSEKEEPING_TASKS);
   const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
-  const [transferRoutes] = useState<TransferRoute[]>(INITIAL_TRANSFER_ROUTES);
-  const [rentalVehicles] = useState<RentalVehicle[]>(INITIAL_RENTAL_VEHICLES);
+  const [transferRoutes, setTransferRoutes] = useState<TransferRoute[]>(INITIAL_TRANSFER_ROUTES);
+  const [rentalVehicles, setRentalVehicles] = useState<RentalVehicle[]>(INITIAL_RENTAL_VEHICLES);
+  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[]>(INITIAL_SEASONAL_DATE_RANGES);
+  const [roomTariffs, setRoomTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
   const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(INITIAL_STAFF_ACCOUNTS);
   const [currentUser, setCurrentUserState] = useState<StaffAccount | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -189,6 +228,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       const savedFolios = localStorage.getItem('wp_crm_folios');
       if (savedFolios) setFolios(JSON.parse(savedFolios));
+
+      const savedRoutes = localStorage.getItem('wp_crm_transfer_routes');
+      if (savedRoutes) setTransferRoutes(JSON.parse(savedRoutes));
+
+      const savedVehicles = localStorage.getItem('wp_crm_rental_vehicles');
+      if (savedVehicles) setRentalVehicles(JSON.parse(savedVehicles));
+
+      const savedRanges = localStorage.getItem('wp_crm_seasonal_ranges');
+      if (savedRanges) setSeasonalDateRanges(JSON.parse(savedRanges));
+
+      const savedTariffs = localStorage.getItem('wp_crm_room_tariffs');
+      if (savedTariffs) setRoomTariffs(JSON.parse(savedTariffs));
 
       const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
       if (savedStaff) {
@@ -818,6 +869,242 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return { success: true, user: found };
   };
 
+  // =========================================================================
+  // Menu Management CRUD (In-Room Dining)
+  // =========================================================================
+  const addMenuItem = (item: Omit<MenuItem, 'id'>): MenuItem => {
+    const newItem: MenuItem = { ...item, id: `menu-${Date.now()}` };
+    setMenuItems((prev) => {
+      const updated = [...prev, newItem];
+      try {
+        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Added "${newItem.name}" to dining menu`);
+    return newItem;
+  };
+
+  const updateMenuItem = (id: string, updates: Partial<MenuItem>) => {
+    setMenuItems((prev) => {
+      const updated = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
+      try {
+        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Menu item updated');
+  };
+
+  const deleteMenuItem = (id: string) => {
+    setMenuItems((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      try {
+        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Dish removed from menu');
+  };
+
+  // =========================================================================
+  // Travel Add-ons & Transfers CRUD
+  // =========================================================================
+  const addTransferRoute = (route: Omit<TransferRoute, 'id'>): TransferRoute => {
+    const newRoute: TransferRoute = { ...route, id: `route-${Date.now()}` };
+    setTransferRoutes((prev) => {
+      const updated = [...prev, newRoute];
+      try {
+        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Added transfer route "${newRoute.title}"`);
+    return newRoute;
+  };
+
+  const updateTransferRoute = (id: string, updates: Partial<TransferRoute>) => {
+    setTransferRoutes((prev) => {
+      const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      try {
+        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Transfer route updated');
+  };
+
+  const deleteTransferRoute = (id: string) => {
+    setTransferRoutes((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Transfer route removed');
+  };
+
+  const addRentalVehicle = (vehicle: Omit<RentalVehicle, 'id'>): RentalVehicle => {
+    const newVehicle: RentalVehicle = { ...vehicle, id: `veh-${Date.now()}` };
+    setRentalVehicles((prev) => {
+      const updated = [...prev, newVehicle];
+      try {
+        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Added vehicle "${newVehicle.vehicleName}"`);
+    return newVehicle;
+  };
+
+  const updateRentalVehicle = (id: string, updates: Partial<RentalVehicle>) => {
+    setRentalVehicles((prev) => {
+      const updated = prev.map((v) => (v.id === id ? { ...v, ...updates } : v));
+      try {
+        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Rental vehicle updated');
+  };
+
+  const deleteRentalVehicle = (id: string) => {
+    setRentalVehicles((prev) => {
+      const updated = prev.filter((v) => v.id !== id);
+      try {
+        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Rental vehicle removed');
+  };
+
+  // =========================================================================
+  // Seasonal Date Ranges & Dynamic Tariffs
+  // =========================================================================
+  const addSeasonalRange = (rangeData: Omit<SeasonalDateRange, 'id'>): SeasonalDateRange => {
+    const newRange: SeasonalDateRange = { ...rangeData, id: `season-${Date.now()}` };
+    setSeasonalDateRanges((prev) => {
+      const updated = [...prev, newRange];
+      try {
+        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Added seasonal period "${newRange.name}"`);
+    return newRange;
+  };
+
+  const updateSeasonalRange = (id: string, updates: Partial<SeasonalDateRange>) => {
+    setSeasonalDateRanges((prev) => {
+      const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      try {
+        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Seasonal period updated');
+  };
+
+  const deleteSeasonalRange = (id: string) => {
+    setSeasonalDateRanges((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Seasonal period removed');
+  };
+
+  const updateRoomTariffs = (roomId: string, tariffs: RoomSeasonalTariffs) => {
+    setRoomTariffs((prev) => {
+      const updated = { ...prev, [roomId]: tariffs };
+      try {
+        localStorage.setItem('wp_crm_room_tariffs', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast('Room seasonal tariffs saved successfully');
+  };
+
+  const calculateDynamicTariff = (
+    roomId: string,
+    checkIn: string,
+    checkOut: string,
+    mealPlan: MealPlan = 'CP'
+  ) => {
+    const tariffs = roomTariffs[roomId] || INITIAL_ROOM_SEASONAL_TARIFFS[roomId] || {
+      regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
+      season: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
+      offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
+      weekendSurchargePercent: 10,
+    };
+
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diffTime = end.getTime() - start.getTime();
+    const nights = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+
+    let totalAmount = 0;
+    const breakdown: {
+      date: string;
+      rateName: string;
+      seasonType: 'season' | 'off_season' | 'regular';
+      amount: number;
+    }[] = [];
+
+    const curr = new Date(start);
+    for (let i = 0; i < nights; i++) {
+      const dateStr = curr.toISOString().split('T')[0];
+      const dayOfWeek = curr.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
+      const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
+
+      let seasonType: 'season' | 'off_season' | 'regular' = 'regular';
+      let matchedSeasonName = 'Regular Tariff';
+
+      for (const range of seasonalDateRanges) {
+        if (dateStr >= range.startDate && dateStr <= range.endDate) {
+          seasonType = range.seasonType;
+          matchedSeasonName = range.name;
+          break;
+        }
+      }
+
+      let baseNightlyRate = tariffs.regular[mealPlan] || tariffs.regular.CP;
+      if (seasonType === 'season') {
+        baseNightlyRate = tariffs.season[mealPlan] || tariffs.season.CP;
+      } else if (seasonType === 'off_season') {
+        baseNightlyRate = tariffs.offSeason[mealPlan] || tariffs.offSeason.CP;
+      }
+
+      if (isWeekend && tariffs.weekendSurchargePercent && seasonType === 'regular') {
+        baseNightlyRate = Math.round(baseNightlyRate * (1 + tariffs.weekendSurchargePercent / 100));
+        matchedSeasonName += ' (Weekend)';
+      }
+
+      totalAmount += baseNightlyRate;
+      breakdown.push({
+        date: dateStr,
+        rateName: `${matchedSeasonName} (${mealPlan})`,
+        seasonType,
+        amount: baseNightlyRate,
+      });
+
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    const avgRatePerNight = Math.round(totalAmount / nights);
+
+    return {
+      totalAmount,
+      nights,
+      avgRatePerNight,
+      breakdown,
+    };
+  };
+
   return (
     <CRMContext.Provider
       value={{
@@ -833,6 +1120,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         expenses,
         transferRoutes,
         rentalVehicles,
+        seasonalDateRanges,
+        roomTariffs,
         toast,
         showToast,
         updateRoomStatus,
@@ -852,6 +1141,20 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         settleFolio,
         checkInRoom,
         checkOutRoom,
+        addMenuItem,
+        updateMenuItem,
+        deleteMenuItem,
+        addTransferRoute,
+        updateTransferRoute,
+        deleteTransferRoute,
+        addRentalVehicle,
+        updateRentalVehicle,
+        deleteRentalVehicle,
+        addSeasonalRange,
+        updateSeasonalRange,
+        deleteSeasonalRange,
+        updateRoomTariffs,
+        calculateDynamicTariff,
         staffAccounts,
         currentUser,
         setCurrentUser,

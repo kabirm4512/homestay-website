@@ -21,6 +21,7 @@ import {
   AlertCircle,
   QrCode,
   Users,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 import AdminAuth from '@/components/admin/AdminAuth';
@@ -29,6 +30,7 @@ import AdminRooms from '@/components/admin/AdminRooms';
 import AdminBookings from '@/components/admin/AdminBookings';
 import AdminInquiries from '@/components/admin/AdminInquiries';
 import AdminCMS from '@/components/admin/AdminCMS';
+import AdminAddonsCMS from '@/components/admin/AdminAddonsCMS';
 import AdminStaffManagement from '@/components/admin/AdminStaffManagement';
 
 // New Boutique CRM Modules
@@ -41,7 +43,7 @@ import PWAInstaller from '@/components/pwa/PWAInstaller';
 import BottomNav from '@/components/pwa/BottomNav';
 import { useCRM } from '@/context/CRMContext';
 
-import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo } from '@/types';
+import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 import {
   INITIAL_ROOMS,
   INITIAL_HERO_SLIDES,
@@ -49,6 +51,7 @@ import {
   INITIAL_SITE_INFO,
   INITIAL_INQUIRIES,
   INITIAL_BOOKINGS,
+  INITIAL_REVIEWS,
 } from '@/lib/mock-data';
 
 export default function AdminPage() {
@@ -79,6 +82,7 @@ export default function AdminPage() {
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
   const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
   const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
 
@@ -146,6 +150,7 @@ export default function AdminPage() {
         if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
         if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
         if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+        if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
       }
     } catch {
       // fallback
@@ -397,7 +402,19 @@ export default function AdminPage() {
               }`}
             >
               <BedDouble className="w-3.5 h-3.5" />
-              <span>Site Rooms</span>
+              <span>Site Rooms & Tariffs</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('addons')}
+              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === 'addons'
+                  ? 'bg-forest-800 text-white'
+                  : 'text-forest-400 hover:text-forest-200'
+              }`}
+            >
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              <span>Dine-in & Travel Add-ons</span>
             </button>
 
             <button
@@ -421,7 +438,7 @@ export default function AdminPage() {
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span>CMS Slides</span>
+              <span>CMS & Reviews</span>
             </button>
           </div>
         </div>
@@ -507,11 +524,14 @@ export default function AdminPage() {
           />
         )}
 
+        {activeTab === 'addons' && <AdminAddonsCMS />}
+
         {activeTab === 'cms' && (
           <AdminCMS
             heroSlides={heroSlides}
             aboutData={aboutData}
             siteInfo={siteInfo}
+            reviews={reviews}
             onRefresh={fetchData}
             showToast={showToast}
           />

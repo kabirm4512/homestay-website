@@ -312,3 +312,26 @@ export interface StaffAccount {
   createdAt: string;
 }
 
+export interface SeasonalDateRange {
+  id: string;
+  name: string; // e.g. "Summer Peak 2026", "Durga Puja & Diwali Peak", "Monsoon Off-Season"
+  seasonType: 'season' | 'off_season';
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  description?: string;
+}
+
+export interface MealPlanRates {
+  EP: number; // Room Only
+  CP: number; // Bed & Breakfast
+  MAP: number; // Half Board (Breakfast + Lunch or Dinner)
+  AP: number; // Full Board (All Meals)
+}
+
+export interface RoomSeasonalTariffs {
+  regular: MealPlanRates;
+  season: MealPlanRates;
+  offSeason: MealPlanRates;
+  weekendSurchargePercent?: number;
+}
+

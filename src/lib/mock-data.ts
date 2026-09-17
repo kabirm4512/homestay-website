@@ -146,7 +146,24 @@ export const INITIAL_SITE_INFO: SiteInfo = {
   address: 'Deodar Valley, Old Manali, Himachal Pradesh, India - 175131',
   check_in_time: '2:00 PM',
   check_out_time: '11:00 AM',
-  map_embed_url: 'https://maps.google.com'
+  map_embed_url: 'https://maps.google.com',
+  directions: 'From Manali Mall Road, drive 3.2 km towards Old Manali bridge. Cross the bridge and follow the uphill pine trail for 900 meters. Whispering Pines is situated at the top right overlooking the cedar valley.',
+  policies: [
+    { title: 'Sanctuary Quiet Hours', desc: 'To preserve serenity and mountain birdlife, quiet hours commence from 10:30 PM to 7:00 AM.' },
+    { title: 'Smoking & Alcohol Ethics', desc: 'Smoking is strictly prohibited inside wooden rooms. Designated smoking lounges are available in the open apple orchard.' },
+    { title: 'Cancellation & Refund Policy', desc: 'Full refund if cancelled 7+ days prior to check-in. 50% refund within 3-7 days. Non-refundable within 72 hours of arrival.' },
+    { title: 'Pet Policy', desc: 'Well-mannered furry companions are welcome in our ground floor garden cottages with prior notice.' }
+  ],
+  amenitiesList: [
+    'Panoramic Snow Peak & Valley View',
+    'High-Speed Starlink Wi-Fi (150+ Mbps)',
+    '100% Organic Farm-to-Table Kitchen',
+    'Evening Orchard Bonfires',
+    'Complimentary Mountain Breakfast',
+    'Private En-Suite Heated Bathrooms',
+    'Dedicated Work Desks for Remote Workations',
+    'On-Site Secure Car Parking'
+  ]
 };
 
 export const INITIAL_REVIEWS: Review[] = [
