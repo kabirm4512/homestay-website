@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
+import DateRangePicker from './DateRangePicker';
 import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard } from 'lucide-react';
 
 interface BookingModalProps {
@@ -218,36 +219,17 @@ export default function BookingModal({
                 </div>
               )}
 
-              {/* Check-in / Check-out */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1 flex items-center space-x-1">
-                    <Calendar className="w-3.5 h-3.5 text-forest-700" />
-                    <span>Check-in Date *</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={checkIn}
-                    min={getTodayStr()}
-                    onChange={(e) => handleCheckInChange(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1 flex items-center space-x-1">
-                    <Calendar className="w-3.5 h-3.5 text-forest-700" />
-                    <span>Check-out Date *</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={checkOut}
-                    min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
-                    onChange={(e) => setCheckOut(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
-                  />
-                </div>
+              {/* Check-in / Check-out Date Range Picker */}
+              <div>
+                <DateRangePicker
+                  checkIn={checkIn}
+                  checkOut={checkOut}
+                  onChange={(range) => {
+                    setCheckIn(range.checkIn);
+                    setCheckOut(range.checkOut);
+                  }}
+                  showPresets={true}
+                />
               </div>
 
               {/* Meal Plan Selector */}

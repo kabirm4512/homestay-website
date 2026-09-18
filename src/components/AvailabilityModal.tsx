@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Room, Booking } from '@/types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS } from '@/lib/mock-data';
+import DateRangePicker from './DateRangePicker';
 import {
   X,
   Calendar,
@@ -309,50 +310,17 @@ export default function AvailabilityModal({
 
             {/* Step 1 Form Body */}
             <form onSubmit={handleFormCheckAvailability} className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Check-in Date Container */}
-                <div className="bg-sand-50/90 border border-sand-300/80 hover:border-forest-600/60 rounded-2xl p-4 transition-all focus-within:border-forest-600 focus-within:ring-2 focus-within:ring-forest-600/20">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-forest-900 flex items-center space-x-1.5 select-none">
-                      <Calendar className="w-4 h-4 text-forest-700 shrink-0" />
-                      <span>Check-in Date</span>
-                    </label>
-                    <span className="text-[11px] text-gray-500 font-medium">From 1:00 PM</span>
-                  </div>
-                  <input
-                    type="date"
-                    required
-                    value={checkIn}
-                    min={getTodayStr()}
-                    onChange={(e) => handleCheckInChange(e.target.value)}
-                    className="w-full bg-white border border-sand-300 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-forest-950 focus:outline-none focus:ring-1 focus:ring-forest-600 cursor-pointer shadow-sm"
-                  />
-                  <p className="text-[11px] text-forest-700 mt-1.5 font-medium">
-                    {formatDisplayDate(checkIn) || 'Select arrival date'}
-                  </p>
-                </div>
-
-                {/* Check-out Date Container (check-in and prior dates disabled) */}
-                <div className="bg-sand-50/90 border border-sand-300/80 hover:border-forest-600/60 rounded-2xl p-4 transition-all focus-within:border-forest-600 focus-within:ring-2 focus-within:ring-forest-600/20">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-forest-900 flex items-center space-x-1.5 select-none">
-                      <Calendar className="w-4 h-4 text-forest-700 shrink-0" />
-                      <span>Check-out Date</span>
-                    </label>
-                    <span className="text-[11px] text-gray-500 font-medium">By 11:00 AM</span>
-                  </div>
-                  <input
-                    type="date"
-                    required
-                    value={checkOut}
-                    min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
-                    onChange={(e) => setCheckOut(e.target.value)}
-                    className="w-full bg-white border border-sand-300 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-forest-950 focus:outline-none focus:ring-1 focus:ring-forest-600 cursor-pointer shadow-sm"
-                  />
-                  <p className="text-[11px] text-forest-700 mt-1.5 font-medium">
-                    {formatDisplayDate(checkOut) || 'Select departure date'}
-                  </p>
-                </div>
+              {/* Interactive Boutique Date Range Picker */}
+              <div>
+                <DateRangePicker
+                  checkIn={checkIn}
+                  checkOut={checkOut}
+                  onChange={(range) => {
+                    setCheckIn(range.checkIn);
+                    setCheckOut(range.checkOut);
+                  }}
+                  showPresets={true}
+                />
               </div>
 
               {/* Number of Rooms Container */}
@@ -527,27 +495,20 @@ export default function AvailabilityModal({
 
               {/* Quick Date & Room Modifier */}
               <div className="flex items-center space-x-2 text-xs">
-                <label className="text-gray-500 font-medium hidden sm:inline">Change dates:</label>
-                <input
-                  type="date"
-                  value={checkIn}
-                  min={getTodayStr()}
-                  onChange={(e) => handleInlineCheckInChange(e.target.value)}
-                  className="bg-white border border-sand-300 rounded-lg px-2 py-1 text-xs text-forest-900 focus:outline-none cursor-pointer"
-                />
-                <span className="text-gray-400">to</span>
-                <input
-                  type="date"
-                  value={checkOut}
-                  min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
-                  onChange={(e) => handleModalDateChange(checkIn, e.target.value)}
-                  className="bg-white border border-sand-300 rounded-lg px-2 py-1 text-xs text-forest-900 focus:outline-none cursor-pointer"
-                />
+                <button
+                  type="button"
+                  onClick={() => setStep('form')}
+                  className="bg-white hover:bg-sand-100 border border-sand-300 rounded-xl px-3 py-1.5 text-xs text-forest-900 font-semibold flex items-center space-x-1.5 cursor-pointer shadow-sm transition-colors"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-forest-700" />
+                  <span>{formatDisplayDate(checkIn)} → {formatDisplayDate(checkOut)}</span>
+                  <span className="text-[10px] text-forest-600 underline font-normal ml-1">Edit</span>
+                </button>
 
                 <select
                   value={roomsCount}
                   onChange={(e) => setRoomsCount(Number(e.target.value))}
-                  className="bg-white border border-sand-300 rounded-lg px-2 py-1 text-xs text-forest-900 focus:outline-none cursor-pointer hidden sm:inline-block"
+                  className="bg-white border border-sand-300 rounded-xl px-2.5 py-1.5 text-xs text-forest-900 font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value={1}>1 Room</option>
                   <option value={2}>2 Rooms</option>

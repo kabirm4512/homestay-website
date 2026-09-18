@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
+import DateRangePicker from './DateRangePicker';
 import { X, Calendar, User, Phone, Mail, Users, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
 
 interface InquiryModalProps {
@@ -275,33 +276,16 @@ export default function InquiryModal({
               </div>
 
               {/* Dates: Check-in and Check-out */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1 flex items-center space-x-1">
-                    <Calendar className="w-3.5 h-3.5 text-forest-700" />
-                    <span>Check-in</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={checkIn}
-                    min={getTodayStr()}
-                    onChange={(e) => handleCheckInChange(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1 flex items-center space-x-1">
-                    <Calendar className="w-3.5 h-3.5 text-forest-700" />
-                    <span>Check-out</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={checkOut}
-                    min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
-                    onChange={(e) => setCheckOut(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
-                  />
-                </div>
+              <div>
+                <DateRangePicker
+                  checkIn={checkIn}
+                  checkOut={checkOut}
+                  onChange={(range) => {
+                    setCheckIn(range.checkIn);
+                    setCheckOut(range.checkOut);
+                  }}
+                  showPresets={true}
+                />
               </div>
 
               {/* Room Selection & Number of Guests */}

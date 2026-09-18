@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Room, HeroSlide } from '@/types';
+import DateRangePicker from './DateRangePicker';
 import {
   ChevronLeft,
   ChevronRight,
@@ -173,35 +174,17 @@ export default function HeroCarousel({
           onSubmit={handleCheckAvailability}
           className="w-full bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-2xl border border-white/50 grid grid-cols-1 sm:grid-cols-4 gap-2.5 sm:gap-3 items-stretch text-forest-950"
         >
-          {/* Check-in Container (Full size & styled) */}
-          <div className="w-full bg-sand-50/90 hover:bg-sand-100/90 transition-colors border border-sand-200/90 rounded-xl px-3.5 py-2.5 flex flex-col justify-center focus-within:border-forest-600 focus-within:ring-2 focus-within:ring-forest-600/20">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1.5 mb-1 select-none">
-              <Calendar className="w-3.5 h-3.5 text-forest-600 shrink-0" />
-              <span>Check-in</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={checkIn}
-              min={getTodayStr()}
-              onChange={(e) => handleCheckInChange(e.target.value)}
-              className="w-full block min-w-full bg-transparent text-sm sm:text-base font-semibold text-forest-950 focus:outline-none cursor-pointer"
-            />
-          </div>
-
-          {/* Check-out Container (Full size & styled) */}
-          <div className="w-full bg-sand-50/90 hover:bg-sand-100/90 transition-colors border border-sand-200/90 rounded-xl px-3.5 py-2.5 flex flex-col justify-center focus-within:border-forest-600 focus-within:ring-2 focus-within:ring-forest-600/20">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1.5 mb-1 select-none">
-              <Calendar className="w-3.5 h-3.5 text-forest-600 shrink-0" />
-              <span>Check-out</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={checkOut}
-              min={checkIn ? getNextDayStr(checkIn) : getTomorrowStr()}
-              onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full block min-w-full bg-transparent text-sm sm:text-base font-semibold text-forest-950 focus:outline-none cursor-pointer"
+          {/* Check-in & Check-out Date Range Picker */}
+          <div className="w-full sm:col-span-2">
+            <DateRangePicker
+              checkIn={checkIn}
+              checkOut={checkOut}
+              onChange={(range) => {
+                setCheckIn(range.checkIn);
+                setCheckOut(range.checkOut);
+              }}
+              popoverPosition="top"
+              showPresets={true}
             />
           </div>
 
