@@ -1105,36 +1105,17 @@ export const INITIAL_EXPENSES: Expense[] = [
 
 export const INITIAL_STAFF_ACCOUNTS: StaffAccount[] = [
   {
-    id: 'staff-1',
+    id: 'staff-admin',
     email: 'admin@saverahomestay.com',
     password: 'admin123',
-    fullName: 'Tenzing Norbu (Owner & Admin)',
+    fullName: 'Savera Admin (Owner)',
     phone: '+91 81012 98882',
     role: 'admin',
     isActive: true,
     createdAt: '2026-01-01T00:00:00Z',
   },
-  {
-    id: 'staff-2',
-    email: 'manager@saverahomestay.com',
-    password: 'manager123',
-    fullName: 'Rinchen Dorje (Duty Manager)',
-    phone: '+91 81012 98882',
-    role: 'manager',
-    isActive: true,
-    createdAt: '2026-01-15T00:00:00Z',
-  },
-  {
-    id: 'staff-3',
-    email: 'kitchen@saverahomestay.com',
-    password: 'kitchen123',
-    fullName: 'Chef Sonam Bhutia (Head Chef)',
-    phone: '+91 81012 98882',
-    role: 'kitchen_staff',
-    isActive: true,
-    createdAt: '2026-02-01T00:00:00Z',
-  },
 ];
+
 
 export const INITIAL_SEASONAL_DATE_RANGES: SeasonalDateRange[] = [
   {

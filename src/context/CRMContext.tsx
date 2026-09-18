@@ -244,12 +244,34 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
       if (savedStaff) {
         const parsed = JSON.parse(savedStaff);
-        if (Array.isArray(parsed) && parsed.length > 0) setStaffAccounts(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Filter out legacy hardcoded demo accounts ('staff-2' and 'staff-3') if present
+          const cleanedStaff = parsed.filter(
+            (acc: StaffAccount) => acc.id !== 'staff-2' && acc.id !== 'staff-3'
+          );
+          // Ensure at least one active admin account is present
+          const hasAdmin = cleanedStaff.some((acc: StaffAccount) => acc.role === 'admin' && acc.isActive);
+          const finalStaff = hasAdmin ? cleanedStaff : [...INITIAL_STAFF_ACCOUNTS, ...cleanedStaff];
+          setStaffAccounts(finalStaff);
+          localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(finalStaff));
+        } else {
+          setStaffAccounts(INITIAL_STAFF_ACCOUNTS);
+          localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(INITIAL_STAFF_ACCOUNTS));
+        }
+      } else {
+        setStaffAccounts(INITIAL_STAFF_ACCOUNTS);
       }
 
       const savedUser = localStorage.getItem('wp_crm_current_user');
       if (savedUser) {
-        setCurrentUserState(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser);
+        if (parsedUser.id === 'staff-2' || parsedUser.id === 'staff-3') {
+          localStorage.removeItem('wp_crm_current_user');
+          localStorage.removeItem('homestay_admin_token');
+          localStorage.removeItem('homestay_admin_user');
+        } else {
+          setCurrentUserState(parsedUser);
+        }
       }
     } catch {
       // ignore
@@ -846,7 +868,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const cleanId = identifier.trim().toLowerCase();
     const found = staffAccounts.find(
       (acc) =>
-        (acc.email.toLowerCase() === cleanId || acc.fullName.toLowerCase() === cleanId) &&
+        (acc.email.toLowerCase() === cleanId ||
+          acc.fullName.toLowerCase() === cleanId ||
+          (acc.role === 'admin' && (cleanId === 'info.saverahomestay@gmail.com' || cleanId === 'admin'))) &&
         acc.password === password
     );
 

@@ -9,7 +9,7 @@ export default function RoleSwitcher() {
   const { role, setRole, currentUser, showToast } = useCRM();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isUserAdmin = true; // All roles unlocked for anyone with the weblink
+  const isUserAdmin = currentUser?.role === 'admin';
 
   const rolesConfig: Record<
     StaffRole,
@@ -97,8 +97,12 @@ export default function RoleSwitcher() {
               <span className="text-[11px] font-bold uppercase tracking-wider text-sand-300">
                 Staff Role Permissions
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/80 border border-emerald-600 text-emerald-300 font-semibold">
-                All Roles Unlocked
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
+                isUserAdmin
+                  ? 'bg-emerald-900/80 border-emerald-600 text-emerald-300'
+                  : 'bg-amber-900/80 border-amber-600 text-amber-300'
+              }`}>
+                {isUserAdmin ? 'Admin Switcher' : 'Role Locked'}
               </span>
             </div>
 
@@ -107,19 +111,30 @@ export default function RoleSwitcher() {
                 const item = rolesConfig[rKey];
                 const Icon = item.icon;
                 const isSelected = role === rKey;
+                const isLocked = !isUserAdmin && rKey !== currentUser?.role;
 
                 return (
                   <button
                     key={rKey}
+                    disabled={isLocked}
                     onClick={() => {
+                      if (isLocked) {
+                        showToast(
+                          `Access Restricted: Signed in as ${currentUser?.fullName || 'Staff'}. Only Administrators can switch roles.`,
+                          'error'
+                        );
+                        return;
+                      }
                       setRole(rKey);
                       setIsOpen(false);
                       showToast(`Switched role to ${item.label.split(' (')[0]}`);
                     }}
-                    className={`w-full min-h-[44px] p-2.5 rounded-xl text-left transition-all flex items-start space-x-3 cursor-pointer ${
+                    className={`w-full min-h-[44px] p-2.5 rounded-xl text-left transition-all flex items-start space-x-3 ${
                       isSelected
-                        ? 'bg-forest-800/90 border border-amber-500/40 text-white shadow-inner'
-                        : 'hover:bg-forest-800/40 text-sand-200 border border-transparent'
+                        ? 'bg-forest-800/90 border border-amber-500/40 text-white shadow-inner cursor-pointer'
+                        : isLocked
+                        ? 'opacity-40 cursor-not-allowed bg-forest-950/40 text-sand-400 border border-transparent'
+                        : 'hover:bg-forest-800/40 text-sand-200 border border-transparent cursor-pointer'
                     }`}
                   >
                     <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${isSelected ? 'bg-amber-500 text-forest-950 font-bold' : 'bg-forest-950 text-sand-300'}`}>
@@ -129,6 +144,7 @@ export default function RoleSwitcher() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white flex items-center space-x-1.5">
                           <span>{item.label}</span>
+                          {isLocked && <Lock className="w-3 h-3 text-rose-400" />}
                         </span>
                         {isSelected && (
                           <span className="text-[10px] text-amber-300 font-extrabold uppercase">
@@ -137,7 +153,7 @@ export default function RoleSwitcher() {
                         )}
                       </div>
                       <p className="text-[11px] text-sand-300/80 line-clamp-2 mt-0.5">
-                        {item.summary}
+                        {isLocked ? 'Restricted to Administrator accounts.' : item.summary}
                       </p>
                     </div>
                   </button>

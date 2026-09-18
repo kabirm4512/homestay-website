@@ -14,6 +14,7 @@ import {
   MessageSquareText,
   Sliders,
   ExternalLink,
+  LogOut,
   ShieldCheck,
   RefreshCw,
   CheckCircle2,
@@ -23,6 +24,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 
+import AdminAuth from '@/components/admin/AdminAuth';
 import AdminOverview from '@/components/admin/AdminOverview';
 import AdminRooms from '@/components/admin/AdminRooms';
 import AdminBookings from '@/components/admin/AdminBookings';
@@ -64,11 +66,44 @@ export default function AdminPage() {
     setCurrentUser,
   } = useCRM();
 
-  const [isAuthenticated] = useState<boolean>(true); // Direct open access for all roles
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
     name: 'Administrator',
     role: 'admin',
   });
+
+  // Check existing session token on mount
+  useEffect(() => {
+    try {
+      const storedToken = localStorage.getItem('homestay_admin_token') || sessionStorage.getItem('homestay_admin_token');
+      const storedUser = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
+
+      if (storedToken && storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.id === 'staff-2' || parsed.id === 'staff-3') {
+          localStorage.removeItem('homestay_admin_token');
+          localStorage.removeItem('homestay_admin_user');
+          localStorage.removeItem('wp_crm_current_user');
+          sessionStorage.removeItem('homestay_admin_token');
+          setIsAuthenticated(false);
+        } else {
+          setAdminUser({
+            name: parsed.fullName || parsed.name || 'Staff User',
+            role: parsed.role || 'admin',
+          });
+          setCurrentUser(parsed);
+          setIsAuthenticated(true);
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch {
+      setIsAuthenticated(false);
+    } finally {
+      setAuthChecking(false);
+    }
+  }, [setCurrentUser]);
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState<string>('tape_chart');
@@ -136,13 +171,56 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated, fetchData]);
+
+  const handleAuthenticated = (token: string, user: { name: string; role: string }) => {
+    try {
+      localStorage.setItem('homestay_admin_token', token);
+      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
+    } catch {
+      // fallback
+    }
+    setAdminUser(user);
+    setIsAuthenticated(true);
+    showToast(`Welcome back, ${user.name}!`);
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('homestay_admin_token');
+      localStorage.removeItem('homestay_admin_user');
+      localStorage.removeItem('wp_crm_current_user');
+      sessionStorage.removeItem('homestay_admin_token');
+    } catch {
+      // ignore
+    }
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    showToast('Signed out of staff portal.');
+  };
 
   const handleRefresh = () => {
     fetchData();
     showToast('Homestay data reloaded.');
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-sand-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-3 border-forest-700 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-forest-800 font-medium">Verifying credentials...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AdminAuth onAuthenticated={handleAuthenticated} />;
+  }
 
   const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
   const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending').length;
@@ -188,17 +266,17 @@ export default function AdminPage() {
               <span>Dine-In QRs</span>
             </button>
 
-            {/* Active Role Open Access Badge */}
+            {/* Logged-in Staff Badge */}
             <div className="hidden md:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60">
               <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center uppercase">
-                {role.charAt(0)}
+                {(currentUser?.fullName || adminUser.name).charAt(0)}
               </div>
               <div className="text-left">
-                <span className="text-[11px] font-bold text-white block leading-none capitalize">
-                  {role.replace('_', ' ')} Mode
+                <span className="text-[11px] font-bold text-white block leading-none truncate max-w-[130px]">
+                  {currentUser?.fullName || adminUser.name}
                 </span>
-                <span className="text-[9px] text-emerald-300 uppercase tracking-wider font-semibold">
-                  All Roles Unlocked
+                <span className="text-[9px] text-amber-300 uppercase tracking-wider font-semibold capitalize">
+                  {(currentUser?.role || role).replace('_', ' ')}
                 </span>
               </div>
             </div>
@@ -224,6 +302,16 @@ export default function AdminPage() {
               <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
               <span className="hidden sm:inline">Website</span>
             </Link>
+
+            {/* Sign Out Button */}
+            <button
+              onClick={handleLogout}
+              className="min-h-[44px] px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:text-white rounded-xl hover:bg-rose-950/50 border border-rose-800/60 transition-colors flex items-center space-x-1.5 cursor-pointer"
+              title="Sign out of staff portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
           </div>
         </div>
 
@@ -408,7 +496,27 @@ export default function AdminPage() {
         {activeTab === 'kitchen' && <KitchenPortal />}
 
         {/* Module D: Financial Ledger (Admin Only, RBAC Guarded) */}
-        {activeTab === 'ledger' && <FinancialLedger />}
+        {activeTab === 'ledger' && (
+          role === 'admin' ? (
+            <FinancialLedger />
+          ) : (
+            <div className="bg-white rounded-3xl p-8 border border-sand-200 text-center max-w-md mx-auto my-12 shadow-sm animate-in fade-in">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-800 flex items-center justify-center mx-auto mb-3">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h3 className="font-serif font-bold text-lg text-forest-950 mb-1">Financial Ledger Restricted</h3>
+              <p className="text-xs text-forest-700/80 mb-4">
+                Financial Ledger, P&amp;L reports, expense records, and revenue analytics are strictly confidential and restricted to Administrator accounts.
+              </p>
+              <button
+                onClick={() => setActiveTab('tape_chart')}
+                className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors cursor-pointer"
+              >
+                Return to Operations
+              </button>
+            </div>
+          )
+        )}
 
         {/* Staff & User Access Management (Admin Only, RBAC Guarded) */}
         {activeTab === 'staff' && (

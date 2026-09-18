@@ -136,34 +136,30 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
               </div>
             </div>
 
-            {/* 1-Click Test Credentials Helper */}
+            {/* 1-Click Fill Administrator Credentials */}
             <div className="pt-1">
               <span className="text-[10px] uppercase tracking-wider font-bold text-forest-600 block mb-1.5">
-                1-Click Fill Demo Credentials:
+                Default Administrator Account:
               </span>
-              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => handlePrefill('admin@saverahomestay.com', 'admin123')}
-                  className="py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 rounded-lg font-semibold text-center transition-colors"
-                >
-                  Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrefill('manager@saverahomestay.com', 'manager123')}
-                  className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 rounded-lg font-semibold text-center transition-colors"
-                >
-                  Manager
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrefill('kitchen@saverahomestay.com', 'kitchen123')}
-                  className="py-1.5 px-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-900 rounded-lg font-semibold text-center transition-colors"
-                >
-                  Kitchen
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handlePrefill('admin@saverahomestay.com', 'admin123')}
+                className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl font-medium text-xs flex items-center justify-between transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 text-left">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold text-emerald-900 block leading-tight">Savera Admin (Owner)</span>
+                    <span className="text-[11px] text-emerald-700 font-mono">admin@saverahomestay.com</span>
+                  </div>
+                </div>
+                <span className="text-[10px] uppercase bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-md font-bold group-hover:bg-emerald-300 transition-colors">
+                  1-Click Fill
+                </span>
+              </button>
+              <p className="text-[11px] text-forest-600/80 mt-2 leading-relaxed">
+                Log in as Administrator to access the <strong>Staff & Logins</strong> portal and create dedicated accounts for Duty Managers and Kitchen Staff.
+              </p>
             </div>
 
             <button
