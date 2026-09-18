@@ -14,7 +14,6 @@ import {
   MessageSquareText,
   Sliders,
   ExternalLink,
-  LogOut,
   ShieldCheck,
   RefreshCw,
   CheckCircle2,
@@ -24,7 +23,6 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 
-import AdminAuth from '@/components/admin/AdminAuth';
 import AdminOverview from '@/components/admin/AdminOverview';
 import AdminRooms from '@/components/admin/AdminRooms';
 import AdminBookings from '@/components/admin/AdminBookings';
@@ -66,11 +64,10 @@ export default function AdminPage() {
     setCurrentUser,
   } = useCRM();
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false); // Strictly restricted by default
-  const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [isAuthenticated] = useState<boolean>(true); // Direct open access for all roles
   const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
-    name: '',
-    role: 'manager',
+    name: 'Administrator',
+    role: 'admin',
   });
 
   // Active navigation tab
@@ -104,29 +101,6 @@ export default function AdminPage() {
       setActiveTab('kitchen');
     }
   }, [role]);
-
-  // Check existing session token on mount (Strict Verification)
-  useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('homestay_admin_token') || sessionStorage.getItem('homestay_admin_token');
-      const storedUser = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
-      
-      if (storedToken && storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setAdminUser({
-          name: parsed.fullName || parsed.name || 'Staff User',
-          role: parsed.role || 'admin',
-        });
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch {
-      setIsAuthenticated(false);
-    } finally {
-      setAuthChecking(false);
-    }
-  }, []);
 
   // Fetch live homestay data
   const fetchData = useCallback(async () => {
@@ -162,51 +136,13 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchData();
-    }
-  }, [isAuthenticated, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleAuthenticated = (token: string, user: { name: string; role: string }) => {
-    try {
-      localStorage.setItem('homestay_admin_token', token);
-      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
-    } catch {
-      // fallback
-    }
-    setAdminUser(user);
-    setIsAuthenticated(true);
-    showToast(`Welcome back, ${user.name}!`);
+  const handleRefresh = () => {
+    fetchData();
+    showToast('Homestay data reloaded.');
   };
-
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem('homestay_admin_token');
-      localStorage.removeItem('homestay_admin_user');
-      localStorage.removeItem('wp_crm_current_user');
-      sessionStorage.removeItem('homestay_admin_token');
-    } catch {
-      // ignore
-    }
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    showToast('Signed out of staff platform.');
-  };
-
-  if (authChecking) {
-    return (
-      <div className="min-h-screen bg-sand-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="w-8 h-8 border-3 border-forest-700 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-forest-800 font-medium">Verifying credentials...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <AdminAuth onAuthenticated={handleAuthenticated} />;
-  }
 
   const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
   const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending').length;
@@ -252,30 +188,42 @@ export default function AdminPage() {
               <span>Dine-In QRs</span>
             </button>
 
-            {/* Logged-in Staff Badge */}
+            {/* Active Role Open Access Badge */}
             <div className="hidden md:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60">
-              <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center">
-                {(currentUser?.fullName || adminUser.name).charAt(0)}
+              <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center uppercase">
+                {role.charAt(0)}
               </div>
               <div className="text-left">
-                <span className="text-[11px] font-bold text-white block leading-none truncate max-w-[130px]">
-                  {currentUser?.fullName || adminUser.name}
+                <span className="text-[11px] font-bold text-white block leading-none capitalize">
+                  {role.replace('_', ' ')} Mode
                 </span>
-                <span className="text-[9px] text-amber-300 uppercase tracking-wider font-semibold">
-                  {(currentUser?.role || role).replace('_', ' ')}
+                <span className="text-[9px] text-emerald-300 uppercase tracking-wider font-semibold">
+                  All Roles Unlocked
                 </span>
               </div>
             </div>
 
             <div className="h-5 w-px bg-forest-700 hidden sm:block" />
 
+            {/* Refresh Data Action */}
             <button
-              onClick={handleLogout}
-              className="min-h-[44px] min-w-[44px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center"
-              title="Sign out"
+              onClick={handleRefresh}
+              className="min-h-[44px] min-w-[44px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center cursor-pointer"
+              title="Refresh Homestay Live Data"
             >
-              <LogOut className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" />
             </button>
+
+            {/* View Live Website */}
+            <Link
+              href="/"
+              target="_blank"
+              className="min-h-[44px] px-2.5 py-1.5 text-xs font-semibold text-sand-200 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center space-x-1.5"
+              title="View Public Website"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">Website</span>
+            </Link>
           </div>
         </div>
 

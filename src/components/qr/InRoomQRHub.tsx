@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import {
   QrCode,
@@ -16,6 +16,8 @@ import {
   Layers,
   ArrowRight,
   X,
+  Globe,
+  ShieldAlert,
 } from 'lucide-react';
 import { PhysicalRoom } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
@@ -42,6 +44,14 @@ export default function InRoomQRHub({
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [customDomain, setCustomDomain] = useState<string>('');
+
+  // Initialize domain from window
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCustomDomain(window.location.origin);
+    }
+  }, []);
 
   const currentRoom = sortedRooms.find((r) => r.roomNumber === selectedRoomNumber) || sortedRooms[0] || {
     id: 'room-101',
@@ -54,10 +64,17 @@ export default function InRoomQRHub({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Generate QR payload URL
-  const getRoomUrl = (roomNum: number) => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com';
-    return `${origin}/concierge?room=${roomNum}`;
-  };
+  const getRoomUrl = useCallback((roomNum: number) => {
+    let cleanOrigin = customDomain.trim();
+    if (!cleanOrigin) {
+      cleanOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com';
+    }
+    if (!cleanOrigin.startsWith('http://') && !cleanOrigin.startsWith('https://')) {
+      cleanOrigin = `https://${cleanOrigin}`;
+    }
+    cleanOrigin = cleanOrigin.replace(/\/+$/, '');
+    return `${cleanOrigin}/concierge?room=${roomNum}`;
+  }, [customDomain]);
 
   // Generate QR Code for currently selected room
   useEffect(() => {
@@ -83,7 +100,7 @@ export default function InRoomQRHub({
     return () => {
       isMounted = false;
     };
-  }, [selectedRoomNumber]);
+  }, [selectedRoomNumber, getRoomUrl]);
 
   // Draw printable standee card onto high-res canvas (1200 x 1600 px)
   const drawCardOnCanvas = async (
@@ -405,6 +422,44 @@ export default function InRoomQRHub({
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* QR Target Domain & Vercel Authentication Notice */}
+      <div className="bg-white rounded-2xl p-4 border border-sand-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center space-x-2">
+            <Globe className="w-4 h-4 text-forest-700 shrink-0" />
+            <span className="text-xs font-bold text-forest-950">QR Destination Base Domain:</span>
+          </div>
+          <div className="text-[11px] text-gray-500 truncate">
+            Active QR URL: <code className="font-mono font-bold text-forest-800 bg-sand-100 px-1.5 py-0.5 rounded">{getRoomUrl(currentRoom.roomNumber)}</code>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={customDomain}
+            onChange={(e) => setCustomDomain(e.target.value)}
+            placeholder="e.g. https://saverahomestay.com or current domain"
+            className="flex-1 px-3 py-2 text-xs bg-sand-50/80 border border-sand-300 rounded-xl font-mono text-forest-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-800"
+          />
+          <button
+            onClick={() => setCustomDomain(typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com')}
+            className="min-h-[36px] px-3 py-1.5 bg-sand-200 hover:bg-sand-300 text-forest-950 text-xs font-semibold rounded-xl transition-colors shrink-0 cursor-pointer"
+          >
+            Use Current URL
+          </button>
+        </div>
+
+        {/* Vercel Login Guard Notice */}
+        <div className="flex items-start space-x-2 text-[11px] text-amber-900 bg-amber-50/90 p-3 rounded-xl border border-amber-200/80">
+          <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="font-bold text-amber-950">Why does scanning the QR redirect to Vercel login? </span>
+            <span>Vercel enables <strong>Deployment Protection (Vercel Authentication)</strong> by default. To allow all guests to open the in-room concierge freely without a Vercel login, go to your <strong>Vercel Dashboard &rarr; Settings &rarr; Deployment Protection</strong>, toggle <strong>Vercel Authentication</strong> to <strong>Disabled</strong>, and click Save.</span>
+          </div>
         </div>
       </div>
 
