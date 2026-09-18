@@ -13,8 +13,8 @@ interface NavbarProps {
 }
 
 export default function Navbar({
-  homestayName = 'Whispering Pines Sanctuary',
-  phone = '+91 98765 43210',
+  homestayName = 'Savera Homestay',
+  phone = '+91 81012 98882',
   onOpenInquiry,
   onCheckAvailability,
 }: NavbarProps) {

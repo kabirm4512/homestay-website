@@ -77,7 +77,7 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                 Boutique Homestay CRM
               </span>
               <h1 className="font-serif font-bold text-xl text-white">
-                Whispering Pines Staff Portal
+                Savera Homestay Staff Portal
               </h1>
             </div>
           </div>
@@ -105,7 +105,7 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. admin@whisperingpines.com"
+                  placeholder="e.g. admin@saverahomestay.com"
                   className="w-full text-xs p-3 pl-9 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:ring-1 focus:ring-forest-800"
                 />
                 <Mail className="w-4 h-4 text-forest-400 absolute left-3 top-3.5 pointer-events-none" />
@@ -144,21 +144,21 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
               <div className="grid grid-cols-3 gap-1.5 text-[11px]">
                 <button
                   type="button"
-                  onClick={() => handlePrefill('admin@whisperingpines.com', 'admin123')}
+                  onClick={() => handlePrefill('admin@saverahomestay.com', 'admin123')}
                   className="py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 rounded-lg font-semibold text-center transition-colors"
                 >
                   Admin
                 </button>
                 <button
                   type="button"
-                  onClick={() => handlePrefill('manager@whisperingpines.com', 'manager123')}
+                  onClick={() => handlePrefill('manager@saverahomestay.com', 'manager123')}
                   className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 rounded-lg font-semibold text-center transition-colors"
                 >
                   Manager
                 </button>
                 <button
                   type="button"
-                  onClick={() => handlePrefill('kitchen@whisperingpines.com', 'kitchen123')}
+                  onClick={() => handlePrefill('kitchen@saverahomestay.com', 'kitchen123')}
                   className="py-1.5 px-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-900 rounded-lg font-semibold text-center transition-colors"
                 >
                   Kitchen

@@ -251,15 +251,17 @@ VALUES
 (
     'site_info',
     '{
-        "name": "Whispering Pines Sanctuary",
-        "tagline": "Boutique Homestay & Mountain Retreat",
-        "phone": "+91 98765 43210",
-        "whatsapp": "919876543210",
-        "email": "stay@whisperingpines.com",
-        "address": "Deodar Valley, Old Manali, Himachal Pradesh, 175131",
+        "name": "Savera Homestay",
+        "tagline": "A Boutique Mountain Homestay",
+        "phone": "+91 81012 98882",
+        "whatsapp": "918101298882",
+        "email": "info.saverahomestay@gmail.com",
+        "address": "35a, Hill Cart Rd, West Point, Cart Road, Darjeeling, West Bengal 734101",
         "check_in_time": "2:00 PM",
         "check_out_time": "11:00 AM",
-        "map_embed_url": "https://maps.google.com"
+        "map_url": "https://maps.app.goo.gl/KMJe676np8aDYExD6",
+        "google_business_url": "https://share.google/ufeIhNLjkk7qoPffW",
+        "map_embed_url": "https://www.google.com/maps?q=35a,+Hill+Cart+Rd,+West+Point,+Cart+Road,+Darjeeling,+West+Bengal+734101&output=embed"
     }'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

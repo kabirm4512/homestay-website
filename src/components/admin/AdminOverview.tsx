@@ -192,7 +192,7 @@ export default function AdminOverview({
               {recentInquiries.map((inq) => {
                 const cleanPhone = (inq.phone || '').replace(/[^0-9]/g, '');
                 const waText = encodeURIComponent(
-                  `Hello ${inq.guest_name}, thank you for inquiring with Whispering Pines Sanctuary regarding ${inq.room_name || 'your stay'}. We'd love to host you!`
+                  `Hello ${inq.guest_name}, thank you for inquiring with Savera Homestay regarding ${inq.room_name || 'your stay'}. We'd love to host you!`
                 );
                 return (
                   <div

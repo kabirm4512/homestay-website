@@ -533,7 +533,7 @@ export default function AdminStaffManagement() {
                 <div>
                   <h3 className="font-serif font-bold text-base">Add New Staff Account</h3>
                   <p className="text-[11px] text-sand-300">
-                    Create credentials for an employee to access Whispering Pines
+                    Create credentials for an employee to access Savera Homestay
                   </p>
                 </div>
               </div>
@@ -575,7 +575,7 @@ export default function AdminStaffManagement() {
                   <input
                     type="email"
                     required
-                    placeholder="e.g. pemba@whisperingpines.com"
+                    placeholder="e.g. pemba@saverahomestay.com"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
                     className="w-full text-xs p-3 rounded-xl border border-sand-300 bg-sand-50/50 focus:ring-1 focus:ring-forest-800"
@@ -588,7 +588,7 @@ export default function AdminStaffManagement() {
                   </label>
                   <input
                     type="tel"
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 81012 98882"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
                     className="w-full text-xs p-3 rounded-xl border border-sand-300 bg-sand-50/50 focus:ring-1 focus:ring-forest-800"

@@ -322,7 +322,7 @@ function ConciergeContent() {
 
   // Generate WhatsApp notification URL with proper URL encoding (fixes URL truncation at #)
   const generateWhatsAppOrderLink = (order: any) => {
-    const text = `*WHISPERING PINES IN-ROOM ORDER* 🛎️\n` +
+    const text = `*SAVERA HOMESTAY IN-ROOM ORDER* 🛎️\n` +
       `*Room:* ${order.roomName}\n` +
       `*Guest:* ${order.guestName}\n` +
       `*Order #:* ${order.orderNumber}\n` +
@@ -331,11 +331,11 @@ function ConciergeContent() {
       `*Total Amount:* ₹${order.totalAmount}\n` +
       `_Charge posted as PENDING to Room Folio._`;
 
-    return `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/918101298882?text=${encodeURIComponent(text)}`;
   };
 
   const generateWhatsAppTransportLink = (req: any) => {
-    const text = `*WHISPERING PINES DISPATCH REQUEST* 🚗\n` +
+    const text = `*SAVERA HOMESTAY DISPATCH REQUEST* 🚗\n` +
       `*Request #:* ${req.requestNumber}\n` +
       `*Room:* ${req.roomName}\n` +
       `*Guest:* ${req.guestName} (${req.guestContactPhone})\n` +
@@ -345,7 +345,7 @@ function ConciergeContent() {
       `*Quoted Price:* ₹${req.quotedPrice}\n` +
       `_Posted to Folio. Manager confirmation requested._`;
 
-    return `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/918101298882?text=${encodeURIComponent(text)}`;
   };
 
   return (
@@ -360,7 +360,7 @@ function ConciergeContent() {
               </div>
               <div>
                 <span className="font-serif font-bold text-sm block leading-tight">
-                  Whispering Pines
+                  Savera Homestay
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold">
                   In-Room Digital Concierge
@@ -428,7 +428,7 @@ function ConciergeContent() {
               <span>Need Assistance?</span>
             </div>
             <p>
-              Please contact the front desk at <strong>+91 98765 43210</strong> or ring the bell at reception for early baggage drop or instant check-in.
+              Please contact the front desk at <strong>+91 81012 98882</strong> or ring the bell at reception for early baggage drop or instant check-in.
             </p>
           </div>
 

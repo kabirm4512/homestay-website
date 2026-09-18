@@ -18,7 +18,7 @@ export default function BookingModal({
   onClose,
   room,
   initialDates = null,
-  whatsappNumber = '919876543210',
+  whatsappNumber = '918101298882',
 }: BookingModalProps) {
   const [guestName, setGuestName] = useState('');
   const [phone, setPhone] = useState('');
@@ -361,7 +361,7 @@ export default function BookingModal({
                     <input
                       type="tel"
                       required
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 81012 98882"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full pl-9 pr-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"

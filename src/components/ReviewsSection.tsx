@@ -5,9 +5,13 @@ import { Star, ShieldCheck, ExternalLink, ThumbsUp } from 'lucide-react';
 
 interface ReviewsSectionProps {
   reviews: Review[];
+  googleBusinessUrl?: string;
 }
 
-export default function ReviewsSection({ reviews }: ReviewsSectionProps) {
+export default function ReviewsSection({
+  reviews,
+  googleBusinessUrl = 'https://share.google/ufeIhNLjkk7qoPffW',
+}: ReviewsSectionProps) {
   const averageRating = 4.9;
   const totalCount = 148;
 
@@ -120,7 +124,7 @@ export default function ReviewsSection({ reviews }: ReviewsSectionProps) {
 
               <div className="pt-2 flex justify-end">
                 <a
-                  href="https://maps.google.com"
+                  href={googleBusinessUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center space-x-1.5 text-xs text-forest-700 hover:text-forest-900 font-semibold transition-colors"

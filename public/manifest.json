@@ -1,7 +1,7 @@
 {
-  "name": "Whispering Pines Sanctuary | Boutique Homestay",
-  "short_name": "Whispering Pines",
-  "description": "Boutique 7-Room Mountain Homestay, In-Room Digital Concierge & Operations Platform",
+  "name": "Savera Homestay - A Boutique Mountain Homestay",
+  "short_name": "Savera Homestay",
+  "description": "Boutique 7-Room Mountain Homestay in Darjeeling, In-Room Digital Concierge & Operations Platform",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

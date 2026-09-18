@@ -91,6 +91,8 @@ export interface SiteInfo {
   check_in_time: string;
   check_out_time: string;
   map_embed_url: string;
+  map_url?: string;
+  google_business_url?: string;
   directions?: string;
   policies?: { title: string; desc: string }[];
   amenitiesList?: string[];

@@ -70,7 +70,7 @@ export default function AdminAddonsCMS() {
   const [editingRoute, setEditingRoute] = useState<TransferRoute | null>(null);
   const [routeFormData, setRouteFormData] = useState<Partial<TransferRoute>>({
     title: '',
-    origin: 'Whispering Pines Sanctuary',
+    origin: 'Savera Homestay, Darjeeling',
     destination: 'Bagdogra Airport (IXB) / NJP',
     priceWagonR: 2800,
     priceSedan: 3400,
@@ -174,7 +174,7 @@ export default function AdminAddonsCMS() {
     setEditingRoute(null);
     setRouteFormData({
       title: '',
-      origin: 'Whispering Pines',
+      origin: 'Savera Homestay, Darjeeling',
       destination: '',
       priceWagonR: 2500,
       priceSedan: 3200,
@@ -240,7 +240,7 @@ export default function AdminAddonsCMS() {
       const newRoute: TransferRoute = {
         id: 'route-' + Date.now(),
         title: routeFormData.title.trim(),
-        origin: routeFormData.origin?.trim() || 'Whispering Pines',
+        origin: routeFormData.origin?.trim() || 'Savera Homestay, Darjeeling',
         destination: routeFormData.destination?.trim() || 'Destination',
         priceWagonR: Number(routeFormData.priceWagonR),
         priceSedan: Number(routeFormData.priceSedan),
@@ -945,7 +945,7 @@ export default function AdminAddonsCMS() {
                     type="text"
                     value={routeFormData.origin || ''}
                     onChange={(e) => setRouteFormData({ ...routeFormData, origin: e.target.value })}
-                    placeholder="Whispering Pines"
+                    placeholder="Savera Homestay, Darjeeling"
                     className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
                   />
                 </div>

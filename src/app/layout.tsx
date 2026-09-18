@@ -11,26 +11,26 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Whispering Pines Sanctuary | Luxury Boutique Homestay CRM & Concierge',
-  description: '7-room luxury boutique homestay CRM, in-room digital concierge, operations hub, and financial accounting platform in the Himalayas.',
+  title: 'Savera Homestay - A Boutique Mountain Homestay',
+  description: '7-room boutique mountain homestay in Darjeeling with private balconies, panoramic Himalayan views, in-room digital concierge, and authentic mountain hospitality.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'WP Concierge',
+    title: 'Savera Homestay',
   },
-  keywords: ['homestay crm', 'boutique homestay', 'digital concierge', 'tape chart', 'financial ledger'],
+  keywords: ['Savera Homestay', 'Darjeeling homestay', 'boutique mountain homestay', 'Hill Cart Road Darjeeling', 'in-room digital concierge'],
   openGraph: {
-    title: 'Whispering Pines Sanctuary | Boutique Homestay CRM',
-    description: 'An intimate mountain sanctuary with handcrafted cedar suites, organic farm dining, and serene nature.',
-    url: 'https://whisperingpines.com',
-    siteName: 'Whispering Pines Sanctuary',
+    title: 'Savera Homestay - A Boutique Mountain Homestay',
+    description: 'An intimate mountain sanctuary in Darjeeling with handcrafted suites, private balconies, and majestic Himalayan views.',
+    url: 'https://saverahomestay.com',
+    siteName: 'Savera Homestay',
     images: [
       {
         url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80',
         width: 1200,
         height: 630,
-        alt: 'Whispering Pines Sanctuary',
+        alt: 'Savera Homestay Darjeeling',
       },
     ],
     locale: 'en_US',

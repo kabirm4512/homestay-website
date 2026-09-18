@@ -55,7 +55,7 @@ export default function InRoomQRHub({
 
   // Generate QR payload URL
   const getRoomUrl = (roomNum: number) => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://whisperingpines.com';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com';
     return `${origin}/concierge?room=${roomNum}`;
   };
 
@@ -121,7 +121,7 @@ export default function InRoomQRHub({
     ctx.fillStyle = '#f59e0b'; // Amber Gold
     ctx.font = 'bold 30px serif';
     ctx.textAlign = 'center';
-    ctx.fillText('WHISPERING PINES SANCTUARY', width / 2, 150);
+    ctx.fillText('SAVERA HOMESTAY - DARJEELING', width / 2, 150);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 54px serif';
@@ -216,7 +216,7 @@ export default function InRoomQRHub({
     ctx.fillStyle = '#78350f';
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('High-Speed Starlink Wi-Fi: WhisperingPines_Guest  |  Password: pines@sanctuary', width / 2, 1508);
+    ctx.fillText('High-Speed Wi-Fi: SaveraHomestay_Guest  |  Password: savera@darjeeling', width / 2, 1508);
 
     return targetCanvas.toDataURL('image/png');
   };
@@ -226,7 +226,7 @@ export default function InRoomQRHub({
     if (!canvasRef.current) return;
     const dataUrl = await drawCardOnCanvas(currentRoom, canvasRef.current);
     const link = document.createElement('a');
-    link.download = `whispering-pines-room-${currentRoom.roomNumber}-dine-in-qr.png`;
+    link.download = `savera-homestay-room-${currentRoom.roomNumber}-dine-in-qr.png`;
     link.href = dataUrl;
     link.click();
   };
@@ -294,7 +294,7 @@ export default function InRoomQRHub({
 
         const dataUrl = await drawCardOnCanvas(room, canvasRef.current);
         const link = document.createElement('a');
-        link.download = `whispering-pines-room-${room.roomNumber}-dine-in-qr.png`;
+        link.download = `savera-homestay-room-${room.roomNumber}-dine-in-qr.png`;
         link.href = dataUrl;
         link.click();
 
@@ -420,7 +420,7 @@ export default function InRoomQRHub({
             <div className="bg-forest-900 text-white rounded-2xl p-4 mb-4 shadow-sm">
               <div className="flex items-center justify-center space-x-2 text-amber-300 text-xs font-bold tracking-widest uppercase mb-1">
                 <Trees className="w-4 h-4" />
-                <span>Whispering Pines Sanctuary</span>
+                <span>Savera Homestay</span>
               </div>
               <h3 className="font-serif font-bold text-lg sm:text-xl text-white">
                 IN-ROOM DIGITAL CONCIERGE
@@ -479,7 +479,7 @@ export default function InRoomQRHub({
             {/* Wi-Fi Info */}
             <div className="bg-amber-50 text-amber-950 text-[11px] font-semibold py-2 px-3 rounded-xl border border-amber-200 flex items-center justify-center space-x-2">
               <Wifi className="w-3.5 h-3.5 text-amber-700" />
-              <span>Wi-Fi: WhisperingPines_Guest | Password: pines@sanctuary</span>
+              <span>Wi-Fi: SaveraHomestay_Guest | Password: savera@darjeeling</span>
             </div>
           </div>
         </div>

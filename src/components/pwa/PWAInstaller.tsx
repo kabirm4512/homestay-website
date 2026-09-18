@@ -78,7 +78,7 @@ export default function PWAInstaller({
 
   const handleInstallClick = async () => {
     if (isInstalled) {
-      alert('Whispering Pines App is already installed on your device!');
+      alert('Savera Homestay App is already installed on your device!');
       return;
     }
 
@@ -107,7 +107,7 @@ export default function PWAInstaller({
     return (
       <div
         className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/70 text-emerald-300 text-xs font-semibold border border-emerald-800/60 shadow-xs ${className}`}
-        title="Whispering Pines App is installed on this device"
+        title="Savera Homestay App is installed on this device"
       >
         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
         <span>App Installed</span>
@@ -127,7 +127,7 @@ export default function PWAInstaller({
             </div>
             <div className="truncate">
               <p className="text-xs font-bold text-white flex items-center space-x-1">
-                <span>Install Whispering Pines App</span>
+                <span>Install Savera Homestay App</span>
                 <Sparkles className="w-3 h-3 text-amber-300" />
               </p>
               <p className="text-[11px] text-sand-300 truncate">
@@ -146,7 +146,7 @@ export default function PWAInstaller({
       ) : (
         <button
           onClick={handleInstallClick}
-          aria-label="Install Whispering Pines App to home screen"
+          aria-label="Install Savera Homestay App to home screen"
           className={`min-h-[44px] inline-flex items-center justify-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 shadow-md transition-all border border-amber-300/40 cursor-pointer ${className}`}
         >
           <Download className="w-4 h-4 text-forest-950" />
@@ -171,10 +171,10 @@ export default function PWAInstaller({
             </div>
 
             <h3 className="font-serif font-bold text-lg text-forest-900 mb-1">
-              Install Whispering Pines App
+              Install Savera Homestay App
             </h3>
             <p className="text-xs text-forest-700 mb-4 leading-relaxed">
-              Add our boutique sanctuary app to your home screen for instant in-room concierge, offline access, and fast booking.
+              Add our boutique mountain homestay app to your home screen for instant in-room concierge, offline access, and fast booking.
             </p>
 
             {browserType === 'ios' ? (
@@ -212,7 +212,7 @@ export default function PWAInstaller({
                   <div className="p-1.5 bg-sand-200/80 rounded-lg text-forest-900 shrink-0">
                     <Download className="w-4 h-4 text-forest-800" />
                   </div>
-                  <p>2. Select <strong>&quot;Install app&quot;</strong> or <strong>&quot;Install Whispering Pines&quot;</strong>.</p>
+                  <p>2. Select <strong>&quot;Install app&quot;</strong> or <strong>&quot;Install Savera Homestay&quot;</strong>.</p>
                 </div>
                 <div className="flex items-start space-x-3">
                   <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-800 shrink-0">

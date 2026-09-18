@@ -224,7 +224,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <span className="font-serif font-bold text-base block leading-tight">
-                  Whispering Pines
+                  Savera Homestay
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />

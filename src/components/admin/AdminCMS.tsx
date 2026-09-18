@@ -858,7 +858,7 @@ export default function AdminCMS({
                   type="text"
                   value={site.phone}
                   onChange={(e) => setSite({ ...site, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 81012 98882"
                   className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
                 />
               </div>
@@ -873,7 +873,7 @@ export default function AdminCMS({
                   type="text"
                   value={site.whatsapp}
                   onChange={(e) => setSite({ ...site, whatsapp: e.target.value })}
-                  placeholder="919876543210"
+                  placeholder="918101298882"
                   className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-mono text-emerald-800 font-semibold"
                 />
               </div>
@@ -886,7 +886,7 @@ export default function AdminCMS({
                 type="email"
                 value={site.email}
                 onChange={(e) => setSite({ ...site, email: e.target.value })}
-                placeholder="stay@whisperingpines.com"
+                placeholder="info.saverahomestay@gmail.com"
                 className="w-full px-3.5 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
               />
             </div>
@@ -902,8 +902,35 @@ export default function AdminCMS({
                 type="text"
                 value={site.address}
                 onChange={(e) => setSite({ ...site, address: e.target.value })}
-                placeholder="Deodar Valley, Old Manali, Himachal Pradesh, India - 175131"
+                placeholder="35a, Hill Cart Rd, West Point, Cart Road, Darjeeling, West Bengal 734101"
                 className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-forest-900 mb-1">
+                Google Maps Location URL
+              </label>
+              <input
+                type="url"
+                value={site.map_url || ''}
+                onChange={(e) => setSite({ ...site, map_url: e.target.value })}
+                placeholder="https://maps.app.goo.gl/KMJe676np8aDYExD6"
+                className="w-full px-3.5 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-forest-900 mb-1">
+                Google Business Profile Link
+              </label>
+              <input
+                type="url"
+                value={site.google_business_url || ''}
+                onChange={(e) => setSite({ ...site, google_business_url: e.target.value })}
+                placeholder="https://share.google/ufeIhNLjkk7qoPffW"
+                className="w-full px-3.5 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
               />
             </div>
           </div>

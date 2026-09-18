@@ -10,9 +10,9 @@ interface FloatingCTAProps {
 }
 
 export default function FloatingCTA({
-  whatsappNumber = '919876543210',
-  phoneNumber = '+91 98765 43210',
-  homestayName = 'Whispering Pines Sanctuary',
+  whatsappNumber = '918101298882',
+  phoneNumber = '+91 81012 98882',
+  homestayName = 'Savera Homestay',
   onOpenInquiry,
 }: FloatingCTAProps) {
   // Clean phone numbers for links

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Trees, Phone, Mail, MapPin, ShieldCheck, Heart } from 'lucide-react';
+import { Trees, Phone, Mail, MapPin, ShieldCheck, Heart, ExternalLink } from 'lucide-react';
 import { SiteInfo } from '@/types';
 
 interface FooterProps {
@@ -31,8 +31,8 @@ export default function Footer({ siteInfo }: FooterProps) {
               </div>
             </div>
             <p className="text-sm text-sand-200/80 leading-relaxed max-w-sm">
-              An independent Himalayan homestay offering peace, farm-to-table cuisine, and slow
-              living amidst ancient cedar forests.
+              A boutique mountain homestay in Darjeeling offering peaceful stays, warm Himalayan hospitality,
+              and panoramic views of the eastern Himalayas.
             </p>
           </div>
 
@@ -91,6 +91,26 @@ export default function Footer({ siteInfo }: FooterProps) {
               <div className="flex items-start space-x-2.5">
                 <MapPin className="w-4 h-4 text-sand-300 flex-shrink-0 mt-0.5" />
                 <span>{siteInfo.address}</span>
+              </div>
+              <div className="pt-2 flex flex-col gap-1.5 text-xs">
+                <a
+                  href={siteInfo.google_business_url || 'https://share.google/ufeIhNLjkk7qoPffW'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white text-sand-300 transition-colors inline-flex items-center space-x-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Google Business Profile</span>
+                </a>
+                <a
+                  href={siteInfo.map_url || 'https://maps.app.goo.gl/KMJe676np8aDYExD6'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white text-sand-300 transition-colors inline-flex items-center space-x-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+                  <span>View on Google Maps</span>
+                </a>
               </div>
             </div>
           </div>

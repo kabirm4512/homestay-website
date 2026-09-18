@@ -167,7 +167,7 @@ export default function AdminBookings({
         {filteredBookings.map((b) => {
           const cleanPhone = (b.phone || '').replace(/[^0-9]/g, '');
           const waMessage = encodeURIComponent(
-            `Namaste ${b.guest_name}! Whispering Pines Sanctuary is confirming your reservation [${b.booking_reference}] for ${b.room_name} from ${b.check_in} to ${b.check_out}. Please let us know if you need any travel assistance!`
+            `Namaste ${b.guest_name}! Savera Homestay is confirming your reservation [${b.booking_reference}] for ${b.room_name} from ${b.check_in} to ${b.check_out}. Please let us know if you need any travel assistance!`
           );
 
           return (

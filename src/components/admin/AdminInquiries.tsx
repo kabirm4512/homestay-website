@@ -178,7 +178,7 @@ export default function AdminInquiries({
           const isNoteModified = notesState[inq.id] !== undefined && notesState[inq.id] !== (inq.internal_notes || '');
 
           const waReplyMessage = encodeURIComponent(
-            `Namaste ${inq.guest_name}! Thank you for inquiring with Whispering Pines Sanctuary regarding ${
+            `Namaste ${inq.guest_name}! Thank you for inquiring with Savera Homestay regarding ${
               inq.room_name ? inq.room_name : 'your mountain getaway'
             }${inq.check_in ? ` for dates ${inq.check_in} to ${inq.check_out}` : ''}. We would be thrilled to host you! How can we assist you with your booking?`
           );

@@ -121,50 +121,52 @@ export const INITIAL_HERO_SLIDES: HeroSlide[] = [
 ];
 
 export const INITIAL_ABOUT_DATA: AboutSectionData = {
-  headline: 'A Soulful Mountain Retreat Born from a Love for Nature',
-  story: 'Tucked away 6,500 feet above sea level in the peaceful Deodar Valley, Whispering Pines Sanctuary was envisioned as a quiet sanctuary where time slows down. We restored an ancestral stone and cedar timber homestead, preserving traditional Himalayan vernacular architecture while introducing contemporary comforts. Here, your mornings begin with the scent of wild pine and fresh mountain dew, and your evenings unwind around a crackling wood fire.',
+  headline: 'A Soulful Mountain Retreat Born from a Love for Darjeeling',
+  story: 'Perched along the historic Hill Cart Road in West Point, Darjeeling, Savera Homestay was envisioned as a tranquil mountain sanctuary where time slows down. Preserving authentic Himalayan warmth while introducing modern boutique comforts, our 7 rooms with private balconies look out toward majestic mountain sunrises and misty pine ridges. Here, your mornings begin with the aroma of fresh Darjeeling brew and birdsong, and your days unfold in serene Himalayan bliss.',
   highlights: [
-    { icon: 'Mountain', title: 'Breathtaking Panoramas', desc: 'Unobstructed 180-degree view of snow-capped peaks and mist-laden pine valleys.' },
-    { icon: 'Utensils', title: 'Organic Farm-to-Table', desc: 'Authentic, wholesome local delicacies cooked with fresh produce from our kitchen garden.' },
-    { icon: 'Flame', title: 'Evening Bonfires & Chai', desc: 'Gather beneath clear starry skies with acoustic melodies, roasted snacks, and warmth.' },
-    { icon: 'Wifi', title: 'High-Speed Starlink Wi-Fi', desc: 'Seamless high-speed internet and quiet ergonomic work corners for remote workations.' },
-    { icon: 'HeartHandshake', title: 'Heartfelt Hospitality', desc: 'Dedicated round-the-clock caretakers to curate customized mountain treks and picnics.' },
-    { icon: 'Footprints', title: 'Guided Nature Trails', desc: 'Walk along secret pine trails and serene freshwater mountain brooks.' }
+    { icon: 'Mountain', title: 'Breathtaking Panoramas', desc: 'Private balconies commanding sweeping sunrise views across the misty Darjeeling hills.' },
+    { icon: 'Utensils', title: 'Home-Cooked Mountain Meals', desc: 'Authentic Pahadi delicacies, steaming momos, and fresh thalis cooked with local ingredients.' },
+    { icon: 'Flame', title: 'Evening Chai & Warmth', desc: 'Unwind with authentic Darjeeling first-flush tea, cozy blankets, and warm hospitality.' },
+    { icon: 'Wifi', title: 'High-Speed Starlink Wi-Fi', desc: 'Seamless high-speed internet and comfortable timber work corners for remote workations.' },
+    { icon: 'HeartHandshake', title: 'Heartfelt Hospitality', desc: 'Dedicated in-house hosts to assist with local mountain cabs, sightseeing, and custom itineraries.' },
+    { icon: 'Footprints', title: 'Prime West Point Location', desc: 'Peaceful hilltop setting on Hill Cart Road with effortless access to Darjeeling landmarks.' }
   ],
   stats: [
     { value: '4.9 ★', label: 'Google Rating' },
     { value: '150+', label: 'Delighted Guests' },
-    { value: '6,500 ft', label: 'Valley Elevation' },
-    { value: '100%', label: 'Organic Kitchen' }
+    { value: '6,700 ft', label: 'Darjeeling Altitude' },
+    { value: '7 Rooms', label: 'Private Balconies' }
   ]
 };
 
 export const INITIAL_SITE_INFO: SiteInfo = {
-  name: 'Whispering Pines Sanctuary',
-  tagline: 'Boutique Homestay & Mountain Retreat',
-  phone: '+91 98765 43210',
-  whatsapp: '919876543210',
-  email: 'stay@whisperingpines.com',
-  address: 'Deodar Valley, Old Manali, Himachal Pradesh, India - 175131',
-  check_in_time: '2:00 PM',
+  name: 'Savera Homestay',
+  tagline: 'A Boutique Mountain Homestay',
+  phone: '+91 81012 98882',
+  whatsapp: '918101298882',
+  email: 'info.saverahomestay@gmail.com',
+  address: '35a, Hill Cart Rd, West Point, Cart Road, Darjeeling, West Bengal 734101',
+  check_in_time: '1:00 PM',
   check_out_time: '11:00 AM',
-  map_embed_url: 'https://maps.google.com',
-  directions: 'From Manali Mall Road, drive 3.2 km towards Old Manali bridge. Cross the bridge and follow the uphill pine trail for 900 meters. Whispering Pines is situated at the top right overlooking the cedar valley.',
+  map_embed_url: 'https://maps.google.com/maps?q=35a,+Hill+Cart+Rd,+West+Point,+Cart+Road,+Darjeeling,+West+Bengal+734101&output=embed',
+  map_url: 'https://maps.app.goo.gl/KMJe676np8aDYExD6',
+  google_business_url: 'https://share.google/ufeIhNLjkk7qoPffW',
+  directions: 'Situated on 35a, Hill Cart Road in West Point, Darjeeling, West Bengal 734101. Located conveniently along the Cart Road stretch, easily reachable from Darjeeling town center (Mall Road / Chowrasta) or arriving from Siliguri, NJP Railway Station, and Bagdogra Airport (IXB).',
   policies: [
-    { title: 'Sanctuary Quiet Hours', desc: 'To preserve serenity and mountain birdlife, quiet hours commence from 10:30 PM to 7:00 AM.' },
-    { title: 'Smoking & Alcohol Ethics', desc: 'Smoking is strictly prohibited inside wooden rooms. Designated smoking lounges are available in the open apple orchard.' },
+    { title: 'Sanctuary Quiet Hours', desc: 'To preserve serenity and mountain peace, quiet hours commence from 10:00 PM to 7:00 AM.' },
+    { title: 'Smoking Ethics', desc: 'Smoking is strictly prohibited inside bedrooms. Designated open outdoor balcony zones are available.' },
     { title: 'Cancellation & Refund Policy', desc: 'Full refund if cancelled 7+ days prior to check-in. 50% refund within 3-7 days. Non-refundable within 72 hours of arrival.' },
-    { title: 'Pet Policy', desc: 'Well-mannered furry companions are welcome in our ground floor garden cottages with prior notice.' }
+    { title: 'Local Identity Verification', desc: 'Valid government photo ID (Aadhaar / Passport / Voter ID) required for all adult guests upon arrival.' }
   ],
   amenitiesList: [
-    'Panoramic Snow Peak & Valley View',
-    'High-Speed Starlink Wi-Fi (150+ Mbps)',
-    '100% Organic Farm-to-Table Kitchen',
-    'Evening Orchard Bonfires',
-    'Complimentary Mountain Breakfast',
+    'Private Balconies in Every Room',
+    'High-Speed Wi-Fi for Workations',
+    'Fresh In-Room Dining & Pahadi Kitchen',
+    'Complimentary Morning Breakfast',
     'Private En-Suite Heated Bathrooms',
-    'Dedicated Work Desks for Remote Workations',
-    'On-Site Secure Car Parking'
+    'NJP & Bagdogra Transfer Assistance',
+    'Electric Kettles & Artisanal Darjeeling Tea',
+    'Warm Woolen Blankets & Room Heaters'
   ]
 };
 
@@ -172,9 +174,9 @@ export const INITIAL_REVIEWS: Review[] = [
   {
     id: 'rev-1',
     author_name: 'Ananya Sengupta',
-    author_location: 'Bengaluru, India',
+    author_location: 'Kolkata, India',
     rating: 5.0,
-    review_text: 'Whispering Pines is pure magic. The Cedar Forest Suite had the most sublime sunrise views we have ever witnessed. The home-cooked Pahadi meals by the in-house chef made us feel like family. We will definitely return every autumn!',
+    review_text: 'Savera Homestay is an absolute gem in Darjeeling! The private mountain view balcony offered mesmerizing morning sunrises. The hosts treated us with so much care and the piping hot home-cooked meals were delicious.',
     review_date: '2 weeks ago',
     is_featured: true
   },

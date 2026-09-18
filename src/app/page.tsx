@@ -147,7 +147,10 @@ export default function HomePage() {
       />
 
       {/* 5. Google Reviews Summary Section */}
-      <ReviewsSection reviews={reviews} />
+      <ReviewsSection
+        reviews={reviews}
+        googleBusinessUrl={siteInfo.google_business_url}
+      />
 
       {/* 6. Location & Getting Here */}
       <LocationSection siteInfo={siteInfo} />
