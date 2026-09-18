@@ -1,8 +1,9 @@
 {
-  "name": "Whispering Pines Homestay CRM & Concierge",
-  "short_name": "WP Concierge",
-  "description": "Boutique 7-Room Mountain Homestay CRM, In-Room Digital Concierge & Operations Platform",
-  "start_url": "/admin",
+  "name": "Whispering Pines Sanctuary | Boutique Homestay",
+  "short_name": "Whispering Pines",
+  "description": "Boutique 7-Room Mountain Homestay, In-Room Digital Concierge & Operations Platform",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#faf8f5",
   "theme_color": "#1b382b",
@@ -21,5 +22,5 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "travel", "productivity"]
+  "categories": ["travel", "hospitality", "lifestyle"]
 }

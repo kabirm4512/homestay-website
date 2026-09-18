@@ -1,10 +1,7 @@
 const CACHE_NAME = 'whispering-pines-crm-v1';
 const STATIC_ASSETS = [
   '/',
-  '/admin',
-  '/concierge',
   '/manifest.json',
-  '/globals.css',
 ];
 
 self.addEventListener('install', (event) => {

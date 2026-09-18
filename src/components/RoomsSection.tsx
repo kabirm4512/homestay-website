@@ -78,6 +78,17 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     </span>
                   </div>
 
+                  {/* Room Inventory & Numbers Badge */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className="bg-black/60 backdrop-blur-md text-amber-300 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-400/30">
+                      {room.id === 'room-cat-1' || room.name.includes('Mountain View with Balcony')
+                        ? 'Rooms 101, 102, 103'
+                        : room.id === 'room-cat-2' || room.name.includes('Forest View')
+                        ? 'Room 104'
+                        : 'Suites 201, 202, 203'}
+                    </span>
+                  </div>
+
                   {/* Image Navigation Arrows */}
                   {images.length > 1 && (
                     <>

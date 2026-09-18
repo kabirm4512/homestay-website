@@ -41,6 +41,7 @@ import FinancialLedger from '@/components/crm/FinancialLedger';
 import RoleSwitcher from '@/components/crm/RoleSwitcher';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import BottomNav from '@/components/pwa/BottomNav';
+import InRoomQRHub from '@/components/qr/InRoomQRHub';
 import { useCRM } from '@/context/CRMContext';
 
 import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
@@ -85,6 +86,7 @@ export default function AdminPage() {
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [showQRHubModal, setShowQRHubModal] = useState(false);
 
   // Local toast fallback
   const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -240,16 +242,15 @@ export default function AdminPage() {
             {/* PWA Install Button */}
             <PWAInstaller variant="button" />
 
-            {/* Digital Concierge Preview Shortcut */}
-            <Link
-              href="/concierge"
-              target="_blank"
-              className="min-h-[44px] hidden lg:flex items-center space-x-1.5 text-xs font-bold text-sand-200 hover:text-white bg-forest-800/80 hover:bg-forest-800 px-3 py-1.5 rounded-xl border border-forest-700/60 transition-colors"
-              title="Open In-Room QR Concierge Portal"
+            {/* Dine-In QR Standees Generator */}
+            <button
+              onClick={() => setShowQRHubModal(true)}
+              className="min-h-[44px] flex items-center space-x-1.5 text-xs font-bold text-amber-300 hover:text-amber-200 bg-forest-800/90 hover:bg-forest-800 px-3 py-1.5 rounded-xl border border-amber-500/40 transition-colors shadow-xs cursor-pointer"
+              title="Preview, print and download In-Room Dine-In QR Cards"
             >
-              <QrCode className="w-4 h-4 text-amber-300" />
-              <span>In-Room QR</span>
-            </Link>
+              <QrCode className="w-4 h-4 text-amber-400" />
+              <span>Dine-In QRs</span>
+            </button>
 
             {/* Logged-in Staff Badge */}
             <div className="hidden md:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60">
@@ -546,6 +547,11 @@ export default function AdminPage() {
         pendingDispatchCount={pendingDispatchCount}
         pendingKitchenOrdersCount={pendingKitchenCount}
       />
+
+      {/* In-Room Dine-In QR Standee Hub Modal */}
+      {showQRHubModal && (
+        <InRoomQRHub isOpen={showQRHubModal} onClose={() => setShowQRHubModal(false)} />
+      )}
 
       {/* 4. Global Toast Notifications */}
       {(crmToast || localToast) && (

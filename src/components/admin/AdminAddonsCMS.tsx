@@ -19,8 +19,10 @@ import {
   ShieldAlert,
   Save,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  QrCode,
 } from 'lucide-react';
+import InRoomQRHub from '@/components/qr/InRoomQRHub';
 
 export default function AdminAddonsCMS() {
   const {
@@ -40,7 +42,7 @@ export default function AdminAddonsCMS() {
     showToast,
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState<'dining' | 'transfers' | 'rentals'>('dining');
+  const [activeTab, setActiveTab] = useState<'dining' | 'transfers' | 'rentals' | 'qr_cards'>('dining');
 
   // ==========================================
   // 1. DINING / MENU ITEM STATES
@@ -351,6 +353,17 @@ export default function AdminAddonsCMS() {
           >
             <Bike className="w-4 h-4 text-forest-600" />
             <span>Scooty & Bikes ({rentalVehicles.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('qr_cards')}
+            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
+              activeTab === 'qr_cards'
+                ? 'bg-white text-forest-900 shadow-sm'
+                : 'text-gray-600 hover:text-forest-900'
+            }`}
+          >
+            <QrCode className="w-4 h-4 text-amber-600" />
+            <span>In-Room QR Cards (7)</span>
           </button>
         </div>
       </div>
@@ -723,6 +736,15 @@ export default function AdminAddonsCMS() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. IN-ROOM DINE-IN QR CARDS HUB (ALL 7 ROOMS) */}
+      {/* ========================================================================= */}
+      {activeTab === 'qr_cards' && (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-sand-200 shadow-sm">
+          <InRoomQRHub standalone={true} />
         </div>
       )}
 

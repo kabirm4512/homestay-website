@@ -8,7 +8,7 @@ function QRRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const room = searchParams.get('room') || '1';
+    const room = searchParams.get('room') || '101';
     router.replace(`/concierge?room=${room}`);
   }, [searchParams, router]);
 

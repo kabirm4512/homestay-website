@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Trees, Phone, Calendar, Menu, X, ShieldCheck } from 'lucide-react';
+import PWAInstaller from '@/components/pwa/PWAInstaller';
 
 interface NavbarProps {
   homestayName?: string;
@@ -114,8 +115,9 @@ export default function Navbar({
           </Link>
         </nav>
 
-        {/* Right CTA / Phone */}
-        <div className="hidden lg:flex items-center space-x-4">
+        {/* Right CTA / Phone & PWA Install */}
+        <div className="hidden lg:flex items-center space-x-3">
+          <PWAInstaller variant="button" />
           <a
             href={`tel:${phone.replace(/\s+/g, '')}`}
             className={`flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -136,8 +138,9 @@ export default function Navbar({
           </button>
         </div>
 
-        {/* Mobile menu trigger */}
+        {/* Mobile menu trigger & Install button */}
         <div className="flex md:hidden items-center space-x-2">
+          <PWAInstaller variant="button" className="px-2.5 py-1.5 text-[11px]" />
           <button
             onClick={onCheckAvailability || onOpenInquiry}
             className="text-xs bg-forest-800 hover:bg-forest-900 text-white font-semibold px-3 py-1.5 rounded-lg cursor-pointer"
@@ -197,7 +200,8 @@ export default function Navbar({
               <span>Owner & Admin Portal</span>
             </Link>
           </nav>
-          <div className="pt-2 flex flex-col space-y-2">
+          <div className="pt-2 flex flex-col space-y-2.5">
+            <PWAInstaller variant="banner" />
             <button
               onClick={() => {
                 setMobileMenuOpen(false);

@@ -1,6 +1,12 @@
 export type StaffRole = 'admin' | 'manager' | 'kitchen_staff';
 
-export type RoomCategoryCode = 'luxury_suite' | 'cottage' | 'deluxe_pine';
+export type RoomCategoryCode =
+  | 'deluxe_mountain'
+  | 'deluxe_forest'
+  | 'premium_suite'
+  | 'luxury_suite'
+  | 'cottage'
+  | 'deluxe_pine';
 
 export type RoomTapeStatus = 'hold' | 'confirmed' | 'checked_in' | 'maintenance' | 'available';
 

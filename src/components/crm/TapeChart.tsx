@@ -203,34 +203,34 @@ export default function TapeChart() {
                 All 7 Rooms
               </button>
               <button
-                onClick={() => setFilterCategory('luxury_suite')}
+                onClick={() => setFilterCategory('deluxe_mountain')}
                 className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'luxury_suite'
+                  filterCategory === 'deluxe_mountain'
                     ? 'bg-forest-900 text-white shadow-xs'
                     : 'text-forest-700 hover:text-forest-950'
                 }`}
               >
-                Suites (2)
+                Deluxe Mtn Balcony (3)
               </button>
               <button
-                onClick={() => setFilterCategory('cottage')}
+                onClick={() => setFilterCategory('deluxe_forest')}
                 className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'cottage'
+                  filterCategory === 'deluxe_forest'
                     ? 'bg-forest-900 text-white shadow-xs'
                     : 'text-forest-700 hover:text-forest-950'
                 }`}
               >
-                Cottages (2)
+                Deluxe Forest Balcony (1)
               </button>
               <button
-                onClick={() => setFilterCategory('deluxe_pine')}
+                onClick={() => setFilterCategory('premium_suite')}
                 className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'deluxe_pine'
+                  filterCategory === 'premium_suite'
                     ? 'bg-forest-900 text-white shadow-xs'
                     : 'text-forest-700 hover:text-forest-950'
                 }`}
               >
-                Deluxe Pine (3)
+                Premium Suites (3)
               </button>
             </div>
 

@@ -26,10 +26,12 @@ import {
   X,
   Send,
   ExternalLink,
+  QrCode,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle } from '@/types/crm';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
+import InRoomQRHub from '@/components/qr/InRoomQRHub';
 
 function ConciergeContent() {
   const searchParams = useSearchParams();
@@ -48,13 +50,13 @@ function ConciergeContent() {
     showToast,
   } = useCRM();
 
-  // Selected room state (default to query param room or Room 1)
+  // Selected room state (default to query param room or Room 101)
   const [selectedRoomNumber, setSelectedRoomNumber] = useState<number>(() => {
     if (initialRoomQuery) {
       const parsed = parseInt(initialRoomQuery, 10);
-      if (parsed >= 1 && parsed <= 7) return parsed;
+      if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    return 1;
+    return 101;
   });
 
   // Current active physical room
@@ -100,6 +102,7 @@ function ConciergeContent() {
   const [cookingInstructions, setCookingInstructions] = useState('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [lastPlacedOrder, setLastPlacedOrder] = useState<any>(null);
+  const [showQRHub, setShowQRHub] = useState(false);
 
   // Travel Add-on Booking State
   const [serviceType, setServiceType] = useState<'point_to_point' | 'rental'>('point_to_point');
@@ -385,6 +388,16 @@ function ConciergeContent() {
               </select>
             </div>
 
+            {/* Dine-In QR Standee Print/Download */}
+            <button
+              onClick={() => setShowQRHub(true)}
+              className="min-h-[44px] flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-forest-800 hover:bg-forest-750 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              title="View & download in-room QR standee card"
+            >
+              <QrCode className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">QR Standee</span>
+            </button>
+
             <PWAInstaller variant="button" />
           </div>
         </div>
@@ -432,8 +445,8 @@ function ConciergeContent() {
                 if (activeBooking) {
                   checkInRoom(activeBooking.id);
                 } else {
-                  showToast(`No reservation found for Room ${currentRoom.roomNumber}. Switching to Room 1.`);
-                  setSelectedRoomNumber(1);
+                  showToast(`No reservation found for Room ${currentRoom.roomNumber}. Switching to Room 101.`);
+                  setSelectedRoomNumber(101);
                 }
               }}
               className="w-full min-h-[44px] py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center space-x-2"
@@ -1137,6 +1150,15 @@ function ConciergeContent() {
             </div>
           )}
         </main>
+      )}
+
+      {/* In-Room Dine-In QR Standee Hub Modal */}
+      {showQRHub && (
+        <InRoomQRHub
+          isOpen={showQRHub}
+          initialRoomNumber={selectedRoomNumber}
+          onClose={() => setShowQRHub(false)}
+        />
       )}
     </div>
   );
