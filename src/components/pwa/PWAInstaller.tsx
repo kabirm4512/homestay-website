@@ -21,12 +21,14 @@ export default function PWAInstaller({
   variant?: 'button' | 'badge' | 'banner';
   className?: string;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [browserType, setBrowserType] = useState<'chrome' | 'ios' | 'other'>('chrome');
 
   useEffect(() => {
+    setMounted(true);
     // 1. Check if already running in standalone PWA mode
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -103,16 +105,8 @@ export default function PWAInstaller({
     }
   };
 
-  if (isInstalled) {
-    return (
-      <div
-        className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/70 text-emerald-300 text-xs font-semibold border border-emerald-800/60 shadow-xs ${className}`}
-        title="Savera Homestay App is installed on this device"
-      >
-        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-        <span>App Installed</span>
-      </div>
-    );
+  if (!mounted || isInstalled) {
+    return null;
   }
 
   return (

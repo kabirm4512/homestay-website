@@ -49,28 +49,89 @@ function ConciergeContent() {
     createFoodOrder,
     createTransportRequest,
     checkInRoom,
+    checkOutRoom,
     calculateDynamicTransferRate,
     calculateDynamicRentalRate,
     getSeasonForDate,
     showToast,
   } = useCRM();
 
-  // Selected room state (default to query param room or Room 101)
-  const [selectedRoomNumber, setSelectedRoomNumber] = useState<number>(() => {
-    if (initialRoomQuery) {
-      const parsed = parseInt(initialRoomQuery, 10);
-      if (!isNaN(parsed) && parsed > 0) return parsed;
+  // Staff/evaluator mode flag (used only by management for testing)
+  const isStaffMode = searchParams.get('staff') === 'true' || searchParams.get('evaluator') === 'true';
+
+  // Room determination with strict guest isolation and device session locking:
+  // 1. Scanned room is parsed from ?room=...
+  // 2. If already locked in this session/device (e.g. Room 103), URL tampering to another room without staff mode is strictly blocked.
+  // 3. If no room was scanned and no session exists, returns null (prompts guest to scan in-room QR).
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<number | null>(() => {
+    const parsedQuery = initialRoomQuery ? parseInt(initialRoomQuery, 10) : null;
+    const isValidQuery = parsedQuery !== null && !isNaN(parsedQuery) && parsedQuery > 0 && rooms.some((r) => r.roomNumber === parsedQuery);
+
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+      const parsedStored = stored ? parseInt(stored, 10) : null;
+      const isValidStored = parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored);
+
+      // If user had already scanned a room on this device (e.g. Room 103)
+      if (isValidStored) {
+        // Anti-tamper: if URL query attempts to access another room without staff mode, enforce locked room
+        if (isValidQuery && parsedQuery !== parsedStored && !isStaffMode) {
+          return parsedStored;
+        }
+        return parsedStored;
+      }
+
+      // First time scanning from in-room QR standee
+      if (isValidQuery) {
+        try {
+          sessionStorage.setItem('savera_guest_room', String(parsedQuery));
+          localStorage.setItem('savera_guest_room', String(parsedQuery));
+        } catch {}
+        return parsedQuery;
+      }
     }
-    return 101;
+
+    if (isValidQuery) return parsedQuery;
+    if (isStaffMode) return 101;
+    return null;
   });
 
-  // Current active physical room
+  // Client-side session lock & URL tamper sync
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const parsedQuery = initialRoomQuery ? parseInt(initialRoomQuery, 10) : null;
+    const isValidQuery = parsedQuery !== null && !isNaN(parsedQuery) && parsedQuery > 0 && rooms.some((r) => r.roomNumber === parsedQuery);
+
+    const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+    const parsedStored = stored ? parseInt(stored, 10) : null;
+    const isValidStored = parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored);
+
+    if (isValidStored) {
+      if (isValidQuery && parsedQuery !== parsedStored && !isStaffMode) {
+        showToast(`Your session is locked to Room ${parsedStored} for guest privacy.`, 'info');
+        setSelectedRoomNumber(parsedStored);
+      } else if (!selectedRoomNumber) {
+        setSelectedRoomNumber(parsedStored);
+      }
+    } else if (isValidQuery) {
+      try {
+        sessionStorage.setItem('savera_guest_room', String(parsedQuery));
+        localStorage.setItem('savera_guest_room', String(parsedQuery));
+      } catch {}
+      setSelectedRoomNumber(parsedQuery);
+    }
+  }, [initialRoomQuery, isStaffMode, rooms, selectedRoomNumber, showToast]);
+
+  // Current active physical room (null if no room scanned)
   const currentRoom = useMemo(() => {
-    return rooms.find((r) => r.roomNumber === selectedRoomNumber) || rooms[0];
+    if (!selectedRoomNumber) return null;
+    return rooms.find((r) => r.roomNumber === selectedRoomNumber) || null;
   }, [rooms, selectedRoomNumber]);
 
   // Current booking for this room
   const activeBooking = useMemo(() => {
+    if (!currentRoom) return null;
     return bookings.find(
       (b) => b.roomId === currentRoom.id && ['checked_in', 'confirmed'].includes(b.tapeStatus)
     );
@@ -79,10 +140,10 @@ function ConciergeContent() {
   // Active folio for this booking
   const activeFolio = useMemo(() => {
     if (!activeBooking) return null;
-    return folios.find((f) => f.bookingId === activeBooking.id) || folios[0];
+    return folios.find((f) => f.bookingId === activeBooking.id) || null;
   }, [folios, activeBooking]);
 
-  const isCheckedIn = currentRoom.currentStatus === 'checked_in';
+  const isCheckedIn = currentRoom ? currentRoom.currentStatus === 'checked_in' : false;
 
   // Navigation tab in concierge: 'dining' or 'travel'
   const [activeTab, setActiveTab] = useState<'dining' | 'travel'>('dining');
@@ -109,6 +170,7 @@ function ConciergeContent() {
   const [lastPlacedOrder, setLastPlacedOrder] = useState<any>(null);
   const [showQRHub, setShowQRHub] = useState(false);
   const [qrHubTab, setQrHubTab] = useState<'rooms' | 'wifi'>('rooms');
+  const [showRoomCheckoutModal, setShowRoomCheckoutModal] = useState(false);
 
   // Travel Add-on Booking State
   const [serviceType, setServiceType] = useState<'point_to_point' | 'rental'>('point_to_point');
@@ -180,7 +242,7 @@ function ConciergeContent() {
 
   // Handle Food Order Checkout
   const handleCheckoutFoodOrder = () => {
-    if (cartItemsDetailed.length === 0 || !activeBooking || !activeFolio) return;
+    if (!currentRoom || cartItemsDetailed.length === 0 || !activeBooking || !activeFolio) return;
 
     // Filter out any items that are no longer available or mains during late night
     const validItems = cartItemsDetailed.filter((ci) => {
@@ -290,7 +352,7 @@ function ConciergeContent() {
   // Handle Travel Booking Checkout
   const handleCheckoutTravel = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeBooking || !activeFolio) return;
+    if (!currentRoom || !activeBooking || !activeFolio) return;
 
     if (serviceType === 'point_to_point') {
       const selectedMods = currentRoute.modifiers
@@ -374,85 +436,88 @@ function ConciergeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-16">
+    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-28 sm:pb-32 w-full max-w-full overflow-x-hidden">
       {/* 1. Global Concierge Top Bar */}
-      <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-9 h-9 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center">
-                <Trees className="w-5 h-5 text-amber-300" />
-              </div>
-              <div>
-                <span className="font-serif font-bold text-sm block leading-tight">
-                  Savera Homestay
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold">
-                  In-Room Digital Concierge
-                </span>
-              </div>
-            </Link>
-          </div>
-
-          {/* Room Simulator / Quick Switcher for Staff and Evaluators */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-1.5 bg-forest-950/80 px-2.5 py-1 rounded-xl border border-forest-800 text-xs">
-              <span className="text-[10px] text-sand-300 font-medium hidden sm:inline">
-                QR Room:
-              </span>
-              <select
-                value={selectedRoomNumber}
-                onChange={(e) => setSelectedRoomNumber(parseInt(e.target.value, 10))}
-                className="bg-transparent text-amber-300 font-bold font-mono focus:outline-none cursor-pointer"
-              >
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.roomNumber} className="bg-forest-900 text-white">
-                    Room {r.roomNumber} ({r.currentStatus})
-                  </option>
-                ))}
-              </select>
+      <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md w-full">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          {/* Savera Homestay Logo - fully visible & unclipped */}
+          <Link href="/" className="flex items-center space-x-2.5 min-w-0 group" title="Savera Homestay">
+            <div className="w-10 h-10 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center shrink-0 shadow-sm group-hover:border-amber-400/50 transition-colors">
+              <Trees className="w-5 h-5 text-amber-300" />
             </div>
+            <div className="min-w-0">
+              <span className="font-serif font-bold text-base sm:text-lg block leading-tight text-white tracking-tight whitespace-nowrap">
+                Savera Homestay
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-sand-300 font-semibold block whitespace-nowrap">
+                In-Room Concierge
+              </span>
+            </div>
+          </Link>
 
-            {/* In-Room Wi-Fi Quick Button */}
-            <button
-              onClick={() => {
-                setQrHubTab('wifi');
-                setShowQRHub(true);
-              }}
-              className="min-h-[44px] flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              title="View Wi-Fi QR Code and Network Credentials"
-            >
-              <Wifi className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Connect Wi-Fi</span>
-            </button>
-
-            {/* Dine-In QR Standee Print/Download */}
-            <button
-              onClick={() => {
-                setQrHubTab('rooms');
-                setShowQRHub(true);
-              }}
-              className="min-h-[44px] flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-forest-800 hover:bg-forest-750 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              title="View & download in-room QR standee card"
-            >
-              <QrCode className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">QR Standee</span>
-            </button>
-
-            <PWAInstaller variant="button" />
-          </div>
+          {/* Reception Call CTA */}
+          <a
+            href="tel:+918101298882"
+            className="min-h-[40px] px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center space-x-1.5 shrink-0"
+            title="Call Front Desk Reception (+91 81012 98882)"
+          >
+            <Phone className="w-3.5 h-3.5 text-forest-950 shrink-0" />
+            <span className="whitespace-nowrap font-bold">Call Reception</span>
+          </a>
         </div>
       </header>
 
-      {/* 2. Room Gate Check: Checked-In vs. Vacant Friendly Notice */}
-      {!isCheckedIn ? (
-        <main className="flex-1 max-w-xl mx-auto px-4 py-16 flex flex-col items-center justify-center text-center">
+      {/* 2. Room Gate: Unscanned vs. Awaiting Check-In vs. Active In-Room Concierge */}
+      {!currentRoom ? (
+        <main className="flex-1 max-w-md mx-auto px-4 py-16 sm:py-24 flex flex-col items-center justify-center text-center w-full">
+          <div className="w-20 h-20 rounded-3xl bg-forest-900 text-amber-300 flex items-center justify-center mb-6 shadow-xl border border-forest-800">
+            <QrCode className="w-10 h-10" />
+          </div>
+
+          <span className="text-[10px] uppercase font-extrabold tracking-widest text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 mb-3">
+            In-Room Sanctuary Access
+          </span>
+
+          <h2 className="font-serif font-bold text-2xl sm:text-3xl text-forest-950 mb-2">
+            Scan Your Room QR Code
+          </h2>
+
+          <p className="text-xs sm:text-sm text-forest-700 max-w-sm leading-relaxed mb-6">
+            To protect guest privacy and connect directly to your dedicated room concierge, please scan the QR standee located on your bedside table or room desk.
+          </p>
+
+          <div className="w-full space-y-2.5 max-w-xs">
+            <a
+              href="tel:+918101298882"
+              className="w-full min-h-[44px] py-3 bg-forest-900 hover:bg-forest-800 active:scale-98 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <Phone className="w-4 h-4 text-amber-300" />
+              <span>Contact Front Desk (+91 81012 98882)</span>
+            </a>
+
+            <a
+              href="https://wa.me/918101298882?text=Hello%20Savera%20Homestay%2C%20I%20am%20at%20the%20property%20and%20need%20assistance%20accessing%20my%20in-room%20concierge."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full min-h-[44px] py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>WhatsApp Reception</span>
+              <ExternalLink className="w-3.5 h-3.5 ml-1" />
+            </a>
+          </div>
+        </main>
+      ) : !isCheckedIn ? (
+        <main className="flex-1 max-w-xl mx-auto px-4 py-8 sm:py-16 flex flex-col items-center justify-center text-center w-full">
+          {/* PWA Install Banner: Renders only when NOT installed. If installed, returns null */}
+          <PWAInstaller variant="banner" className="w-full mb-6 text-left" />
+
           <div className="w-20 h-20 rounded-3xl bg-sand-200/80 text-forest-800 flex items-center justify-center mb-6 shadow-inner border border-sand-300">
             <Clock className="w-10 h-10 text-amber-700" />
           </div>
 
           <span className="text-xs uppercase font-extrabold tracking-widest text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 mb-3">
-            Room Status: {currentRoom.currentStatus.toUpperCase()}
+            Room {currentRoom.roomNumber} Status: {currentRoom.currentStatus.toUpperCase()}
           </span>
 
           <h2 className="font-serif font-bold text-2xl sm:text-3xl text-forest-950 mb-2">
@@ -498,33 +563,38 @@ function ConciergeContent() {
             </button>
           </div>
 
-          {/* Interactive Simulation Action */}
-          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950 max-w-md w-full space-y-3">
-            <span className="font-bold block">
-              Staff / Evaluator Simulator:
-            </span>
-            <p className="text-[11px] text-amber-800">
-              You can instantly simulate guest check-in for <strong>Room {currentRoom.roomNumber}</strong> right now to inspect the live dining and travel interface.
-            </p>
-            <button
-              onClick={() => {
-                if (activeBooking) {
-                  checkInRoom(activeBooking.id);
-                } else {
-                  showToast(`No reservation found for Room ${currentRoom.roomNumber}. Switching to Room 101.`);
-                  setSelectedRoomNumber(101);
-                }
-              }}
-              className="w-full min-h-[44px] py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center space-x-2"
-            >
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Simulate Check-In & Unlock Portal</span>
-            </button>
-          </div>
+          {/* Interactive Simulation Action (Only visible in staff mode) */}
+          {isStaffMode && (
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950 max-w-md w-full space-y-3">
+              <span className="font-bold block">
+                Staff Simulator:
+              </span>
+              <p className="text-[11px] text-amber-800">
+                Simulate check-in for <strong>Room {currentRoom.roomNumber}</strong>.
+              </p>
+              <button
+                onClick={() => {
+                  if (activeBooking) {
+                    checkInRoom(activeBooking.id);
+                    showToast(`Simulated check-in for Room ${currentRoom.roomNumber}`);
+                  } else {
+                    showToast(`No active reservation found for Room ${currentRoom.roomNumber}.`);
+                  }
+                }}
+                className="w-full min-h-[44px] py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center space-x-2"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Simulate Check-In for Room {currentRoom.roomNumber}</span>
+              </button>
+            </div>
+          )}
         </main>
       ) : (
         /* 3. ACTIVE IN-ROOM DIGITAL CONCIERGE INTERFACE */
         <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+          {/* PWA Install Banner: Renders only when NOT installed. If installed, returns null */}
+          <PWAInstaller variant="banner" className="w-full text-left" />
+
           {/* Welcome Banner */}
           <div className="bg-gradient-to-br from-forest-900 via-forest-850 to-forest-800 text-white rounded-3xl p-6 shadow-md border border-forest-700">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -792,7 +862,7 @@ function ConciergeContent() {
 
               {/* Sticky / Bottom Order Tray Bar */}
               {cartItemCount > 0 && (
-                <div className="bg-white rounded-3xl p-5 border-2 border-forest-900 shadow-xl space-y-4 animate-in slide-in-from-bottom-2 duration-200">
+                <div id="dining-tray" className="scroll-mt-24 bg-white rounded-3xl p-5 border-2 border-forest-900 shadow-xl space-y-4 animate-in slide-in-from-bottom-2 duration-200">
                   <div className="flex items-center justify-between border-b border-sand-200 pb-3">
                     <div className="flex items-center space-x-2">
                       <ShoppingBag className="w-5 h-5 text-amber-600" />
@@ -1381,15 +1451,216 @@ function ConciergeContent() {
               </div>
             </div>
           )}
+
+          {/* Staff & Evaluator Simulator Switcher (Staff mode only - never visible to guests) */}
+          {isStaffMode && (
+            <div className="pt-6 pb-2 text-center">
+              <div className="inline-flex items-center space-x-2 bg-sand-200/80 border border-sand-300 px-3 py-1.5 rounded-2xl text-xs text-forest-800">
+                <span className="text-[11px] font-medium text-forest-700">Staff Simulator (Switch Room):</span>
+                <select
+                  value={selectedRoomNumber || 101}
+                  onChange={(e) => setSelectedRoomNumber(parseInt(e.target.value, 10))}
+                  className="bg-white px-2 py-0.5 rounded-lg border border-sand-300 text-forest-900 font-bold font-mono text-xs cursor-pointer focus:outline-none"
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.roomNumber}>
+                      Room {r.roomNumber} ({r.currentStatus})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </main>
       )}
 
-      {/* In-Room Dine-In QR Standee Hub Modal */}
+      {/* 4. Persistent Fixed Bottom Checkout Bar */}
+      {currentRoom && isCheckedIn && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-sand-300 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] py-3 px-4 sm:px-6 safe-area-pb">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            {cartItemCount > 0 ? (
+              /* State A: In-Room Dining Tray has items */
+              <>
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="relative w-10 h-10 rounded-xl bg-forest-900 text-amber-300 flex items-center justify-center shrink-0 shadow-sm">
+                    <ShoppingBag className="w-5 h-5" />
+                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-400 text-forest-950 font-black text-[10px] flex items-center justify-center shadow-xs">
+                      {cartItemCount}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-base font-serif font-bold text-forest-950 leading-tight">
+                      ₹{cartSubtotal.toLocaleString('en-IN')}
+                    </div>
+                    <div className="text-[11px] text-forest-700 truncate font-medium">
+                      {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} in Dining Tray
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('dining');
+                    setTimeout(() => {
+                      const trayEl = document.getElementById('dining-tray');
+                      if (trayEl) {
+                        trayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }, 50);
+                  }}
+                  className="min-h-[44px] px-5 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
+                >
+                  <span>Checkout Tray</span>
+                  <ArrowRight className="w-4 h-4 text-amber-300" />
+                </button>
+              </>
+            ) : (
+              /* State B: No food items -> Room Express Checkout */
+              <>
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-sand-200 border border-sand-300 flex items-center justify-center shrink-0">
+                    <Trees className="w-4 h-4 text-forest-900" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-forest-950 block truncate">
+                      Room {currentRoom.roomNumber} ({currentRoom.name})
+                    </span>
+                    <span className="text-[11px] text-forest-700 truncate block">
+                      {activeFolio ? `Folio #${activeFolio.folioNumber} • Due: ₹${activeFolio.balanceDue.toLocaleString('en-IN')}` : 'In Residence'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowRoomCheckoutModal(true)}
+                  className="min-h-[44px] px-4 py-2 bg-sand-200 hover:bg-sand-300 active:scale-95 text-forest-950 border border-sand-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-forest-800" />
+                  <span>Request Checkout</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. Express Room Checkout Modal */}
+      {currentRoom && showRoomCheckoutModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-sand-200 text-forest-950 relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowRoomCheckoutModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-sand-100 text-gray-400 hover:text-gray-700 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              aria-label="Close checkout modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mb-3">
+              <Trees className="w-6 h-6" />
+            </div>
+
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 inline-block mb-1">
+              Room {currentRoom.roomNumber} Departure
+            </span>
+            <h3 className="font-serif font-bold text-xl text-forest-950">
+              Express Room Checkout
+            </h3>
+            <p className="text-xs text-forest-700 mt-1 mb-4 leading-relaxed">
+              We hope you enjoyed your stay at Savera Homestay! Review your current folio statement below to settle your account with reception.
+            </p>
+
+            {/* Folio Summary Breakdown */}
+            <div className="bg-sand-50 rounded-2xl p-4 border border-sand-200 space-y-2 text-xs mb-5">
+              <div className="flex justify-between text-forest-800">
+                <span>Guest:</span>
+                <span className="font-bold text-forest-950">{activeBooking?.guest.fullName || 'Resident Guest'}</span>
+              </div>
+              <div className="flex justify-between text-forest-800">
+                <span>Folio Number:</span>
+                <span className="font-mono font-bold text-forest-950">#{activeFolio?.folioNumber || '---'}</span>
+              </div>
+              <div className="border-t border-sand-200 pt-2 space-y-1">
+                <div className="flex justify-between text-forest-700">
+                  <span>Room Accommodation:</span>
+                  <span className="font-mono">₹{activeFolio?.totalRoomCharges.toLocaleString('en-IN') || 0}</span>
+                </div>
+                <div className="flex justify-between text-forest-700">
+                  <span>In-Room Dining:</span>
+                  <span className="font-mono">₹{activeFolio?.totalFbCharges.toLocaleString('en-IN') || 0}</span>
+                </div>
+                <div className="flex justify-between text-forest-700">
+                  <span>Transfers & Add-Ons:</span>
+                  <span className="font-mono">₹{activeFolio?.totalAddonCharges.toLocaleString('en-IN') || 0}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800 font-medium">
+                  <span>Total Amount Paid:</span>
+                  <span className="font-mono">-₹{activeFolio?.totalPaid.toLocaleString('en-IN') || 0}</span>
+                </div>
+              </div>
+              <div className="border-t border-sand-300 pt-2 flex justify-between items-center text-sm font-bold text-forest-950">
+                <span>Outstanding Balance:</span>
+                <span className="text-base font-serif font-bold text-amber-900">
+                  ₹{activeFolio?.balanceDue.toLocaleString('en-IN') || 0}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <a
+                href={`https://wa.me/918101298882?text=${encodeURIComponent(
+                  `*SAVERA HOMESTAY - ROOM CHECKOUT REQUEST* 🛎️\n` +
+                  `*Room:* ${currentRoom.roomNumber} (${currentRoom.name})\n` +
+                  `*Guest:* ${activeBooking?.guest.fullName || 'Guest'}\n` +
+                  `*Folio:* #${activeFolio?.folioNumber || 'N/A'}\n` +
+                  `*Balance Due:* ₹${activeFolio?.balanceDue || 0}\n` +
+                  `_Guest has requested room inspection and final bill settlement._`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full min-h-[44px] py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Request Checkout via WhatsApp</span>
+                <ExternalLink className="w-3.5 h-3.5 ml-1" />
+              </a>
+
+              <a
+                href="tel:+918101298882"
+                className="w-full min-h-[44px] py-2.5 bg-amber-400 hover:bg-amber-300 text-forest-950 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Call Front Desk (+91 81012 98882)</span>
+              </a>
+
+              {/* Staff / Evaluator simulation */}
+              {isStaffMode && (
+                <button
+                  onClick={() => {
+                    if (activeBooking) {
+                      checkOutRoom(activeBooking.id);
+                      showToast(`Room ${currentRoom.roomNumber} checkout logged. Thank you!`);
+                      setShowRoomCheckoutModal(false);
+                    }
+                  }}
+                  className="w-full min-h-[40px] py-2 text-[11px] font-bold text-forest-700 hover:text-forest-950 transition-colors cursor-pointer border border-sand-300 rounded-xl bg-sand-100/60"
+                >
+                  Simulate Room Departure (Staff Demo)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-Room Dine-In QR Standee Hub Modal (Wi-Fi only in guestMode) */}
       {showQRHub && (
         <InRoomQRHub
           isOpen={showQRHub}
+          guestMode={!isStaffMode}
           initialTab={qrHubTab}
-          initialRoomNumber={selectedRoomNumber}
+          initialRoomNumber={selectedRoomNumber || 101}
           onClose={() => setShowQRHub(false)}
         />
       )}

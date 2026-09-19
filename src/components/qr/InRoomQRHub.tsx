@@ -35,6 +35,7 @@ interface InRoomQRHubProps {
   isOpen?: boolean;
   onClose?: () => void;
   standalone?: boolean;
+  guestMode?: boolean;
 }
 
 export default function InRoomQRHub({
@@ -43,11 +44,12 @@ export default function InRoomQRHub({
   isOpen = true,
   onClose,
   standalone = false,
+  guestMode = false,
 }: InRoomQRHubProps) {
   const { rooms } = useCRM();
 
   // Active view tab: 'rooms' (Concierge & Dining QRs) or 'wifi' (Estate Wi-Fi QR Center)
-  const [activeTab, setActiveTab] = useState<'rooms' | 'wifi'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'rooms' | 'wifi'>(guestMode ? 'wifi' : initialTab);
 
   // All 7 rooms sorted
   const sortedRooms = [...rooms].sort((a, b) => a.roomNumber - b.roomNumber);
@@ -800,38 +802,40 @@ export default function InRoomQRHub({
           </div>
         </div>
 
-        {/* Mode Switcher Pills */}
-        <div className="flex items-center space-x-2 bg-sand-200/90 p-1.5 rounded-2xl">
-          <button
-            onClick={() => setActiveTab('rooms')}
-            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-              activeTab === 'rooms'
-                ? 'bg-forest-900 text-white shadow-sm'
-                : 'text-forest-800 hover:text-forest-950 hover:bg-sand-300/50'
-            }`}
-          >
-            <QrCode className="w-4 h-4 text-amber-400" />
-            <span>Room Concierge QRs</span>
-          </button>
+        {/* Mode Switcher Pills (Hidden in guestMode to prevent guests from seeing other rooms) */}
+        {!guestMode && (
+          <div className="flex items-center space-x-2 bg-sand-200/90 p-1.5 rounded-2xl">
+            <button
+              onClick={() => setActiveTab('rooms')}
+              className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'rooms'
+                  ? 'bg-forest-900 text-white shadow-sm'
+                  : 'text-forest-800 hover:text-forest-950 hover:bg-sand-300/50'
+              }`}
+            >
+              <QrCode className="w-4 h-4 text-amber-400" />
+              <span>Room Concierge QRs</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('wifi')}
-            className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-              activeTab === 'wifi'
-                ? 'bg-forest-900 text-white shadow-sm'
-                : 'text-forest-800 hover:text-forest-950 hover:bg-sand-300/50'
-            }`}
-          >
-            <Wifi className="w-4 h-4 text-amber-400" />
-            <span>Wi-Fi Connect QR</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab('wifi')}
+              className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'wifi'
+                  ? 'bg-forest-900 text-white shadow-sm'
+                  : 'text-forest-800 hover:text-forest-950 hover:bg-sand-300/50'
+              }`}
+            >
+              <Wifi className="w-4 h-4 text-amber-400" />
+              <span>Wi-Fi Connect QR</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
-      {/* VIEW 1: IN-ROOM CONCIERGE QRs (ROOMS 101-204) */}
+      {/* VIEW 1: IN-ROOM CONCIERGE QRs (ROOMS 101-204) - Admin/Staff only */}
       {/* ========================================================================= */}
-      {activeTab === 'rooms' && (
+      {!guestMode && activeTab === 'rooms' && (
         <>
           {/* Quick Actions & 7 Rooms Selector */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1192,18 +1196,20 @@ export default function InRoomQRHub({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <button
-                onClick={() => setShowWifiEditor(!showWifiEditor)}
-                className="min-h-[40px] px-3.5 py-2 bg-forest-800 hover:bg-forest-750 text-sand-200 border border-forest-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                {showWifiEditor ? 'Hide Wi-Fi Settings' : 'Configure Network'}
-              </button>
-            </div>
+            {!guestMode && (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  onClick={() => setShowWifiEditor(!showWifiEditor)}
+                  className="min-h-[40px] px-3.5 py-2 bg-forest-800 hover:bg-forest-750 text-sand-200 border border-forest-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {showWifiEditor ? 'Hide Wi-Fi Settings' : 'Configure Network'}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Wi-Fi Configuration Drawer (if toggled) */}
-          {showWifiEditor && (
+          {/* Wi-Fi Configuration Drawer (Admin/Staff only) */}
+          {!guestMode && showWifiEditor && (
             <div className="bg-white rounded-3xl p-5 border border-sand-300 shadow-sm space-y-4 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-sand-200 pb-3">
                 <span className="font-bold text-xs text-forest-950 uppercase tracking-wider">
