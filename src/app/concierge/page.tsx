@@ -28,7 +28,6 @@ import {
   ExternalLink,
   QrCode,
   Wifi,
-  Copy,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle } from '@/types/crm';
@@ -436,7 +435,7 @@ function ConciergeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-28 sm:pb-32 w-full max-w-full overflow-x-hidden">
+    <div className={`min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans w-full max-w-full overflow-x-hidden ${cartItemCount > 0 ? 'pb-28 sm:pb-32' : 'pb-12'}`}>
       {/* 1. Global Concierge Top Bar */}
       <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md w-full">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
@@ -631,53 +630,6 @@ function ConciergeContent() {
                   </span>
                 </label>
               </div>
-            </div>
-          </div>
-
-          {/* In-Room High-Speed Wi-Fi Quick Access Bar */}
-          <div className="bg-amber-50/95 border border-amber-300/80 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center space-x-3 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-amber-200/90 border border-amber-300 flex items-center justify-center shrink-0">
-                <Wifi className="w-5 h-5 text-amber-900" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-900">
-                    High-Speed Guest Wi-Fi
-                  </span>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                    Connected
-                  </span>
-                </div>
-                <div className="text-xs font-mono font-bold text-forest-950 truncate mt-0.5">
-                  SSID: <span className="text-forest-900 font-extrabold">Airtel_nabi_8882</span> • Pass: <span className="text-amber-950 font-extrabold">air69080</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-              <button
-                onClick={() => {
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText('air69080');
-                    showToast('Wi-Fi password (air69080) copied!');
-                  }
-                }}
-                className="min-h-[36px] px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Pass</span>
-              </button>
-              <button
-                onClick={() => {
-                  setQrHubTab('wifi');
-                  setShowQRHub(true);
-                }}
-                className="min-h-[36px] px-3.5 py-1.5 bg-forest-900 hover:bg-forest-800 text-amber-300 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
-              >
-                <QrCode className="w-3.5 h-3.5 text-amber-400" />
-                <span>Wi-Fi QR Standee</span>
-              </button>
             </div>
           </div>
 
@@ -1474,72 +1426,42 @@ function ConciergeContent() {
         </main>
       )}
 
-      {/* 4. Persistent Fixed Bottom Checkout Bar */}
-      {currentRoom && isCheckedIn && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-sand-300 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] py-3 px-4 sm:px-6 safe-area-pb">
+      {/* 4. Fixed Bottom Dining Checkout Bar: Only shown when items are in cart */}
+      {currentRoom && isCheckedIn && cartItemCount > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-sand-300 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] py-3 px-4 sm:px-6 safe-area-pb animate-in slide-in-from-bottom duration-200">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-            {cartItemCount > 0 ? (
-              /* State A: In-Room Dining Tray has items */
-              <>
-                <div className="flex items-center space-x-3 min-w-0">
-                  <div className="relative w-10 h-10 rounded-xl bg-forest-900 text-amber-300 flex items-center justify-center shrink-0 shadow-sm">
-                    <ShoppingBag className="w-5 h-5" />
-                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-400 text-forest-950 font-black text-[10px] flex items-center justify-center shadow-xs">
-                      {cartItemCount}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-base font-serif font-bold text-forest-950 leading-tight">
-                      ₹{cartSubtotal.toLocaleString('en-IN')}
-                    </div>
-                    <div className="text-[11px] text-forest-700 truncate font-medium">
-                      {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} in Dining Tray
-                    </div>
-                  </div>
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="relative w-10 h-10 rounded-xl bg-forest-900 text-amber-300 flex items-center justify-center shrink-0 shadow-sm">
+                <ShoppingBag className="w-5 h-5" />
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-400 text-forest-950 font-black text-[10px] flex items-center justify-center shadow-xs">
+                  {cartItemCount}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <div className="text-base font-serif font-bold text-forest-950 leading-tight">
+                  ₹{cartSubtotal.toLocaleString('en-IN')}
                 </div>
-
-                <button
-                  onClick={() => {
-                    setActiveTab('dining');
-                    setTimeout(() => {
-                      const trayEl = document.getElementById('dining-tray');
-                      if (trayEl) {
-                        trayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
-                    }, 50);
-                  }}
-                  className="min-h-[44px] px-5 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
-                >
-                  <span>Checkout Tray</span>
-                  <ArrowRight className="w-4 h-4 text-amber-300" />
-                </button>
-              </>
-            ) : (
-              /* State B: No food items -> Room Express Checkout */
-              <>
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-sand-200 border border-sand-300 flex items-center justify-center shrink-0">
-                    <Trees className="w-4 h-4 text-forest-900" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-forest-950 block truncate">
-                      Room {currentRoom.roomNumber} ({currentRoom.name})
-                    </span>
-                    <span className="text-[11px] text-forest-700 truncate block">
-                      {activeFolio ? `Folio #${activeFolio.folioNumber} • Due: ₹${activeFolio.balanceDue.toLocaleString('en-IN')}` : 'In Residence'}
-                    </span>
-                  </div>
+                <div className="text-[11px] text-forest-700 truncate font-medium">
+                  {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} in Dining Tray
                 </div>
+              </div>
+            </div>
 
-                <button
-                  onClick={() => setShowRoomCheckoutModal(true)}
-                  className="min-h-[44px] px-4 py-2 bg-sand-200 hover:bg-sand-300 active:scale-95 text-forest-950 border border-sand-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-forest-800" />
-                  <span>Request Checkout</span>
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => {
+                setActiveTab('dining');
+                setTimeout(() => {
+                  const trayEl = document.getElementById('dining-tray');
+                  if (trayEl) {
+                    trayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }, 50);
+              }}
+              className="min-h-[44px] px-5 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
+            >
+              <span>Checkout Tray</span>
+              <ArrowRight className="w-4 h-4 text-amber-300" />
+            </button>
           </div>
         </div>
       )}
