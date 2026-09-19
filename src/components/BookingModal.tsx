@@ -26,6 +26,8 @@ export default function BookingModal({
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [mealPlan, setMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('CP');
+  const [includeAirportTransfer, setIncludeAirportTransfer] = useState(false);
+  const [includeBikeRental, setIncludeBikeRental] = useState(false);
   const [specialRequests, setSpecialRequests] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -113,7 +115,12 @@ export default function BookingModal({
         check_out: checkOut,
         nights,
         total_price: estimatedTotal,
-        special_requests: `[Meal Plan: ${mealPlan}] ${specialRequests.trim()}`.trim(),
+        special_requests: [
+          `[Meal Plan: ${mealPlan}]`,
+          includeAirportTransfer ? '[Add-on: Airport/Railway Station Transfer]' : '',
+          includeBikeRental ? '[Add-on: Scooty/Bike Rental]' : '',
+          specialRequests.trim(),
+        ].filter(Boolean).join(' '),
       };
 
       const res = await fetch('/api/bookings', {
@@ -143,13 +150,22 @@ export default function BookingModal({
     setGuestName('');
     setPhone('');
     setEmail('');
+    setIncludeAirportTransfer(false);
+    setIncludeBikeRental(false);
     onClose();
   };
 
   const getWhatsAppBookingLink = () => {
     const cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
+    const addonsList = [
+      includeAirportTransfer ? '• Airport/Station Cab Transfer' : '',
+      includeBikeRental ? '• Scooty/Motorcycle Rental' : '',
+    ].filter(Boolean).join('\n');
+
     const text = encodeURIComponent(
-      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Meal Plan:* ${mealPlan}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}\n\nPlease let me know the bank/UPI details to confirm my reservation.`
+      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Meal Plan:* ${mealPlan}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}` +
+      (addonsList ? `\n\n*Requested Add-ons:*\n${addonsList}` : '') +
+      `\n\nPlease let me know the bank/UPI details to confirm my reservation.`
     );
     return `https://wa.me/${cleanNumber}?text=${text}`;
   };
@@ -302,6 +318,52 @@ export default function BookingModal({
                     </div>
                     <span className="text-[10px] block opacity-80 mt-0.5">All 3 Meals Included</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Travel & Mountain Mobility Add-ons (Upsell) */}
+              <div className="space-y-2 pt-1">
+                <label className="block text-xs font-semibold text-forest-900">
+                  Travel & Mountain Mobility Add-ons (Optional)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label
+                    className={`p-2.5 rounded-xl border flex items-center space-x-2.5 cursor-pointer text-xs transition-colors ${
+                      includeAirportTransfer
+                        ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-900 hover:bg-sand-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeAirportTransfer}
+                      onChange={(e) => setIncludeAirportTransfer(e.target.checked)}
+                      className="w-4 h-4 rounded text-forest-800"
+                    />
+                    <div>
+                      <span className="font-bold block">Airport / Cab Transfer</span>
+                      <span className="text-[10px] text-gray-500 block">Bagdogra (IXB) / NJP from ₹2,800</span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`p-2.5 rounded-xl border flex items-center space-x-2.5 cursor-pointer text-xs transition-colors ${
+                      includeBikeRental
+                        ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                        : 'bg-sand-50/70 border-sand-300 text-forest-900 hover:bg-sand-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeBikeRental}
+                      onChange={(e) => setIncludeBikeRental(e.target.checked)}
+                      className="w-4 h-4 rounded text-forest-800"
+                    />
+                    <div>
+                      <span className="font-bold block">Scooty / Bike Rental</span>
+                      <span className="text-[10px] text-gray-500 block">Enfield / Activa from ₹800/day</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

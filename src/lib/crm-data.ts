@@ -694,6 +694,10 @@ export const INITIAL_TRANSFER_ROUTES: TransferRoute[] = [
     priceSUV: 5500,
     estimatedDurationHours: 3.5,
     isActive: true,
+    seasonalTariffs: {
+      season: { priceWagonR: 4200, priceSedan: 5000, priceSUV: 6500 },
+      offSeason: { priceWagonR: 3000, priceSedan: 3600, priceSUV: 4800 },
+    },
     modifiers: [
       {
         id: 'mod-1',
@@ -721,6 +725,10 @@ export const INITIAL_TRANSFER_ROUTES: TransferRoute[] = [
     priceSUV: 7200,
     estimatedDurationHours: 4.5,
     isActive: true,
+    seasonalTariffs: {
+      season: { priceWagonR: 5600, priceSedan: 6500, priceSUV: 8400 },
+      offSeason: { priceWagonR: 4200, priceSedan: 4900, priceSUV: 6200 },
+    },
     modifiers: [
       {
         id: 'mod-3',
@@ -738,6 +746,37 @@ export const INITIAL_TRANSFER_ROUTES: TransferRoute[] = [
       },
     ],
   },
+  {
+    id: 'route-3',
+    title: 'Darjeeling Full Day Heritage Sightseeing (Tiger Hill & Tea Gardens)',
+    origin: 'Savera Homestay, Darjeeling',
+    destination: 'Tiger Hill, Batasia Loop, Ghoom Monastery & Happy Valley',
+    priceWagonR: 2800,
+    priceSedan: 3400,
+    priceSUV: 4500,
+    estimatedDurationHours: 6.0,
+    isActive: true,
+    seasonalTariffs: {
+      season: { priceWagonR: 3400, priceSedan: 4000, priceSUV: 5200 },
+      offSeason: { priceWagonR: 2400, priceSedan: 2900, priceSUV: 3800 },
+    },
+    modifiers: [
+      {
+        id: 'mod-5',
+        routeId: 'route-3',
+        name: 'Add Himalayan Mountaineering Institute (HMI) & Zoo',
+        extraCharge: 600,
+        extraDurationHours: 1.5,
+      },
+      {
+        id: 'mod-6',
+        routeId: 'route-3',
+        name: 'Add Japanese Peace Pagoda & Rock Garden Vista',
+        extraCharge: 800,
+        extraDurationHours: 2.0,
+      },
+    ],
+  },
 ];
 
 export const INITIAL_RENTAL_VEHICLES: RentalVehicle[] = [
@@ -748,6 +787,12 @@ export const INITIAL_RENTAL_VEHICLES: RentalVehicle[] = [
     ratePerDay: 1800,
     depositRequired: 2000,
     isAvailable: true,
+    specs: '349cc J-Series Engine • Dual-Channel ABS • USB Port • Hill Torque',
+    imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=600&q=80',
+    seasonalTariffs: {
+      seasonRatePerDay: 2200,
+      offSeasonRatePerDay: 1500,
+    },
   },
   {
     id: 'veh-2',
@@ -756,6 +801,12 @@ export const INITIAL_RENTAL_VEHICLES: RentalVehicle[] = [
     ratePerDay: 2200,
     depositRequired: 2500,
     isAvailable: true,
+    specs: '452cc Sherpa Liquid-Cooled • Long Travel Suspension • Ride-by-Wire • High Clearance',
+    imageUrl: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=600&q=80',
+    seasonalTariffs: {
+      seasonRatePerDay: 2600,
+      offSeasonRatePerDay: 1900,
+    },
   },
   {
     id: 'veh-3',
@@ -764,6 +815,12 @@ export const INITIAL_RENTAL_VEHICLES: RentalVehicle[] = [
     ratePerDay: 900,
     depositRequired: 1000,
     isAvailable: true,
+    specs: '110cc PGM-FI Engine • Telescopic Suspension • Combi Brake System • Lightweight City Commuter',
+    imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80',
+    seasonalTariffs: {
+      seasonRatePerDay: 1100,
+      offSeasonRatePerDay: 750,
+    },
   },
 ];
 

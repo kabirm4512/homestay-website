@@ -218,6 +218,17 @@ export interface RouteModifier {
   extraDurationHours: number;
 }
 
+export interface RouteVehicleTariff {
+  priceWagonR: number;
+  priceSedan: number;
+  priceSUV: number;
+}
+
+export interface RouteSeasonalTariffs {
+  season?: Partial<RouteVehicleTariff>;
+  offSeason?: Partial<RouteVehicleTariff>;
+}
+
 export interface TransferRoute {
   id: string;
   title: string;
@@ -229,6 +240,12 @@ export interface TransferRoute {
   estimatedDurationHours: number;
   isActive: boolean;
   modifiers: RouteModifier[];
+  seasonalTariffs?: RouteSeasonalTariffs;
+}
+
+export interface VehicleSeasonalTariffs {
+  seasonRatePerDay?: number;
+  offSeasonRatePerDay?: number;
 }
 
 export interface RentalVehicle {
@@ -238,6 +255,9 @@ export interface RentalVehicle {
   ratePerDay: number;
   depositRequired: number;
   isAvailable: boolean;
+  imageUrl?: string;
+  specs?: string;
+  seasonalTariffs?: VehicleSeasonalTariffs;
 }
 
 export interface TransportRequest {

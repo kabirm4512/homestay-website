@@ -78,6 +78,14 @@ export default function Navbar({
             Rooms & Rates
           </a>
           <a
+            href="#travel-rentals"
+            className={`text-sm font-medium transition-colors hover:text-sand-400 ${
+              scrolled ? 'text-gray-700' : 'text-white'
+            }`}
+          >
+            Travel & Rentals
+          </a>
+          <a
             href="#about"
             className={`text-sm font-medium transition-colors hover:text-sand-400 ${
               scrolled ? 'text-gray-700' : 'text-white'
@@ -169,6 +177,14 @@ export default function Navbar({
               className="py-1 hover:text-forest-800 border-b border-gray-100"
             >
               Rooms & Rates
+            </a>
+            <a
+              href="#travel-rentals"
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-1 hover:text-forest-800 border-b border-gray-100 flex items-center justify-between"
+            >
+              <span>Travel, Transfers & Rentals</span>
+              <span className="text-[10px] uppercase font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded">New</span>
             </a>
             <a
               href="#about"

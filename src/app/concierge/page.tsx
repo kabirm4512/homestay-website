@@ -27,6 +27,8 @@ import {
   Send,
   ExternalLink,
   QrCode,
+  Wifi,
+  Copy,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle } from '@/types/crm';
@@ -47,6 +49,9 @@ function ConciergeContent() {
     createFoodOrder,
     createTransportRequest,
     checkInRoom,
+    calculateDynamicTransferRate,
+    calculateDynamicRentalRate,
+    getSeasonForDate,
     showToast,
   } = useCRM();
 
@@ -103,6 +108,7 @@ function ConciergeContent() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [lastPlacedOrder, setLastPlacedOrder] = useState<any>(null);
   const [showQRHub, setShowQRHub] = useState(false);
+  const [qrHubTab, setQrHubTab] = useState<'rooms' | 'wifi'>('rooms');
 
   // Travel Add-on Booking State
   const [serviceType, setServiceType] = useState<'point_to_point' | 'rental'>('point_to_point');
@@ -229,12 +235,26 @@ function ConciergeContent() {
     return transferRoutes.find((r) => r.id === selectedRouteId) || transferRoutes[0];
   }, [transferRoutes, selectedRouteId]);
 
+  const travelDateStr = useMemo(() => {
+    return pickupDatetime ? pickupDatetime.split('T')[0] : new Date().toISOString().split('T')[0];
+  }, [pickupDatetime]);
+
+  const returnDateStr = useMemo(() => {
+    return returnDatetime ? returnDatetime.split('T')[0] : travelDateStr;
+  }, [returnDatetime, travelDateStr]);
+
+  const activeSeasonInfo = useMemo(() => {
+    return getSeasonForDate(travelDateStr);
+  }, [getSeasonForDate, travelDateStr]);
+
+  const dynamicTransferQuote = useMemo(() => {
+    if (!currentRoute) return null;
+    return calculateDynamicTransferRate(currentRoute, travelDateStr, selectedVehicleTier);
+  }, [currentRoute, travelDateStr, selectedVehicleTier, calculateDynamicTransferRate]);
+
   const routeBasePrice = useMemo(() => {
-    if (!currentRoute) return 0;
-    if (selectedVehicleTier === 'wagonr') return currentRoute.priceWagonR;
-    if (selectedVehicleTier === 'suv') return currentRoute.priceSUV;
-    return currentRoute.priceSedan;
-  }, [currentRoute, selectedVehicleTier]);
+    return dynamicTransferQuote?.rate || 0;
+  }, [dynamicTransferQuote]);
 
   const routeModifiersTotal = useMemo(() => {
     if (!currentRoute) return 0;
@@ -257,10 +277,15 @@ function ConciergeContent() {
     return Math.max(1, isNaN(days) ? 1 : days);
   }, [pickupDatetime, returnDatetime]);
 
+  const dynamicRentalQuote = useMemo(() => {
+    if (!currentRental) return null;
+    return calculateDynamicRentalRate(currentRental, travelDateStr, returnDateStr);
+  }, [currentRental, travelDateStr, returnDateStr, calculateDynamicRentalRate]);
+
   const totalRentalQuoted = useMemo(() => {
-    if (!currentRental) return 0;
-    return currentRental.ratePerDay * rentalDays;
-  }, [currentRental, rentalDays]);
+    if (!dynamicRentalQuote) return 0;
+    return dynamicRentalQuote.totalRate;
+  }, [dynamicRentalQuote]);
 
   // Handle Travel Booking Checkout
   const handleCheckoutTravel = (e: React.FormEvent) => {
@@ -388,9 +413,25 @@ function ConciergeContent() {
               </select>
             </div>
 
+            {/* In-Room Wi-Fi Quick Button */}
+            <button
+              onClick={() => {
+                setQrHubTab('wifi');
+                setShowQRHub(true);
+              }}
+              className="min-h-[44px] flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              title="View Wi-Fi QR Code and Network Credentials"
+            >
+              <Wifi className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Connect Wi-Fi</span>
+            </button>
+
             {/* Dine-In QR Standee Print/Download */}
             <button
-              onClick={() => setShowQRHub(true)}
+              onClick={() => {
+                setQrHubTab('rooms');
+                setShowQRHub(true);
+              }}
               className="min-h-[44px] flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-forest-800 hover:bg-forest-750 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer shadow-xs"
               title="View & download in-room QR standee card"
             >
@@ -422,7 +463,7 @@ function ConciergeContent() {
             This in-room digital concierge portal activates automatically once your arrival is verified by our front desk team.
           </p>
 
-          <div className="p-5 bg-white rounded-3xl border border-sand-300 shadow-sm text-xs text-forest-800 max-w-md w-full text-left space-y-3 mb-6">
+          <div className="p-5 bg-white rounded-3xl border border-sand-300 shadow-sm text-xs text-forest-800 max-w-md w-full text-left space-y-3 mb-4">
             <div className="flex items-center space-x-2 font-bold text-forest-950 text-sm">
               <Phone className="w-4 h-4 text-forest-700" />
               <span>Need Assistance?</span>
@@ -430,6 +471,31 @@ function ConciergeContent() {
             <p>
               Please contact the front desk at <strong>+91 81012 98882</strong> or ring the bell at reception for early baggage drop or instant check-in.
             </p>
+          </div>
+
+          {/* Complimentary Wi-Fi while awaiting check-in */}
+          <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-200 text-xs text-emerald-950 max-w-md w-full flex items-center justify-between gap-3 mb-6 shadow-xs">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0">
+                <Wifi className="w-5 h-5 text-emerald-800" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-emerald-950 block text-xs">Complimentary Guest Wi-Fi</span>
+                <span className="text-[11px] text-emerald-800 font-mono block truncate">
+                  Airtel_nabi_8882 • Pass: air69080
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setQrHubTab('wifi');
+                setShowQRHub(true);
+              }}
+              className="min-h-[36px] px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition-colors shrink-0 shadow-xs cursor-pointer flex items-center space-x-1"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan QR</span>
+            </button>
           </div>
 
           {/* Interactive Simulation Action */}
@@ -495,6 +561,53 @@ function ConciergeContent() {
                   </span>
                 </label>
               </div>
+            </div>
+          </div>
+
+          {/* In-Room High-Speed Wi-Fi Quick Access Bar */}
+          <div className="bg-amber-50/95 border border-amber-300/80 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-amber-200/90 border border-amber-300 flex items-center justify-center shrink-0">
+                <Wifi className="w-5 h-5 text-amber-900" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-900">
+                    High-Speed Guest Wi-Fi
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                    Connected
+                  </span>
+                </div>
+                <div className="text-xs font-mono font-bold text-forest-950 truncate mt-0.5">
+                  SSID: <span className="text-forest-900 font-extrabold">Airtel_nabi_8882</span> • Pass: <span className="text-amber-950 font-extrabold">air69080</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <button
+                onClick={() => {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText('air69080');
+                    showToast('Wi-Fi password (air69080) copied!');
+                  }
+                }}
+                className="min-h-[36px] px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy Pass</span>
+              </button>
+              <button
+                onClick={() => {
+                  setQrHubTab('wifi');
+                  setShowQRHub(true);
+                }}
+                className="min-h-[36px] px-3.5 py-1.5 bg-forest-900 hover:bg-forest-800 text-amber-300 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
+              >
+                <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                <span>Wi-Fi QR Standee</span>
+              </button>
             </div>
           </div>
 
@@ -829,74 +942,103 @@ function ConciergeContent() {
                     </div>
 
                     {/* Vehicle Tier Selection */}
+                    {/* Vehicle Tier Selection */}
                     <div>
-                      <label className="text-xs font-bold text-forest-900 block mb-2">
-                        Choose Vehicle Tier
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <label
-                          className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
-                            selectedVehicleTier === 'wagonr'
-                              ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
-                              : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="tier"
-                            className="hidden"
-                            checked={selectedVehicleTier === 'wagonr'}
-                            onChange={() => setSelectedVehicleTier('wagonr')}
-                          />
-                          <span className="font-bold text-xs block">WagonR / Alto</span>
-                          <span className="text-[10px] block opacity-80">Up to 3 Pax</span>
-                          <span className="font-mono font-bold text-sm block mt-1">
-                            ₹{currentRoute?.priceWagonR}
-                          </span>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-forest-900 block">
+                          Choose Vehicle Tier
                         </label>
-
-                        <label
-                          className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
-                            selectedVehicleTier === 'sedan'
-                              ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
-                              : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="tier"
-                            className="hidden"
-                            checked={selectedVehicleTier === 'sedan'}
-                            onChange={() => setSelectedVehicleTier('sedan')}
-                          />
-                          <span className="font-bold text-xs block">Sedan (Dzire/Glanza)</span>
-                          <span className="text-[10px] block opacity-80">Up to 4 Pax + Boot</span>
-                          <span className="font-mono font-bold text-sm block mt-1">
-                            ₹{currentRoute?.priceSedan}
+                        {activeSeasonInfo.seasonType !== 'regular' && (
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              activeSeasonInfo.seasonType === 'season'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {activeSeasonInfo.seasonName}
                           </span>
-                        </label>
-
-                        <label
-                          className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
-                            selectedVehicleTier === 'suv'
-                              ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
-                              : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="tier"
-                            className="hidden"
-                            checked={selectedVehicleTier === 'suv'}
-                            onChange={() => setSelectedVehicleTier('suv')}
-                          />
-                          <span className="font-bold text-xs block">SUV (Innova / Xylo)</span>
-                          <span className="text-[10px] block opacity-80">Up to 6 Pax</span>
-                          <span className="font-mono font-bold text-sm block mt-1">
-                            ₹{currentRoute?.priceSUV}
-                          </span>
-                        </label>
+                        )}
                       </div>
+
+                      {(() => {
+                        const wagonRTariff = currentRoute
+                          ? calculateDynamicTransferRate(currentRoute, travelDateStr, 'wagonr')
+                          : null;
+                        const sedanTariff = currentRoute
+                          ? calculateDynamicTransferRate(currentRoute, travelDateStr, 'sedan')
+                          : null;
+                        const suvTariff = currentRoute
+                          ? calculateDynamicTransferRate(currentRoute, travelDateStr, 'suv')
+                          : null;
+
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <label
+                              className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
+                                selectedVehicleTier === 'wagonr'
+                                  ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
+                                  : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tier"
+                                className="hidden"
+                                checked={selectedVehicleTier === 'wagonr'}
+                                onChange={() => setSelectedVehicleTier('wagonr')}
+                              />
+                              <span className="font-bold text-xs block">WagonR / Alto</span>
+                              <span className="text-[10px] block opacity-80">Up to 3 Pax</span>
+                              <span className="font-mono font-bold text-sm block mt-1">
+                                ₹{wagonRTariff?.rate.toLocaleString('en-IN') || currentRoute?.priceWagonR}
+                              </span>
+                            </label>
+
+                            <label
+                              className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
+                                selectedVehicleTier === 'sedan'
+                                  ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
+                                  : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tier"
+                                className="hidden"
+                                checked={selectedVehicleTier === 'sedan'}
+                                onChange={() => setSelectedVehicleTier('sedan')}
+                              />
+                              <span className="font-bold text-xs block">Sedan (Dzire/Glanza)</span>
+                              <span className="text-[10px] block opacity-80">Up to 4 Pax + Boot</span>
+                              <span className="font-mono font-bold text-sm block mt-1">
+                                ₹{sedanTariff?.rate.toLocaleString('en-IN') || currentRoute?.priceSedan}
+                              </span>
+                            </label>
+
+                            <label
+                              className={`p-3.5 rounded-2xl border cursor-pointer text-center transition-all ${
+                                selectedVehicleTier === 'suv'
+                                  ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
+                                  : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tier"
+                                className="hidden"
+                                checked={selectedVehicleTier === 'suv'}
+                                onChange={() => setSelectedVehicleTier('suv')}
+                              />
+                              <span className="font-bold text-xs block">SUV (Innova / Xylo)</span>
+                              <span className="text-[10px] block opacity-80">Up to 6 Pax</span>
+                              <span className="font-mono font-bold text-sm block mt-1">
+                                ₹{suvTariff?.rate.toLocaleString('en-IN') || currentRoute?.priceSUV}
+                              </span>
+                            </label>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Route Modifiers */}
@@ -947,43 +1089,79 @@ function ConciergeContent() {
                 ) : (
                   /* Rental Vehicle Selection */
                   <div className="space-y-4">
-                    <label className="text-xs font-bold text-forest-900 block">
-                      Choose Available Mountain Two-Wheeler
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {rentalVehicles.map((veh) => (
-                        <label
-                          key={veh.id}
-                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                            selectedRentalId === veh.id
-                              ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
-                              : 'bg-sand-50 border-sand-300 text-forest-950'
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-forest-900 block">
+                        Choose Available Mountain Two-Wheeler
+                      </label>
+                      {activeSeasonInfo.seasonType !== 'regular' && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            activeSeasonInfo.seasonType === 'season'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
                           }`}
                         >
-                          <input
-                            type="radio"
-                            name="rental"
-                            className="hidden"
-                            checked={selectedRentalId === veh.id}
-                            onChange={() => setSelectedRentalId(veh.id)}
-                          />
-                          <div className="flex items-center space-x-2 mb-1">
-                            <Bike className="w-4 h-4 text-amber-300" />
-                            <span className="font-bold text-xs">{veh.vehicleName}</span>
-                          </div>
-                          <span className="font-mono font-bold text-base block mt-2">
-                            ₹{veh.ratePerDay} / day
-                          </span>
-                          <span className="text-[10px] block opacity-80">
-                            Refundable deposit: ₹{veh.depositRequired}
-                          </span>
-                        </label>
-                      ))}
+                          {activeSeasonInfo.seasonName}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {rentalVehicles.map((veh) => {
+                        const dynRate = calculateDynamicRentalRate(veh, travelDateStr, returnDateStr);
+
+                        return (
+                          <label
+                            key={veh.id}
+                            className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                              selectedRentalId === veh.id
+                                ? 'bg-forest-900 text-white border-forest-900 shadow-sm'
+                                : 'bg-sand-50 border-sand-300 text-forest-950 hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="rental"
+                              className="hidden"
+                              checked={selectedRentalId === veh.id}
+                              onChange={() => setSelectedRentalId(veh.id)}
+                            />
+                            <div>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <Bike className={`w-4 h-4 ${selectedRentalId === veh.id ? 'text-amber-300' : 'text-amber-600'}`} />
+                                <span className="font-bold text-xs">{veh.vehicleName}</span>
+                              </div>
+                              {veh.specs && (
+                                <span className={`text-[10px] block line-clamp-1 mb-2 ${selectedRentalId === veh.id ? 'text-sand-200' : 'text-gray-500'}`}>
+                                  {veh.specs}
+                                </span>
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="flex items-baseline space-x-1 mt-2">
+                                <span className="font-mono font-bold text-base">
+                                  ₹{dynRate.dailyAvgRate.toLocaleString('en-IN')}
+                                </span>
+                                <span className="text-[10px] opacity-80">/ day</span>
+                              </div>
+                              {rentalDays > 1 && (
+                                <span className="text-[10px] block font-semibold opacity-90 text-amber-300">
+                                  ₹{dynRate.totalRate.toLocaleString('en-IN')} for {rentalDays} days
+                                </span>
+                              )}
+                              <span className="text-[10px] block opacity-70 mt-0.5">
+                                Security Deposit: ₹{veh.depositRequired}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Common Pickup Details */}
+                {/* Common Pickup & Rental Return Details */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <div>
                     <label className="text-[11px] font-bold text-forest-800 block mb-1">
@@ -994,33 +1172,69 @@ function ConciergeContent() {
                       required
                       value={pickupDatetime}
                       onChange={(e) => setPickupDatetime(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50"
+                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 font-semibold"
                     />
                   </div>
 
+                  {serviceType === 'rental' ? (
+                    <div>
+                      <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                        Preferred Return Date & Time ({rentalDays} {rentalDays === 1 ? 'Day' : 'Days'})
+                      </label>
+                      <input
+                        type="datetime-local"
+                        required
+                        value={returnDatetime}
+                        onChange={(e) => setReturnDatetime(e.target.value)}
+                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 font-semibold"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                        WhatsApp Contact Phone for Driver Coordination
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={travelPhone}
+                        onChange={(e) => setTravelPhone(e.target.value)}
+                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 font-semibold"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {serviceType === 'rental' && (
                   <div>
                     <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      WhatsApp Contact Phone for Driver Coordination
+                      WhatsApp Contact Phone for Rider Verification & Handover
                     </label>
                     <input
                       type="text"
                       required
                       value={travelPhone}
                       onChange={(e) => setTravelPhone(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50"
+                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 font-semibold"
                     />
                   </div>
-                </div>
+                )}
 
                 <div>
                   <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                    Luggage or Flight/Train Details
+                    {serviceType === 'point_to_point'
+                      ? 'Luggage or Flight/Train Details'
+                      : 'Rider License / Riding Route Plans (Optional)'}
                   </label>
                   <input
                     type="text"
                     value={destinationNotes}
                     onChange={(e) => setDestinationNotes(e.target.value)}
-                    placeholder="e.g. Flight 6E-204 departing Bagdogra at 4:30 PM, 3 bags"
+                    placeholder={
+                      serviceType === 'point_to_point'
+                        ? 'e.g. Flight 6E-204 departing Bagdogra at 4:30 PM, 3 bags'
+                        : 'e.g. Valid 2-wheeler license ready, planning Mirik / Tiger Hill sunrise ride'
+                    }
                     className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50"
                   />
                 </div>
@@ -1031,9 +1245,27 @@ function ConciergeContent() {
                     <span className="text-[10px] uppercase font-bold text-gray-500 block">
                       Total Quoted Amount (Post to Folio)
                     </span>
-                    <span className="text-xl font-serif font-bold text-forest-950">
-                      ₹{serviceType === 'point_to_point' ? totalTransferQuoted : currentRental?.ratePerDay}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xl font-serif font-bold text-forest-950">
+                        ₹{(serviceType === 'point_to_point' ? totalTransferQuoted : totalRentalQuoted).toLocaleString('en-IN')}
+                      </span>
+                      {activeSeasonInfo.seasonType !== 'regular' && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            activeSeasonInfo.seasonType === 'season'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {activeSeasonInfo.seasonName}
+                        </span>
+                      )}
+                    </div>
+                    {serviceType === 'rental' && (
+                      <span className="text-[10px] text-gray-500 block">
+                        {rentalDays} {rentalDays === 1 ? 'day' : 'days'} rental @ ₹{dynamicRentalQuote?.dailyAvgRate.toLocaleString('en-IN')}/day
+                      </span>
+                    )}
                   </div>
 
                   <button
@@ -1041,7 +1273,7 @@ function ConciergeContent() {
                     className="min-h-[44px] px-6 py-3 bg-forest-900 hover:bg-forest-800 text-white font-bold text-xs rounded-2xl shadow-lg transition-all flex items-center justify-center space-x-2"
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Book Transfer & Alert Front Desk</span>
+                    <span>{serviceType === 'point_to_point' ? 'Book Transfer & Alert Front Desk' : 'Reserve Bike & Alert Front Desk'}</span>
                   </button>
                 </div>
               </form>
@@ -1156,6 +1388,7 @@ function ConciergeContent() {
       {showQRHub && (
         <InRoomQRHub
           isOpen={showQRHub}
+          initialTab={qrHubTab}
           initialRoomNumber={selectedRoomNumber}
           onClose={() => setShowQRHub(false)}
         />

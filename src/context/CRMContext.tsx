@@ -121,6 +121,31 @@ interface CRMContextType {
     avgRatePerNight: number;
     breakdown: { date: string; rateName: string; seasonType: 'season' | 'off_season' | 'regular'; amount: number }[];
   };
+  getSeasonForDate: (dateStr: string) => {
+    seasonType: 'season' | 'off_season' | 'regular';
+    seasonName: string;
+  };
+  calculateDynamicTransferRate: (
+    route: TransferRoute,
+    dateStr: string,
+    tier: 'wagonr' | 'sedan' | 'suv'
+  ) => {
+    rate: number;
+    baseRate: number;
+    seasonType: 'season' | 'off_season' | 'regular';
+    seasonName: string;
+    isSurgeApplied: boolean;
+  };
+  calculateDynamicRentalRate: (
+    vehicle: RentalVehicle,
+    startDateStr: string,
+    endDateStr?: string
+  ) => {
+    totalRate: number;
+    days: number;
+    dailyAvgRate: number;
+    breakdown: { date: string; rate: number; seasonType: 'season' | 'off_season' | 'regular'; seasonName: string }[];
+  };
 
   // Staff User Management (Admin Managed)
   staffAccounts: StaffAccount[];
@@ -1129,6 +1154,115 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const getSeasonForDate = (dateStr: string) => {
+    if (!dateStr) return { seasonType: 'regular' as const, seasonName: 'Regular Season' };
+    const dateOnly = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    for (const range of seasonalDateRanges) {
+      if (dateOnly >= range.startDate && dateOnly <= range.endDate) {
+        return {
+          seasonType: range.seasonType,
+          seasonName: range.name,
+        };
+      }
+    }
+    return { seasonType: 'regular' as const, seasonName: 'Regular Season' };
+  };
+
+  const calculateDynamicTransferRate = (
+    route: TransferRoute,
+    dateStr: string,
+    tier: 'wagonr' | 'sedan' | 'suv'
+  ) => {
+    const tierBasePrice = tier === 'wagonr' ? route.priceWagonR : tier === 'suv' ? route.priceSUV : route.priceSedan;
+    const { seasonType, seasonName } = getSeasonForDate(dateStr);
+
+    let rate = tierBasePrice;
+    let isSurgeApplied = false;
+
+    if (seasonType === 'season') {
+      const seasonalOverride = route.seasonalTariffs?.season;
+      const tierKey = tier === 'wagonr' ? 'priceWagonR' : tier === 'suv' ? 'priceSUV' : 'priceSedan';
+      if (seasonalOverride && typeof seasonalOverride[tierKey] === 'number') {
+        rate = seasonalOverride[tierKey]!;
+      } else {
+        rate = Math.round(tierBasePrice * 1.2); // 20% peak surge default
+      }
+      isSurgeApplied = true;
+    } else if (seasonType === 'off_season') {
+      const offSeasonOverride = route.seasonalTariffs?.offSeason;
+      const tierKey = tier === 'wagonr' ? 'priceWagonR' : tier === 'suv' ? 'priceSUV' : 'priceSedan';
+      if (offSeasonOverride && typeof offSeasonOverride[tierKey] === 'number') {
+        rate = offSeasonOverride[tierKey]!;
+      } else {
+        rate = Math.round(tierBasePrice * 0.85); // 15% off-season discount
+      }
+    }
+
+    return {
+      rate,
+      baseRate: tierBasePrice,
+      seasonType,
+      seasonName,
+      isSurgeApplied,
+    };
+  };
+
+  const calculateDynamicRentalRate = (
+    vehicle: RentalVehicle,
+    startDateStr: string,
+    endDateStr?: string
+  ) => {
+    const start = new Date(startDateStr || new Date().toISOString().split('T')[0]);
+    let days = 1;
+    if (endDateStr) {
+      const end = new Date(endDateStr);
+      const diffMs = end.getTime() - start.getTime();
+      const calculatedDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      days = Math.max(1, isNaN(calculatedDays) ? 1 : calculatedDays);
+    }
+
+    let totalRate = 0;
+    const breakdown: { date: string; rate: number; seasonType: 'season' | 'off_season' | 'regular'; seasonName: string }[] = [];
+
+    const curr = new Date(start);
+    for (let i = 0; i < days; i++) {
+      const dateStr = curr.toISOString().split('T')[0];
+      const { seasonType, seasonName } = getSeasonForDate(dateStr);
+
+      let dayRate = vehicle.ratePerDay;
+      if (seasonType === 'season') {
+        if (typeof vehicle.seasonalTariffs?.seasonRatePerDay === 'number') {
+          dayRate = vehicle.seasonalTariffs.seasonRatePerDay;
+        } else {
+          dayRate = Math.round(vehicle.ratePerDay * 1.2);
+        }
+      } else if (seasonType === 'off_season') {
+        if (typeof vehicle.seasonalTariffs?.offSeasonRatePerDay === 'number') {
+          dayRate = vehicle.seasonalTariffs.offSeasonRatePerDay;
+        } else {
+          dayRate = Math.round(vehicle.ratePerDay * 0.85);
+        }
+      }
+
+      totalRate += dayRate;
+      breakdown.push({
+        date: dateStr,
+        rate: dayRate,
+        seasonType,
+        seasonName,
+      });
+
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    return {
+      totalRate,
+      days,
+      dailyAvgRate: Math.round(totalRate / days),
+      breakdown,
+    };
+  };
+
   return (
     <CRMContext.Provider
       value={{
@@ -1179,6 +1313,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         deleteSeasonalRange,
         updateRoomTariffs,
         calculateDynamicTariff,
+        getSeasonForDate,
+        calculateDynamicTransferRate,
+        calculateDynamicRentalRate,
         staffAccounts,
         currentUser,
         setCurrentUser,

@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import HeroCarousel from '@/components/HeroCarousel';
 import AboutSection from '@/components/AboutSection';
 import RoomsSection from '@/components/RoomsSection';
+import TravelAndRentalsSection from '@/components/TravelAndRentalsSection';
 import ReviewsSection from '@/components/ReviewsSection';
 import LocationSection from '@/components/LocationSection';
 import Footer from '@/components/Footer';
@@ -146,7 +147,13 @@ export default function HomePage() {
         onEnquireRoom={handleEnquireRoom}
       />
 
-      {/* 5. Google Reviews Summary Section */}
+      {/* 5. Himalayan Travel, Transfers & Bike Rentals (Upsell & Seasonal Tariffs) */}
+      <TravelAndRentalsSection
+        whatsappNumber={siteInfo.whatsapp}
+        onOpenBookingModal={() => setBookingModalOpen(true)}
+      />
+
+      {/* 6. Google Reviews Summary Section */}
       <ReviewsSection
         reviews={reviews}
         googleBusinessUrl={siteInfo.google_business_url}
