@@ -18,9 +18,21 @@ import {
   FileText,
   Clock,
   Sparkles,
+  Share2,
+  Copy,
+  Check,
+  MessageCircle,
+  ExternalLink,
+  Plus,
+  MapPin,
+  Upload,
+  Eye,
+  Tag,
+  AlertCircle,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm';
+import ManualBookingModal from './ManualBookingModal';
 
 export default function TapeChart() {
   const {
@@ -28,6 +40,8 @@ export default function TapeChart() {
     bookings,
     updateRoomStatus,
     updateGuestPreferences,
+    updateBookingGuestDetails,
+    updateBookingDocumentStatus,
     checkInRoom,
     checkOutRoom,
     showToast,
@@ -41,11 +55,29 @@ export default function TapeChart() {
 
   const [selectedBooking, setSelectedBooking] = useState<CRMBooking | null>(null);
   const [isEditingGuest, setIsEditingGuest] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editNationality, setEditNationality] = useState('Indian');
+  const [editIdType, setEditIdType] = useState('Aadhaar Card');
+  const [editIdNumber, setEditIdNumber] = useState('');
+  const [editIdDocumentUrl, setEditIdDocumentUrl] = useState('');
+  const [editIdDocumentBackUrl, setEditIdDocumentBackUrl] = useState('');
   const [editDietary, setEditDietary] = useState('');
   const [editHospitality, setEditHospitality] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editName, setEditName] = useState('');
+  const [editSpecialRequests, setEditSpecialRequests] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  // Manual booking modal state
+  const [isManualBookingModalOpen, setIsManualBookingModalOpen] = useState(false);
+  const [manualBookingDefaultRoomId, setManualBookingDefaultRoomId] = useState('');
+  const [manualBookingDefaultDate, setManualBookingDefaultDate] = useState('');
+
+  // Share link & image modal state
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   // Generate 10 consecutive dates for the X-axis
   const dateColumns = useMemo(() => {
@@ -99,31 +131,114 @@ export default function TapeChart() {
     setSelectedBooking(booking);
     setEditName(booking.guest.fullName);
     setEditPhone(booking.guest.phone);
+    setEditEmail(booking.guest.email || '');
+    setEditCity(booking.guest.city || '');
+    setEditAddress(booking.guest.address || '');
+    setEditNationality(booking.guest.nationality || 'Indian');
+    setEditIdType(booking.guest.idType || 'Aadhaar Card');
+    setEditIdNumber(booking.guest.idNumber || '');
+    setEditIdDocumentUrl(booking.guest.idDocumentUrl || '');
+    setEditIdDocumentBackUrl(booking.guest.idDocumentBackUrl || '');
     setEditDietary(booking.guest.dietaryPreferences || '');
     setEditHospitality(booking.guest.hospitalityPreferences || '');
+    setEditSpecialRequests(booking.specialRequests || '');
     setIsEditingGuest(false);
+    setCopiedLink(false);
   };
 
   const handleSaveGuest = () => {
     if (!selectedBooking) return;
-    updateGuestPreferences(selectedBooking.guestId, {
-      fullName: editName,
-      phone: editPhone,
-      dietaryPreferences: editDietary,
-      hospitalityPreferences: editHospitality,
+
+    const docStatus =
+      editIdDocumentUrl || editIdNumber
+        ? selectedBooking.documentStatus === 'verified'
+          ? 'verified'
+          : 'submitted'
+        : selectedBooking.documentStatus || 'pending';
+
+    const guestUpdates = {
+      fullName: editName.trim(),
+      phone: editPhone.trim(),
+      email: editEmail.trim() || undefined,
+      city: editCity.trim() || undefined,
+      address: editAddress.trim() || undefined,
+      nationality: editNationality || 'Indian',
+      idType: editIdType,
+      idNumber: editIdNumber.trim() || undefined,
+      idDocumentUrl: editIdDocumentUrl || undefined,
+      idDocumentBackUrl: editIdDocumentBackUrl || undefined,
+      dietaryPreferences: editDietary.trim() || undefined,
+      hospitalityPreferences: editHospitality.trim() || undefined,
+      documentStatus: docStatus,
+    };
+
+    updateBookingGuestDetails(selectedBooking.id, guestUpdates, {
+      specialRequests: editSpecialRequests.trim() || undefined,
     });
-    // Update local state copy
+
+    // Update local copy
     setSelectedBooking({
       ...selectedBooking,
+      specialRequests: editSpecialRequests.trim() || undefined,
+      documentStatus: docStatus,
       guest: {
         ...selectedBooking.guest,
-        fullName: editName,
-        phone: editPhone,
-        dietaryPreferences: editDietary,
-        hospitalityPreferences: editHospitality,
+        ...guestUpdates,
       },
     });
+
     setIsEditingGuest(false);
+  };
+
+  const getShareableCheckinUrl = (bookingId: string) => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/checkin?booking=${bookingId}`;
+    }
+    return `/checkin?booking=${bookingId}`;
+  };
+
+  const handleCopyShareableLink = (bookingId: string) => {
+    const url = getShareableCheckinUrl(bookingId);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      showToast('Check-in & document upload link copied to clipboard!');
+      setTimeout(() => setCopiedLink(false), 3000);
+    }
+  };
+
+  const handleShareWhatsApp = (booking: CRMBooking) => {
+    const url = getShareableCheckinUrl(booking.id);
+    const cleanPhone = (booking.guest.whatsappNumber || booking.guest.phone).replace(/[^0-9]/g, '');
+    const message = encodeURIComponent(
+      `Namaste ${booking.guest.fullName}! 🌿\n\nGreetings from Savera Homestay. We look forward to hosting you in ${booking.roomName} (${booking.checkInDate} to ${booking.checkOutDate}).\n\nTo ensure a seamless contactless check-in, please verify your details and upload your government ID document at this secure link:\n${url}\n\nWarm regards,\nSavera Homestay Team`
+    );
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+  };
+
+  const handleDrawerFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isFront: boolean
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image file too large (maximum 5MB)', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (isFront) {
+        setEditIdDocumentUrl(dataUrl);
+      } else {
+        setEditIdDocumentBackUrl(dataUrl);
+      }
+      showToast(`${isFront ? 'Front' : 'Back'} ID document photo uploaded`);
+    };
+    reader.readAsDataURL(file);
   };
 
   // Status badge styling helper
@@ -257,6 +372,19 @@ export default function TapeChart() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
+            {/* New Manual Reservation CTA */}
+            <button
+              onClick={() => {
+                setManualBookingDefaultRoomId('');
+                setManualBookingDefaultDate(formatDateKey(baseDate));
+                setIsManualBookingModalOpen(true);
+              }}
+              className="min-h-[38px] px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-forest-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Manual Reservation</span>
+            </button>
           </div>
         </div>
 
@@ -424,14 +552,19 @@ export default function TapeChart() {
                           key={dIdx}
                           className="px-1 py-1.5 border-r border-sand-200 text-center"
                         >
-                          <div
-                            onClick={() =>
-                              showToast(`Room ${room.roomNumber} is open on ${dateKey}. Ready to assign.`, 'info')
-                            }
-                            className="w-full h-12 rounded-xl border border-dashed border-sand-300/80 hover:border-forest-600 hover:bg-sand-50 transition-all flex items-center justify-center cursor-pointer text-[10px] text-sand-400 hover:text-forest-700"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setManualBookingDefaultRoomId(room.id);
+                              setManualBookingDefaultDate(dateKey);
+                              setIsManualBookingModalOpen(true);
+                            }}
+                            className="w-full h-12 rounded-xl border border-dashed border-sand-300/90 hover:border-amber-600 hover:bg-amber-50/50 transition-all flex flex-col items-center justify-center cursor-pointer text-[10px] text-forest-600 hover:text-amber-900 group"
+                            title={`Click to manually book Room ${room.roomNumber} on ${dateKey}`}
                           >
-                            <span>Open</span>
-                          </div>
+                            <Plus className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all text-amber-700" />
+                            <span className="text-[9px] font-bold opacity-60 group-hover:opacity-100">Assign</span>
+                          </button>
                         </td>
                       );
                     })}
@@ -531,53 +664,173 @@ export default function TapeChart() {
               </div>
 
               {/* Stay Dates & Tariff Card */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-sand-200 text-xs">
-                <div>
-                  <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                    Check-In Date
-                  </span>
-                  <span className="font-bold text-forest-900">{selectedBooking.checkInDate}</span>
+              <div className="bg-white p-4 rounded-2xl border border-sand-200 text-xs space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <span className="text-[10px] text-forest-600 uppercase font-bold block">
+                      Check-In Date
+                    </span>
+                    <span className="font-bold text-forest-900">{selectedBooking.checkInDate}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-forest-600 uppercase font-bold block">
+                      Check-Out Date
+                    </span>
+                    <span className="font-bold text-forest-900">{selectedBooking.checkOutDate}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-forest-600 uppercase font-bold block">
+                      Total Nights
+                    </span>
+                    <span className="font-bold text-forest-900">{selectedBooking.totalNights} Nights</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-forest-600 uppercase font-bold block">
+                      Tariff / Night
+                    </span>
+                    <div className="flex items-center space-x-1">
+                      <span className="font-mono font-bold text-forest-900">
+                        ₹{selectedBooking.roomRatePerNight.toLocaleString('en-IN')}
+                      </span>
+                      {selectedBooking.isManualRate && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                          Manual
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                    Check-Out Date
-                  </span>
-                  <span className="font-bold text-forest-900">{selectedBooking.checkOutDate}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                    Total Nights
-                  </span>
-                  <span className="font-bold text-forest-900">{selectedBooking.totalNights} Nights</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                    Tariff / Night
-                  </span>
-                  <span className="font-mono font-bold text-forest-900">₹{selectedBooking.roomRatePerNight}</span>
+
+                <div className="pt-2.5 border-t border-sand-100 flex items-center justify-between text-xs">
+                  <div className="text-forest-700">
+                    Total Stay Amount:{' '}
+                    <strong className="font-mono text-forest-950">
+                      ₹{selectedBooking.totalRoomAmount.toLocaleString('en-IN')}
+                    </strong>
+                  </div>
+                  {selectedBooking.advancePaid ? (
+                    <div className="text-emerald-700 font-semibold">
+                      Advance Paid:{' '}
+                      <span className="font-mono font-bold">
+                        ₹{selectedBooking.advancePaid.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-amber-700 text-[11px] font-medium">
+                      No Advance Recorded
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Guest Profile & ID Preview Section */}
+              {/* Shareable Guest Check-In & Document Upload Link Box */}
+              <div className="bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 text-white p-5 rounded-2xl border border-forest-800 shadow-md space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Share2 className="w-4 h-4 text-amber-300" />
+                    <h4 className="font-serif font-bold text-sm text-white">
+                      Guest Self Check-In &amp; Document Upload Link
+                    </h4>
+                  </div>
+                  <span
+                    className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      selectedBooking.documentStatus === 'verified'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                        : selectedBooking.documentStatus === 'submitted'
+                        ? 'bg-blue-500/20 text-blue-300 border-blue-400/40'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                    }`}
+                  >
+                    {selectedBooking.documentStatus === 'verified'
+                      ? 'ID Verified ✓'
+                      : selectedBooking.documentStatus === 'submitted'
+                      ? 'Documents Submitted'
+                      : 'Pending Guest Upload'}
+                  </span>
+                </div>
+
+                <p className="text-xs text-sand-300 leading-relaxed">
+                  Send this link to <strong className="text-white">{selectedBooking.guest.fullName}</strong>. They can verify their reservation, review their stay details, and upload front &amp; back photos of their government ID before arrival.
+                </p>
+
+                {/* Link Bar */}
+                <div className="bg-white/10 p-2.5 rounded-xl border border-white/15 flex items-center justify-between gap-2">
+                  <div className="font-mono text-[11px] text-amber-200 truncate select-all flex-1">
+                    {getShareableCheckinUrl(selectedBooking.id)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyShareableLink(selectedBooking.id)}
+                    className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 font-bold text-xs flex items-center space-x-1 shrink-0 transition-all cursor-pointer"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleShareWhatsApp(selectedBooking)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center space-x-1.5 transition-all cursor-pointer shadow-xs"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Send via WhatsApp</span>
+                  </button>
+
+                  <a
+                    href={getShareableCheckinUrl(selectedBooking.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-sand-200 hover:text-white font-bold text-xs flex items-center space-x-1.5 transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Guest Portal</span>
+                  </a>
+
+                  {selectedBooking.documentStatus === 'submitted' && (
+                    <button
+                      type="button"
+                      onClick={() => updateBookingDocumentStatus(selectedBooking.id, 'verified')}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-forest-950 font-bold text-xs flex items-center space-x-1.5 transition-all ml-auto cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve &amp; Verify ID</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Guest Profile & Government ID Verification Section */}
               <div className="bg-sand-50 p-5 rounded-2xl border border-sand-200 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     <h4 className="font-serif font-bold text-sm text-forest-900">
-                      ID Document & Permit Verification
+                      Guest Profile &amp; ID Documents
                     </h4>
                   </div>
                   {!isEditingGuest ? (
                     <button
                       onClick={() => setIsEditingGuest(true)}
-                      className="text-xs text-forest-700 hover:text-forest-950 font-bold underline"
+                      className="text-xs text-forest-700 hover:text-forest-950 font-bold underline cursor-pointer"
                     >
-                      Edit Profile
+                      Edit Profile &amp; Documents
                     </button>
                   ) : (
                     <button
                       onClick={handleSaveGuest}
-                      className="min-h-[36px] px-3 py-1 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-xs font-bold"
+                      className="min-h-[36px] px-3.5 py-1.5 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
                     >
                       Save Changes
                     </button>
@@ -585,86 +838,265 @@ export default function TapeChart() {
                 </div>
 
                 {isEditingGuest ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                      />
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          Phone / WhatsApp *
+                        </label>
+                        <input
+                          type="text"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          Nationality
+                        </label>
+                        <input
+                          type="text"
+                          value={editNationality}
+                          onChange={(e) => setEditNationality(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          City / State
+                        </label>
+                        <input
+                          type="text"
+                          value={editCity}
+                          onChange={(e) => setEditCity(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          Residential Address
+                        </label>
+                        <input
+                          type="text"
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          ID Document Type
+                        </label>
+                        <select
+                          value={editIdType}
+                          onChange={(e) => setEditIdType(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950"
+                        >
+                          <option value="Aadhaar Card">Aadhaar Card</option>
+                          <option value="Passport & ILP">Passport &amp; Inner Line Permit</option>
+                          <option value="Driver License">Driver License</option>
+                          <option value="Voter ID Card">Voter ID Card</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          ID Document Number
+                        </label>
+                        <input
+                          type="text"
+                          value={editIdNumber}
+                          onChange={(e) => setEditIdNumber(e.target.value)}
+                          placeholder="e.g. 1234-5678-9012"
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-mono text-forest-950"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                        Phone / WhatsApp
-                      </label>
-                      <input
-                        type="text"
-                        value={editPhone}
-                        onChange={(e) => setEditPhone(e.target.value)}
-                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                      />
+
+                    {/* Photo Upload in Edit Mode */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <div className="p-3 bg-white rounded-xl border border-sand-300 text-center">
+                        <span className="text-[11px] font-bold text-forest-800 block mb-1.5">
+                          Front ID Photo
+                        </span>
+                        {editIdDocumentUrl ? (
+                          <div className="space-y-1.5">
+                            <div className="w-full h-24 rounded-lg overflow-hidden bg-sand-100 border border-sand-200">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={editIdDocumentUrl} alt="Front ID" className="w-full h-full object-contain" />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditIdDocumentUrl('')}
+                              className="text-[10px] text-rose-600 font-bold hover:underline"
+                            >
+                              Remove Photo
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-sand-50 rounded-lg">
+                            <Upload className="w-5 h-5 text-forest-500 mb-1" />
+                            <span className="text-xs font-bold text-forest-900">Upload Front</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleDrawerFileUpload(e, true)}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-white rounded-xl border border-sand-300 text-center">
+                        <span className="text-[11px] font-bold text-forest-800 block mb-1.5">
+                          Back ID Photo (Optional)
+                        </span>
+                        {editIdDocumentBackUrl ? (
+                          <div className="space-y-1.5">
+                            <div className="w-full h-24 rounded-lg overflow-hidden bg-sand-100 border border-sand-200">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={editIdDocumentBackUrl} alt="Back ID" className="w-full h-full object-contain" />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditIdDocumentBackUrl('')}
+                              className="text-[10px] text-rose-600 font-bold hover:underline"
+                            >
+                              Remove Photo
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center p-3 cursor-pointer hover:bg-sand-50 rounded-lg">
+                            <Upload className="w-5 h-5 text-forest-500 mb-1" />
+                            <span className="text-xs font-bold text-forest-900">Upload Back</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleDrawerFileUpload(e, false)}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="flex items-center space-x-2">
-                      <Phone className="w-4 h-4 text-forest-600" />
-                      <span>{selectedBooking.guest.phone}</span>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Phone className="w-4 h-4 text-forest-600" />
+                        <span className="font-medium">{selectedBooking.guest.phone}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Mail className="w-4 h-4 text-forest-600" />
+                        <span className="font-medium">{selectedBooking.guest.email || 'No email provided'}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="w-4 h-4 text-forest-600" />
+                        <span>
+                          {selectedBooking.guest.city || selectedBooking.guest.address
+                            ? `${selectedBooking.guest.city || ''} ${selectedBooking.guest.address || ''}`
+                            : 'No address logged'}
+                        </span>
+                      </div>
+                      <div className="text-forest-700">
+                        Nationality: <strong>{selectedBooking.guest.nationality || 'Indian'}</strong>
+                      </div>
+                      <div className="sm:col-span-2 text-forest-900 bg-white p-2.5 rounded-xl border border-sand-200">
+                        <strong>{selectedBooking.guest.idType || 'Government ID'}:</strong>{' '}
+                        <span className="font-mono font-bold">
+                          {selectedBooking.guest.idNumber || 'Not provided yet'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-forest-600" />
-                      <span>{selectedBooking.guest.email || 'No email provided'}</span>
-                    </div>
-                    <div className="sm:col-span-2 text-forest-700">
-                      <strong>ID Type:</strong> {selectedBooking.guest.idType || 'Aadhaar / Passport'} ({selectedBooking.guest.idNumber || 'Verified on arrival'})
+
+                    {/* ID Photos Previews */}
+                    <div>
+                      <span className="text-[11px] font-bold text-forest-800 uppercase block mb-2">
+                        Government ID Document Photos
+                      </span>
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Front Thumbnail */}
+                        <div className="bg-white p-2.5 rounded-xl border border-sand-200">
+                          <span className="text-[10px] font-bold text-forest-600 block mb-1">
+                            Front Page
+                          </span>
+                          {selectedBooking.guest.idDocumentUrl ? (
+                            <div
+                              onClick={() => setEnlargedImage(selectedBooking.guest.idDocumentUrl || null)}
+                              className="w-full h-28 rounded-lg overflow-hidden bg-sand-100 border border-sand-200 relative group cursor-pointer"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={selectedBooking.guest.idDocumentUrl}
+                                alt="Front ID"
+                                className="w-full h-full object-contain"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
+                                <Eye className="w-4 h-4 mr-1" /> View Full
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full h-28 rounded-lg bg-sand-100 border border-dashed border-sand-300 flex flex-col items-center justify-center text-forest-500 text-[10px]">
+                              <FileText className="w-5 h-5 mb-1" />
+                              <span>No Front Image</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Back Thumbnail */}
+                        <div className="bg-white p-2.5 rounded-xl border border-sand-200">
+                          <span className="text-[10px] font-bold text-forest-600 block mb-1">
+                            Back / Address Page
+                          </span>
+                          {selectedBooking.guest.idDocumentBackUrl ? (
+                            <div
+                              onClick={() => setEnlargedImage(selectedBooking.guest.idDocumentBackUrl || null)}
+                              className="w-full h-28 rounded-lg overflow-hidden bg-sand-100 border border-sand-200 relative group cursor-pointer"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={selectedBooking.guest.idDocumentBackUrl}
+                                alt="Back ID"
+                                className="w-full h-full object-contain"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
+                                <Eye className="w-4 h-4 mr-1" /> View Full
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full h-28 rounded-lg bg-sand-100 border border-dashed border-sand-300 flex flex-col items-center justify-center text-forest-500 text-[10px]">
+                              <FileText className="w-5 h-5 mb-1" />
+                              <span>No Back Image</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
-
-                {/* ID / Permit Photo Upload Preview */}
-                <div>
-                  <span className="text-[11px] font-bold text-forest-800 uppercase block mb-2">
-                    ID / Permit Photo Preview
-                  </span>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-32 h-24 rounded-xl overflow-hidden border-2 border-forest-200 bg-sand-200 shadow-inner relative shrink-0">
-                      {selectedBooking.guest.idDocumentUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={selectedBooking.guest.idDocumentUrl}
-                          alt="Government ID Preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-forest-500 text-[10px]">
-                          <FileText className="w-5 h-5 mb-1" />
-                          <span>No Image</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-xs text-forest-700 space-y-1">
-                      <p className="font-semibold">Verification Status: Verified ✓</p>
-                      <p className="text-[11px] text-gray-500">
-                        {selectedBooking.guest.totalLifetimeStays > 1
-                          ? `Repeat Guest (${selectedBooking.guest.totalLifetimeStays} stays on estate)`
-                          : 'First-time mountain visitor'}
-                      </p>
-                      <label className="inline-block cursor-pointer text-forest-800 hover:text-forest-950 underline text-[11px] font-bold">
-                        Replace / Upload ID Photo
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept="image/*"
-                          onChange={() => showToast('New ID document photo uploaded and stored successfully.')}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Dietary & Hospitality Preferences */}
@@ -672,7 +1104,7 @@ export default function TapeChart() {
                 <div className="flex items-center space-x-2">
                   <Coffee className="w-4 h-4 text-amber-700" />
                   <h4 className="font-serif font-bold text-sm text-forest-900">
-                    Dietary & Hospitality Mandates
+                    Dietary &amp; Hospitality Mandates
                   </h4>
                 </div>
 
@@ -680,26 +1112,38 @@ export default function TapeChart() {
                   <div className="space-y-3">
                     <div>
                       <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                        Dietary Preferences & Allergies
+                        Dietary Preferences &amp; Allergies
                       </label>
                       <textarea
                         rows={2}
                         value={editDietary}
                         onChange={(e) => setEditDietary(e.target.value)}
                         placeholder="e.g., Strict Jain, Peanut Allergy, Vegan"
-                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
+                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
                       />
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                        Hospitality & Room Preferences
+                        Hospitality &amp; Room Preferences
                       </label>
                       <textarea
                         rows={2}
                         value={editHospitality}
                         onChange={(e) => setEditHospitality(e.target.value)}
                         placeholder="e.g., Extra warm duvet, fireplace prepped at 6 PM"
-                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
+                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                        Special Requests / Staff Notes
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editSpecialRequests}
+                        onChange={(e) => setEditSpecialRequests(e.target.value)}
+                        placeholder="e.g., Late arrival, manual discount agreed with guest"
+                        className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
                       />
                     </div>
                   </div>
@@ -716,35 +1160,34 @@ export default function TapeChart() {
 
                     <div className="p-3 bg-white rounded-xl border border-sand-200">
                       <span className="text-[10px] uppercase font-bold text-forest-700 block mb-0.5">
-                        Hospitality & Room Setup:
+                        Hospitality &amp; Room Setup:
                       </span>
                       <p className="text-forest-900 font-medium">
                         {selectedBooking.guest.hospitalityPreferences || 'Standard room setup requested.'}
                       </p>
                     </div>
+
+                    {selectedBooking.specialRequests && (
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950">
+                        <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">
+                          Reservation Notes:
+                        </span>
+                        <p className="italic">&ldquo;{selectedBooking.specialRequests}&rdquo;</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {/* Special Booking Note */}
-              {selectedBooking.specialRequests && (
-                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950">
-                  <span className="text-[10px] font-bold uppercase tracking-wide block text-amber-800 mb-1">
-                    Special Reservation Request:
-                  </span>
-                  <p className="italic">&ldquo;{selectedBooking.specialRequests}&rdquo;</p>
-                </div>
-              )}
             </div>
 
             {/* Drawer Footer */}
             <div className="p-4 bg-sand-100 border-t border-sand-200 flex items-center justify-between">
               <span className="text-xs text-forest-700 font-mono">
-                Folio ID: FOL-2026-{selectedBooking.roomNumber}01
+                Booking Reference: {selectedBooking.bookingReference}
               </span>
               <button
                 onClick={() => setSelectedBooking(null)}
-                className="min-h-[44px] px-5 py-2 bg-forest-900 text-white font-bold text-xs rounded-xl hover:bg-forest-800 transition-colors"
+                className="min-h-[44px] px-5 py-2 bg-forest-900 text-white font-bold text-xs rounded-xl hover:bg-forest-800 transition-colors cursor-pointer"
               >
                 Done
               </button>
@@ -752,6 +1195,41 @@ export default function TapeChart() {
           </div>
         </div>
       )}
+
+      {/* Enlarged Photo Modal */}
+      {enlargedImage && (
+        <div
+          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div className="relative max-w-2xl max-h-[85vh] bg-white rounded-3xl p-2 overflow-hidden shadow-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={enlargedImage}
+              alt="Government ID Full Preview"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl mx-auto"
+            />
+            <button
+              onClick={() => setEnlargedImage(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-forest-950/80 text-white flex items-center justify-center hover:bg-forest-900"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Booking & Room Assignment Modal */}
+      <ManualBookingModal
+        isOpen={isManualBookingModalOpen}
+        onClose={() => setIsManualBookingModalOpen(false)}
+        defaultRoomId={manualBookingDefaultRoomId}
+        defaultDate={manualBookingDefaultDate}
+        onBookingCreated={(newBk) => {
+          setSelectedBooking(newBk);
+          openGuestDrawer(newBk);
+        }}
+      />
     </div>
   );
 }

@@ -86,9 +86,14 @@ export interface Guest {
   fullName: string;
   phone: string;
   email?: string;
-  idType?: string; // Passport, Aadhaar, Driver License, Inner Line Permit
+  idType?: string; // Passport, Aadhaar, Driver License, Voter ID, Inner Line Permit
   idDocumentUrl?: string;
+  idDocumentBackUrl?: string;
   idNumber?: string;
+  address?: string;
+  city?: string;
+  nationality?: string;
+  documentStatus?: 'pending' | 'submitted' | 'verified';
   dietaryPreferences?: string; // Vegetarian, Jain, Nut Allergy, Lactose Intolerant, etc.
   hospitalityPreferences?: string; // Extra duvet, warm water flask, morning tea at 7am
   whatsappNumber?: string;
@@ -116,6 +121,11 @@ export interface CRMBooking {
   specialRequests?: string;
   checkedInAt?: string;
   checkedOutAt?: string;
+  isManualRate?: boolean;
+  notes?: string;
+  documentStatus?: 'pending' | 'submitted' | 'verified';
+  advancePaid?: number;
+  advancePaymentMethod?: PaymentMethod;
 }
 
 export interface FolioCharge {

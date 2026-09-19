@@ -14,8 +14,11 @@ import {
   CreditCard,
   User,
   Eye,
-  X
+  X,
+  Plus,
+  Share2,
 } from 'lucide-react';
+import ManualBookingModal from '@/components/crm/ManualBookingModal';
 
 interface AdminBookingsProps {
   bookings: Booking[];
@@ -32,6 +35,7 @@ export default function AdminBookings({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [isManualBookingModalOpen, setIsManualBookingModalOpen] = useState(false);
 
   // Update Status via API
   const handleUpdateStatus = async (
@@ -145,20 +149,32 @@ export default function AdminBookings({
           />
         </div>
 
-        <div className="flex items-center space-x-1.5 bg-sand-100 p-1 rounded-xl text-xs overflow-x-auto">
-          {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setStatusFilter(tab)}
-              className={`px-3 py-1.5 rounded-lg font-medium capitalize transition-colors whitespace-nowrap ${
-                statusFilter === tab
-                  ? 'bg-white text-forest-900 shadow-sm'
-                  : 'text-gray-600 hover:text-forest-900'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center space-x-1.5 bg-sand-100 p-1 rounded-xl text-xs overflow-x-auto">
+            {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setStatusFilter(tab)}
+                className={`px-3 py-1.5 rounded-lg font-medium capitalize transition-colors whitespace-nowrap ${
+                  statusFilter === tab
+                    ? 'bg-white text-forest-900 shadow-sm'
+                    : 'text-gray-600 hover:text-forest-900'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsManualBookingModalOpen(true)}
+            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-forest-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New Manual Reservation</span>
+            <span className="sm:hidden">New</span>
+          </button>
         </div>
       </div>
 
@@ -275,6 +291,22 @@ export default function AdminBookings({
                     <span>WhatsApp</span>
                   </a>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/checkin?booking=${b.booking_reference}`;
+                      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                        navigator.clipboard.writeText(url);
+                        showToast('Guest check-in & document link copied to clipboard!');
+                      }
+                    }}
+                    className="inline-flex items-center space-x-1.5 text-xs font-semibold text-forest-800 bg-sand-100 hover:bg-sand-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                    title="Copy Guest Check-In & Document Upload Link"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Check-In Link</span>
+                  </button>
+
                   <a
                     href={`tel:${cleanPhone}`}
                     className="inline-flex items-center space-x-1 text-xs font-semibold text-forest-800 bg-sand-100 hover:bg-sand-200 px-3 py-1.5 rounded-xl transition-colors"
@@ -374,6 +406,16 @@ export default function AdminBookings({
           </div>
         </div>
       )}
+
+      {/* Manual Reservation Modal */}
+      <ManualBookingModal
+        isOpen={isManualBookingModalOpen}
+        onClose={() => setIsManualBookingModalOpen(false)}
+        onBookingCreated={() => {
+          onRefresh();
+          showToast('Manual reservation created successfully!');
+        }}
+      />
     </div>
   );
 }

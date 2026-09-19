@@ -23,6 +23,7 @@ import {
   MealPlan,
   SeasonalDateRange,
   RoomSeasonalTariffs,
+  Guest,
 } from '@/types/crm';
 import {
   INITIAL_PHYSICAL_ROOMS,
@@ -91,6 +92,47 @@ interface CRMContextType {
   settleFolio: (folioId: string, paymentMethod: PaymentMethod, notes?: string) => void;
   checkInRoom: (bookingId: string) => void;
   checkOutRoom: (bookingId: string) => void;
+
+  // Manual Room Assignment & Guest Document Management
+  createManualBooking: (bookingData: {
+    roomId: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomRatePerNight: number;
+    totalRoomAmount?: number;
+    mealPlan: MealPlan;
+    adultsCount: number;
+    childrenCount: number;
+    status: RoomTapeStatus;
+    specialRequests?: string;
+    notes?: string;
+    isManualRate?: boolean;
+    advancePaid?: number;
+    advancePaymentMethod?: PaymentMethod;
+    guest: {
+      fullName: string;
+      phone: string;
+      email?: string;
+      idType?: string;
+      idNumber?: string;
+      idDocumentUrl?: string;
+      idDocumentBackUrl?: string;
+      address?: string;
+      city?: string;
+      nationality?: string;
+      dietaryPreferences?: string;
+      hospitalityPreferences?: string;
+    };
+  }) => CRMBooking;
+  updateBookingGuestDetails: (
+    bookingId: string,
+    guestUpdates: Partial<Guest>,
+    bookingUpdates?: Partial<CRMBooking>
+  ) => void;
+  updateBookingDocumentStatus: (
+    bookingId: string,
+    status: 'pending' | 'submitted' | 'verified'
+  ) => void;
 
   // Menu Management CRUD (In-Room Dining)
   addMenuItem: (item: Omit<MenuItem, 'id'>) => MenuItem;
@@ -301,6 +343,24 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
+
+    const handleStorage = (e: StorageEvent) => {
+      try {
+        if (e.key === 'wp_crm_bookings' && e.newValue) {
+          setBookings(JSON.parse(e.newValue));
+        }
+        if (e.key === 'wp_crm_folios' && e.newValue) {
+          setFolios(JSON.parse(e.newValue));
+        }
+        if (e.key === 'wp_crm_rooms' && e.newValue) {
+          setRooms(JSON.parse(e.newValue));
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const setRole = (newRole: StaffRole) => {
@@ -804,6 +864,265 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     showToast(`Room ${bk.roomNumber} checked out. Turnover deep cleaning scheduled.`);
   };
 
+  // Manual Booking & Room Assignment with Manual Tariff Overrides
+  const createManualBooking = (bookingData: {
+    roomId: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomRatePerNight: number;
+    totalRoomAmount?: number;
+    mealPlan: MealPlan;
+    adultsCount: number;
+    childrenCount: number;
+    status: RoomTapeStatus;
+    specialRequests?: string;
+    notes?: string;
+    isManualRate?: boolean;
+    advancePaid?: number;
+    advancePaymentMethod?: PaymentMethod;
+    guest: {
+      fullName: string;
+      phone: string;
+      email?: string;
+      idType?: string;
+      idNumber?: string;
+      idDocumentUrl?: string;
+      idDocumentBackUrl?: string;
+      address?: string;
+      city?: string;
+      nationality?: string;
+      dietaryPreferences?: string;
+      hospitalityPreferences?: string;
+    };
+  }): CRMBooking => {
+    const room = rooms.find((r) => r.id === bookingData.roomId) || rooms[0];
+    const guestId = `guest-${Date.now()}`;
+    const bookingId = `bk-${Date.now()}`;
+    const bookingReference = `WP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    // Calculate nights
+    const start = new Date(bookingData.checkInDate);
+    const end = new Date(bookingData.checkOutDate);
+    const diffTime = Math.max(0, end.getTime() - start.getTime());
+    const totalNights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+    const totalRoomAmount = bookingData.totalRoomAmount ?? (totalNights * bookingData.roomRatePerNight);
+
+    const docStatus: 'pending' | 'submitted' =
+      bookingData.guest.idDocumentUrl || bookingData.guest.idNumber ? 'submitted' : 'pending';
+
+    const newGuest: Guest = {
+      id: guestId,
+      fullName: bookingData.guest.fullName || 'Guest',
+      phone: bookingData.guest.phone || '',
+      email: bookingData.guest.email,
+      idType: bookingData.guest.idType || 'Aadhaar Card',
+      idNumber: bookingData.guest.idNumber,
+      idDocumentUrl: bookingData.guest.idDocumentUrl,
+      idDocumentBackUrl: bookingData.guest.idDocumentBackUrl,
+      address: bookingData.guest.address,
+      city: bookingData.guest.city,
+      nationality: bookingData.guest.nationality || 'Indian',
+      documentStatus: docStatus,
+      dietaryPreferences: bookingData.guest.dietaryPreferences,
+      hospitalityPreferences: bookingData.guest.hospitalityPreferences,
+      whatsappNumber: bookingData.guest.phone ? bookingData.guest.phone.replace(/[^0-9]/g, '') : undefined,
+      totalLifetimeStays: 1,
+    };
+
+    const newBooking: CRMBooking = {
+      id: bookingId,
+      bookingReference,
+      roomId: room.id,
+      roomNumber: room.roomNumber,
+      roomName: room.name,
+      guestId,
+      guest: newGuest,
+      checkInDate: bookingData.checkInDate,
+      checkOutDate: bookingData.checkOutDate,
+      tapeStatus: bookingData.status,
+      bookingStatus:
+        bookingData.status === 'checked_in'
+          ? 'checked_in'
+          : bookingData.status === 'hold'
+          ? 'hold'
+          : 'confirmed',
+      mealPlan: bookingData.mealPlan,
+      adultsCount: bookingData.adultsCount || 2,
+      childrenCount: bookingData.childrenCount || 0,
+      roomRatePerNight: bookingData.roomRatePerNight,
+      totalNights,
+      totalRoomAmount,
+      specialRequests: bookingData.specialRequests,
+      isManualRate: bookingData.isManualRate !== false,
+      notes: bookingData.notes,
+      documentStatus: docStatus,
+      advancePaid: bookingData.advancePaid || 0,
+      advancePaymentMethod: bookingData.advancePaymentMethod,
+      checkedInAt: bookingData.status === 'checked_in' ? new Date().toISOString() : undefined,
+    };
+
+    // Auto-create Folio with the manual stay tariff
+    const folioId = `fol-${Date.now()}`;
+    const folioNumber = `FOL-2026-${room.roomNumber}${Math.floor(10 + Math.random() * 90)}`;
+    const roomCharge: FolioCharge = {
+      id: `chg-${Date.now()}-room`,
+      folioId,
+      category: 'room_tariff',
+      chargeStatus: 'posted',
+      title: `Stay Tariff: ${room.name} (${totalNights} night${totalNights > 1 ? 's' : ''} @ ₹${bookingData.roomRatePerNight.toLocaleString('en-IN')}/nt ${bookingData.isManualRate !== false ? '[Manual Rate Override]' : ''})`,
+      amount: totalRoomAmount,
+      sourceReferenceType: 'booking',
+      sourceReferenceId: bookingId,
+      postedAt: new Date().toISOString(),
+    };
+
+    const payments: FolioPayment[] = [];
+    if (bookingData.advancePaid && bookingData.advancePaid > 0) {
+      payments.push({
+        id: `pay-${Date.now()}-adv`,
+        folioId,
+        amount: bookingData.advancePaid,
+        paymentMethod: bookingData.advancePaymentMethod || 'upi',
+        receiptNotes: 'Advance deposit on manual booking reservation',
+        collectedAt: new Date().toISOString(),
+        collectedByName: role === 'admin' ? 'Administrator' : 'Duty Manager',
+      });
+    }
+
+    const initialFolio: GuestFolio = recalculateFolioTotals(
+      {
+        id: folioId,
+        bookingId,
+        guestId,
+        guestName: newGuest.fullName,
+        roomNumber: room.roomNumber,
+        roomName: room.name,
+        folioNumber,
+        status: 'open',
+        totalRoomCharges: totalRoomAmount,
+        totalFbCharges: 0,
+        totalAddonCharges: 0,
+        totalTax: 0,
+        discountAmount: 0,
+        netPayable: totalRoomAmount,
+        totalPaid: bookingData.advancePaid || 0,
+        balanceDue: Math.max(0, totalRoomAmount - (bookingData.advancePaid || 0)),
+        charges: [roomCharge],
+        payments,
+      },
+      [roomCharge],
+      payments
+    );
+
+    // Update state & persistence
+    setBookings((prev) => {
+      const updated = [newBooking, ...prev];
+      try {
+        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    setFolios((prev) => {
+      const updated = [initialFolio, ...prev];
+      try {
+        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // If reservation is currently active, update physical room tape status
+    setRooms((prev) => {
+      const updated = prev.map((r) => (r.id === room.id ? { ...r, currentStatus: bookingData.status } : r));
+      try {
+        localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    showToast(`Manual reservation ${bookingReference} created & assigned to Room ${room.roomNumber}!`);
+    return newBooking;
+  };
+
+  // Update Guest Details & Document Upload (CRM and Guest self-check-in sync)
+  const updateBookingGuestDetails = (
+    bookingId: string,
+    guestUpdates: Partial<Guest>,
+    bookingUpdates?: Partial<CRMBooking>
+  ) => {
+    setBookings((prev) => {
+      const updated = prev.map((b) => {
+        if (b.id === bookingId) {
+          const updatedDocStatus: 'pending' | 'submitted' | 'verified' =
+            guestUpdates.documentStatus ||
+            b.documentStatus ||
+            (guestUpdates.idDocumentUrl || guestUpdates.idNumber ? 'submitted' : 'pending');
+
+          const updatedGuest: Guest = {
+            ...b.guest,
+            ...guestUpdates,
+            documentStatus: updatedDocStatus,
+          };
+
+          return {
+            ...b,
+            ...bookingUpdates,
+            guest: updatedGuest,
+            documentStatus: updatedDocStatus,
+          };
+        }
+        return b;
+      });
+
+      try {
+        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // Also update folio guestName if name changed
+    if (guestUpdates.fullName) {
+      setFolios((prev) => {
+        const updated = prev.map((fol) =>
+          fol.bookingId === bookingId ? { ...fol, guestName: guestUpdates.fullName! } : fol
+        );
+        try {
+          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
+    showToast('Guest details & documents updated successfully');
+  };
+
+  const updateBookingDocumentStatus = (
+    bookingId: string,
+    status: 'pending' | 'submitted' | 'verified'
+  ) => {
+    setBookings((prev) => {
+      const updated = prev.map((b) => {
+        if (b.id === bookingId) {
+          return {
+            ...b,
+            documentStatus: status,
+            guest: {
+              ...b.guest,
+              documentStatus: status,
+            },
+          };
+        }
+        return b;
+      });
+      try {
+        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast(`Guest document verification marked as ${status.toUpperCase()}`);
+  };
+
   // Staff Account & Authentication Actions
   const setCurrentUser = (user: StaffAccount | null) => {
     setCurrentUserState(user);
@@ -1299,6 +1618,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         settleFolio,
         checkInRoom,
         checkOutRoom,
+        createManualBooking,
+        updateBookingGuestDetails,
+        updateBookingDocumentStatus,
         addMenuItem,
         updateMenuItem,
         deleteMenuItem,
