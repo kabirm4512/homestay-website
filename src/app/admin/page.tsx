@@ -22,7 +22,6 @@ import {
   QrCode,
   Users,
   UtensilsCrossed,
-  RotateCcw,
 } from 'lucide-react';
 
 import AdminAuth from '@/components/admin/AdminAuth';
@@ -65,7 +64,6 @@ export default function AdminPage() {
     foodOrders,
     currentUser,
     setCurrentUser,
-    resetAllOperationalData,
   } = useCRM();
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -209,19 +207,6 @@ export default function AdminPage() {
     showToast('Homestay data reloaded.');
   };
 
-  const handleResetData = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to reset the website data to a fresh start?\n\nThis will clear all expenses, bills/folios, bookings, and active orders, and set all 7 rooms to Available.'
-      )
-    ) {
-      resetAllOperationalData();
-      setBookings([]);
-      setInquiries([]);
-      showToast('All operational data reset to fresh start successfully.', 'success');
-    }
-  };
-
   if (authChecking) {
     return (
       <div className="min-h-screen bg-sand-50 flex items-center justify-center">
@@ -305,16 +290,6 @@ export default function AdminPage() {
               title="Refresh Homestay Live Data"
             >
               <RefreshCw className="w-4 h-4" />
-            </button>
-
-            {/* Fresh Start / Reset Data Action */}
-            <button
-              onClick={handleResetData}
-              className="min-h-[44px] px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:text-white rounded-xl hover:bg-rose-950/40 border border-rose-800/50 transition-colors flex items-center space-x-1.5 cursor-pointer"
-              title="Reset website data to fresh start (clear expenses, bills, bookings)"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Fresh Start</span>
             </button>
 
             {/* View Live Website */}
