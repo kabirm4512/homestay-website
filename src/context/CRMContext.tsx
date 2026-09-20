@@ -197,6 +197,9 @@ interface CRMContextType {
   updateStaffAccount: (id: string, updates: Partial<StaffAccount>) => Promise<void>;
   deleteStaffAccount: (id: string) => Promise<{ success: boolean; error?: string }>;
   authenticateStaff: (identifier: string, password: string) => Promise<{ success: boolean; user?: StaffAccount; error?: string }>;
+
+  // Fresh Start / Operational Data Reset
+  resetAllOperationalData: () => void;
 }
 
 export function recalculateFolioTotals(
@@ -268,6 +271,22 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // Sync to/from localStorage for persistence across reloads
   useEffect(() => {
     try {
+      // Automatic data version check for fresh start
+      const FRESH_DATA_VERSION = 'wp_v2026_clean_fresh_start';
+      const storedVersion = localStorage.getItem('wp_crm_version_key');
+      if (storedVersion !== FRESH_DATA_VERSION) {
+        localStorage.removeItem('wp_crm_bookings');
+        localStorage.removeItem('wp_crm_folios');
+        localStorage.removeItem('wp_crm_expenses');
+        localStorage.removeItem('wp_crm_food_orders');
+        localStorage.removeItem('wp_crm_dispatch');
+        localStorage.removeItem('wp_crm_housekeeping');
+        localStorage.removeItem('wp_crm_rooms');
+        localStorage.removeItem('homestay_bookings');
+        localStorage.removeItem('homestay_inquiries');
+        localStorage.setItem('wp_crm_version_key', FRESH_DATA_VERSION);
+      }
+
       const savedRole = localStorage.getItem('wp_crm_role') as StaffRole;
       if (savedRole && ['admin', 'manager', 'kitchen_staff'].includes(savedRole)) {
         setRoleState(savedRole);
@@ -1582,6 +1601,40 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const resetAllOperationalData = useCallback(() => {
+    setBookings([]);
+    setFolios([]);
+    setExpenses([]);
+    setFoodOrders([]);
+    setDispatchRequests([]);
+    setHousekeepingTasks([]);
+
+    const cleanRooms: PhysicalRoom[] = INITIAL_PHYSICAL_ROOMS.map((r) => ({
+      ...r,
+      currentStatus: 'available' as RoomTapeStatus,
+      housekeeping: 'clean' as const,
+      notes: '',
+    }));
+    setRooms(cleanRooms);
+
+    try {
+      localStorage.setItem('wp_crm_bookings', JSON.stringify([]));
+      localStorage.setItem('wp_crm_folios', JSON.stringify([]));
+      localStorage.setItem('wp_crm_expenses', JSON.stringify([]));
+      localStorage.setItem('wp_crm_food_orders', JSON.stringify([]));
+      localStorage.setItem('wp_crm_dispatch', JSON.stringify([]));
+      localStorage.setItem('wp_crm_housekeeping', JSON.stringify([]));
+      localStorage.setItem('wp_crm_rooms', JSON.stringify(cleanRooms));
+      localStorage.removeItem('homestay_bookings');
+      localStorage.removeItem('homestay_inquiries');
+      localStorage.setItem('wp_crm_version_key', 'wp_v2026_clean_fresh_start');
+    } catch (err) {
+      console.warn('LocalStorage reset error:', err);
+    }
+
+    showToast('Website data reset to a fresh start. All bookings, bills, and expenses cleared.', 'success');
+  }, [showToast]);
+
   return (
     <CRMContext.Provider
       value={{
@@ -1645,6 +1698,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         updateStaffAccount,
         deleteStaffAccount,
         authenticateStaff,
+        resetAllOperationalData,
       }}
     >
       {children}

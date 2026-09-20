@@ -28,9 +28,9 @@ const crmDataContent = fs.readFileSync(crmDataPath, 'utf8');
 // Check that 7 physical rooms are defined
 const roomMatches = crmDataContent.match(/roomNumber:\s*([1-7])/g);
 assert.ok(roomMatches && roomMatches.length >= 7, 'Must have all 7 physical rooms configured');
-assert.ok(crmDataContent.includes('luxury_suite'), 'Must include luxury_suite category');
-assert.ok(crmDataContent.includes('cottage'), 'Must include cottage category');
-assert.ok(crmDataContent.includes('deluxe_pine'), 'Must include deluxe_pine category');
+assert.ok(crmDataContent.includes('deluxe_mountain'), 'Must include deluxe_mountain category');
+assert.ok(crmDataContent.includes('deluxe_forest'), 'Must include deluxe_forest category');
+assert.ok(crmDataContent.includes('premium_suite'), 'Must include premium_suite category');
 console.log('✓ 7 physical rooms across 3 categories verified.');
 
 // 3. Verify Kitchen Mandate Headcount Logic
