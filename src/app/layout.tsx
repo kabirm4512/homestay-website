@@ -45,6 +45,24 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth">
+      <head>
+        {/* Google tag (gtag.js) */}
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=AW-18463419248"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+
+              gtag('config', 'AW-18463419248');
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-[#faf8f5] text-forest-900 antialiased selection:bg-forest-100 selection:text-forest-900">
         <CRMProvider>
           <PWARegister />
