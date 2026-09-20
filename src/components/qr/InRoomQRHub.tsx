@@ -90,7 +90,7 @@ export default function InRoomQRHub({
   const getRoomUrl = useCallback((roomNum: number) => {
     let cleanOrigin = customDomain.trim();
     if (!cleanOrigin) {
-      cleanOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com';
+      cleanOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.in';
     }
     if (!cleanOrigin.startsWith('http://') && !cleanOrigin.startsWith('https://')) {
       cleanOrigin = `https://${cleanOrigin}`;
@@ -927,11 +927,11 @@ export default function InRoomQRHub({
                 type="text"
                 value={customDomain}
                 onChange={(e) => setCustomDomain(e.target.value)}
-                placeholder="e.g. https://saverahomestay.com or current domain"
+                placeholder="e.g. https://saverahomestay.in or current domain"
                 className="flex-1 px-3 py-2 text-xs bg-sand-50/80 border border-sand-300 rounded-xl font-mono text-forest-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-800"
               />
               <button
-                onClick={() => setCustomDomain(typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.com')}
+                onClick={() => setCustomDomain(typeof window !== 'undefined' ? window.location.origin : 'https://saverahomestay.in')}
                 className="min-h-[36px] px-3 py-1.5 bg-sand-200 hover:bg-sand-300 text-forest-950 text-xs font-semibold rounded-xl transition-colors shrink-0 cursor-pointer"
               >
                 Use Current URL

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Savera Homestay - A Boutique Mountain Homestay',
     description: 'An intimate mountain sanctuary in Darjeeling with handcrafted suites, private balconies, and majestic Himalayan views.',
-    url: 'https://saverahomestay.com',
+    url: 'https://saverahomestay.in',
     siteName: 'Savera Homestay',
     images: [
       {
