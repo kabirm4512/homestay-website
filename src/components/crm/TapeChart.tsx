@@ -669,7 +669,7 @@ export default function TapeChart() {
 
               {/* Stay Dates & Tariff Card */}
               <div className="bg-white p-4 rounded-2xl border border-sand-200 text-xs space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-[10px] text-forest-600 uppercase font-bold block">
                       Check-In Date
@@ -684,33 +684,33 @@ export default function TapeChart() {
                   </div>
                   <div>
                     <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                      Total Nights
+                      Stay &amp; Tariff
                     </span>
-                    <span className="font-bold text-forest-900">{selectedBooking.totalNights} Nights</span>
+                    <span className="font-bold text-forest-900">
+                      {selectedBooking.totalNights}N @ ₹{selectedBooking.roomRatePerNight.toLocaleString('en-IN')}
+                    </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-forest-600 uppercase font-bold block">
-                      Tariff / Night
+                      Occupancy
                     </span>
-                    <div className="flex items-center space-x-1">
-                      <span className="font-mono font-bold text-forest-900">
-                        ₹{selectedBooking.roomRatePerNight.toLocaleString('en-IN')}
-                      </span>
-                      {selectedBooking.isManualRate && (
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                          Manual
-                        </span>
-                      )}
-                    </div>
+                    <span className="font-bold text-forest-900">
+                      {selectedBooking.adultsCount || 2} Adults{(selectedBooking.childrenCount || 0) > 0 ? `, ${selectedBooking.childrenCount} Ch` : ''}
+                    </span>
                   </div>
                 </div>
 
-                <div className="pt-2.5 border-t border-sand-100 flex items-center justify-between text-xs">
+                <div className="pt-2.5 border-t border-sand-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="text-forest-700">
-                    Total Stay Amount:{' '}
+                    Stay Total:{' '}
                     <strong className="font-mono text-forest-950">
                       ₹{selectedBooking.totalRoomAmount.toLocaleString('en-IN')}
                     </strong>
+                    {(selectedBooking.totalExtraCharges || 0) > 0 && (
+                      <span className="text-[10px] text-emerald-800 ml-1.5 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Incl. ₹{selectedBooking.totalExtraCharges?.toLocaleString('en-IN')} extra guest charges
+                      </span>
+                    )}
                   </div>
                   {selectedBooking.advancePaid ? (
                     <div className="text-emerald-700 font-semibold">

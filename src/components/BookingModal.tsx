@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
 import DateRangePicker from './DateRangePicker';
-import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard } from 'lucide-react';
+import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard, Users } from 'lucide-react';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -26,6 +26,8 @@ export default function BookingModal({
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [mealPlan, setMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('CP');
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
   const [includeAirportTransfer, setIncludeAirportTransfer] = useState(false);
   const [includeBikeRental, setIncludeBikeRental] = useState(false);
   const [specialRequests, setSpecialRequests] = useState('');
@@ -74,7 +76,7 @@ export default function BookingModal({
 
   if (!isOpen || !room) return null;
 
-  // Calculate nights and dynamic estimated total based on meal plan
+  // Calculate nights and dynamic estimated total based on meal plan & extra guests
   let nights = 1;
   if (checkIn && checkOut) {
     const d1 = new Date(checkIn);
@@ -90,8 +92,19 @@ export default function BookingModal({
     AP: 2000,
   };
 
+  const baseAdults = room.base_adults || 2;
+  const extraAdultRate = room.extra_adult_charge || 1200;
+  const extraChildRate = room.extra_child_charge || 600;
+
+  const extraAdultsCount = Math.max(0, adults - baseAdults);
+  const extraChildrenCount = Math.max(0, children);
+
   const effectiveNightlyRate = Math.max(1000, room.price_per_night + mealPlanOffsets[mealPlan]);
-  const estimatedTotal = nights * effectiveNightlyRate;
+  const baseStayPrice = nights * effectiveNightlyRate;
+  const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
+  const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
+  const totalExtraCharges = extraAdultsTotal + extraChildrenTotal;
+  const estimatedTotal = baseStayPrice + totalExtraCharges;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,8 +127,16 @@ export default function BookingModal({
         check_in: checkIn,
         check_out: checkOut,
         nights,
+        adults_count: adults,
+        children_count: children,
+        extra_adults_count: extraAdultsCount,
+        extra_children_count: extraChildrenCount,
+        extra_charges_total: totalExtraCharges,
         total_price: estimatedTotal,
         special_requests: [
+          `[Guests: ${adults} Adults${children > 0 ? `, ${children} Children` : ''}]`,
+          extraAdultsCount > 0 ? `[Extra Adults: ${extraAdultsCount} × ₹${extraAdultRate}/nt = ₹${extraAdultsTotal}]` : '',
+          extraChildrenCount > 0 ? `[Extra Children: ${extraChildrenCount} × ₹${extraChildRate}/nt = ₹${extraChildrenTotal}]` : '',
           `[Meal Plan: ${mealPlan}]`,
           includeAirportTransfer ? '[Add-on: Airport/Railway Station Transfer]' : '',
           includeBikeRental ? '[Add-on: Scooty/Bike Rental]' : '',
@@ -150,6 +171,8 @@ export default function BookingModal({
     setGuestName('');
     setPhone('');
     setEmail('');
+    setAdults(2);
+    setChildren(0);
     setIncludeAirportTransfer(false);
     setIncludeBikeRental(false);
     onClose();
@@ -162,8 +185,16 @@ export default function BookingModal({
       includeBikeRental ? '• Scooty/Motorcycle Rental' : '',
     ].filter(Boolean).join('\n');
 
+    const guestLine = `*Guests:* ${adults} Adults${children > 0 ? `, ${children} Children` : ''}`;
+    const extraChargesSummary = totalExtraCharges > 0
+      ? `\n*Extra Guest Charges:* ₹${totalExtraCharges.toLocaleString()} (${[
+          extraAdultsCount > 0 ? `${extraAdultsCount} Extra Adult(s) @ ₹${extraAdultRate}/nt` : '',
+          extraChildrenCount > 0 ? `${extraChildrenCount} Extra Child(ren) @ ₹${extraChildRate}/nt` : '',
+        ].filter(Boolean).join(', ')})`
+      : '';
+
     const text = encodeURIComponent(
-      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Meal Plan:* ${mealPlan}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}` +
+      `Hello! I just placed a booking request on your website.\n\n*Reference:* ${bookingRef}\n*Room:* ${room.name}\n*Meal Plan:* ${mealPlan}\n*Guest:* ${guestName}\n*Phone:* ${phone}\n${guestLine}${extraChargesSummary}\n*Dates:* ${checkIn} to ${checkOut} (${nights} nights)\n*Total:* ₹${estimatedTotal.toLocaleString()}` +
       (addonsList ? `\n\n*Requested Add-ons:*\n${addonsList}` : '') +
       `\n\nPlease let me know the bank/UPI details to confirm my reservation.`
     );
@@ -246,6 +277,65 @@ export default function BookingModal({
                   }}
                   showPresets={true}
                 />
+              </div>
+
+              {/* Occupancy (Adults & Children) */}
+              <div className="bg-sand-50/70 p-3.5 rounded-2xl border border-sand-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-forest-900 flex items-center space-x-1.5">
+                    <Users className="w-3.5 h-3.5 text-forest-600" />
+                    <span>Guests &amp; Occupancy</span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-forest-600">
+                    Base tariff includes 2 Adults
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-forest-800 mb-1">
+                      Adults
+                    </label>
+                    <select
+                      value={adults}
+                      onChange={(e) => setAdults(Number(e.target.value))}
+                      className="w-full bg-white border border-sand-300 rounded-xl p-2 text-xs font-bold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    >
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n} Adult{n > 1 ? 's' : ''} {n > baseAdults ? `(+₹${extraAdultRate}/nt)` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {extraAdultsCount > 0 && (
+                      <span className="text-[10px] font-bold text-amber-700 mt-1 block">
+                        +{extraAdultsCount} Extra Adult: ₹{extraAdultsTotal.toLocaleString()} ({nights}N)
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-forest-800 mb-1">
+                      Children (0–12 yrs)
+                    </label>
+                    <select
+                      value={children}
+                      onChange={(e) => setChildren(Number(e.target.value))}
+                      className="w-full bg-white border border-sand-300 rounded-xl p-2 text-xs font-bold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    >
+                      {[0, 1, 2, 3].map((n) => (
+                        <option key={n} value={n}>
+                          {n === 0 ? '0 Children' : `${n} Child${n > 1 ? 'ren' : ''} (+₹${extraChildRate}/nt)`}
+                        </option>
+                      ))}
+                    </select>
+                    {extraChildrenCount > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700 mt-1 block">
+                        +{extraChildrenCount} Extra Child: ₹{extraChildrenTotal.toLocaleString()} ({nights}N)
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Meal Plan Selector */}
@@ -372,11 +462,30 @@ export default function BookingModal({
                 <div className="bg-sand-100/70 p-3.5 rounded-xl border border-sand-200 text-xs text-forest-900 space-y-1.5">
                   <div className="flex justify-between">
                     <span>
-                      Rate ({mealPlan}): ₹{effectiveNightlyRate.toLocaleString()} × {nights} {nights === 1 ? 'night' : 'nights'}
+                      Base Stay ({mealPlan}): ₹{effectiveNightlyRate.toLocaleString()} × {nights} {nights === 1 ? 'night' : 'nights'}
                     </span>
-                    <span>₹{estimatedTotal.toLocaleString()}</span>
+                    <span className="font-semibold">₹{baseStayPrice.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-forest-700">
+
+                  {extraAdultsCount > 0 && (
+                    <div className="flex justify-between text-amber-900">
+                      <span>
+                        Extra Adults ({extraAdultsCount} × ₹{extraAdultRate.toLocaleString()}/nt × {nights}N)
+                      </span>
+                      <span className="font-semibold">+₹{extraAdultsTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {extraChildrenCount > 0 && (
+                    <div className="flex justify-between text-emerald-900">
+                      <span>
+                        Extra Children ({extraChildrenCount} × ₹{extraChildRate.toLocaleString()}/nt × {nights}N)
+                      </span>
+                      <span className="font-semibold">+₹{extraChildrenTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-forest-700 pt-0.5">
                     <span>Selected Plan</span>
                     <span className="font-semibold text-emerald-700">
                       {mealPlan === 'EP'
@@ -388,9 +497,9 @@ export default function BookingModal({
                         : 'All Meals (Breakfast, Lunch, Dinner)'}
                     </span>
                   </div>
-                  <div className="border-t border-sand-300 pt-1 flex justify-between font-bold text-sm text-forest-950">
+                  <div className="border-t border-sand-300 pt-1.5 flex justify-between font-bold text-sm text-forest-950">
                     <span>Estimated Total</span>
-                    <span>₹{estimatedTotal.toLocaleString()}</span>
+                    <span className="text-base text-forest-900">₹{estimatedTotal.toLocaleString()}</span>
                   </div>
                 </div>
               )}

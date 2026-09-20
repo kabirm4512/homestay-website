@@ -62,8 +62,11 @@ export interface RoomCategory {
   description: string;
   basePriceWeekday: number;
   basePriceWeekend: number;
+  baseAdults?: number;
   maxAdults: number;
   maxChildren: number;
+  extraAdultCharge?: number;
+  extraChildCharge?: number;
   amenities: string[];
 }
 
@@ -115,6 +118,11 @@ export interface CRMBooking {
   mealPlan: MealPlan;
   adultsCount: number;
   childrenCount: number;
+  extraAdultsCount?: number;
+  extraChildrenCount?: number;
+  extraAdultChargePerNight?: number;
+  extraChildChargePerNight?: number;
+  totalExtraCharges?: number;
   roomRatePerNight: number;
   totalNights: number;
   totalRoomAmount: number;
@@ -369,5 +377,7 @@ export interface RoomSeasonalTariffs {
   season: MealPlanRates;
   offSeason: MealPlanRates;
   weekendSurchargePercent?: number;
+  extraAdultRate?: number;
+  extraChildRate?: number;
 }
 

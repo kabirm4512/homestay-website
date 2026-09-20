@@ -12,6 +12,9 @@ export interface Room {
   weekend_price?: number;
   capacity_adults: number;
   capacity_children: number;
+  base_adults?: number;
+  extra_adult_charge?: number;
+  extra_child_charge?: number;
   bed_type: string;
   room_size_sqft: number;
   amenities: string[];
@@ -52,6 +55,11 @@ export interface Booking {
   check_in: string;
   check_out: string;
   nights: number;
+  adults_count?: number;
+  children_count?: number;
+  extra_adults_count?: number;
+  extra_children_count?: number;
+  extra_charges_total?: number;
   total_price: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   payment_status: 'unpaid' | 'deposit_paid' | 'fully_paid';

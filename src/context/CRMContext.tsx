@@ -103,6 +103,8 @@ interface CRMContextType {
     mealPlan: MealPlan;
     adultsCount: number;
     childrenCount: number;
+    extraAdultChargePerNight?: number;
+    extraChildChargePerNight?: number;
     status: RoomTapeStatus;
     specialRequests?: string;
     notes?: string;
@@ -156,9 +158,18 @@ interface CRMContextType {
     roomId: string,
     checkIn: string,
     checkOut: string,
-    mealPlan?: MealPlan
+    mealPlan?: MealPlan,
+    adultsCount?: number,
+    childrenCount?: number
   ) => {
     totalAmount: number;
+    baseAmount: number;
+    extraAdultsCount: number;
+    extraAdultRate: number;
+    extraAdultsCharge: number;
+    extraChildrenCount: number;
+    extraChildRate: number;
+    extraChildrenCharge: number;
     nights: number;
     avgRatePerNight: number;
     breakdown: { date: string; rateName: string; seasonType: 'season' | 'off_season' | 'regular'; amount: number }[];
@@ -893,6 +904,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     mealPlan: MealPlan;
     adultsCount: number;
     childrenCount: number;
+    extraAdultChargePerNight?: number;
+    extraChildChargePerNight?: number;
     status: RoomTapeStatus;
     specialRequests?: string;
     notes?: string;
@@ -925,7 +938,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const diffTime = Math.max(0, end.getTime() - start.getTime());
     const totalNights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-    const totalRoomAmount = bookingData.totalRoomAmount ?? (totalNights * bookingData.roomRatePerNight);
+    // Extra person charges calculation
+    const extraAdultsCount = Math.max(0, (bookingData.adultsCount || 2) - 2);
+    const extraChildrenCount = Math.max(0, bookingData.childrenCount || 0);
+    const tariffs = roomTariffs[room.id] || INITIAL_ROOM_SEASONAL_TARIFFS[room.id];
+    const extraAdultRate = bookingData.extraAdultChargePerNight ?? tariffs?.extraAdultRate ?? 1200;
+    const extraChildRate = bookingData.extraChildChargePerNight ?? tariffs?.extraChildRate ?? 600;
+    const extraAdultsTotal = extraAdultsCount * extraAdultRate * totalNights;
+    const extraChildrenTotal = extraChildrenCount * extraChildRate * totalNights;
+    const totalExtraCharges = extraAdultsTotal + extraChildrenTotal;
+
+    const baseRoomStayAmount = totalNights * bookingData.roomRatePerNight;
+    const totalRoomAmount = bookingData.totalRoomAmount ?? (baseRoomStayAmount + totalExtraCharges);
 
     const docStatus: 'pending' | 'submitted' =
       bookingData.guest.idDocumentUrl || bookingData.guest.idNumber ? 'submitted' : 'pending';
@@ -969,6 +993,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       mealPlan: bookingData.mealPlan,
       adultsCount: bookingData.adultsCount || 2,
       childrenCount: bookingData.childrenCount || 0,
+      extraAdultsCount,
+      extraChildrenCount,
+      extraAdultChargePerNight: extraAdultRate,
+      extraChildChargePerNight: extraChildRate,
+      totalExtraCharges,
       roomRatePerNight: bookingData.roomRatePerNight,
       totalNights,
       totalRoomAmount,
@@ -981,20 +1010,57 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       checkedInAt: bookingData.status === 'checked_in' ? new Date().toISOString() : undefined,
     };
 
-    // Auto-create Folio with the manual stay tariff
+    // Auto-create Folio with itemized stay charges
     const folioId = `fol-${Date.now()}`;
     const folioNumber = `FOL-2026-${room.roomNumber}${Math.floor(10 + Math.random() * 90)}`;
-    const roomCharge: FolioCharge = {
+    const chargesList: FolioCharge[] = [];
+
+    // Base Room Charge
+    const baseRoomTitle = totalExtraCharges > 0
+      ? `Base Stay Tariff: ${room.name} (${totalNights} night${totalNights > 1 ? 's' : ''} @ ₹${bookingData.roomRatePerNight.toLocaleString('en-IN')}/nt)`
+      : `Stay Tariff: ${room.name} (${totalNights} night${totalNights > 1 ? 's' : ''} @ ₹${bookingData.roomRatePerNight.toLocaleString('en-IN')}/nt ${bookingData.isManualRate !== false ? '[Manual Rate Override]' : ''})`;
+
+    chargesList.push({
       id: `chg-${Date.now()}-room`,
       folioId,
       category: 'room_tariff',
       chargeStatus: 'posted',
-      title: `Stay Tariff: ${room.name} (${totalNights} night${totalNights > 1 ? 's' : ''} @ ₹${bookingData.roomRatePerNight.toLocaleString('en-IN')}/nt ${bookingData.isManualRate !== false ? '[Manual Rate Override]' : ''})`,
-      amount: totalRoomAmount,
+      title: baseRoomTitle,
+      amount: totalExtraCharges > 0 ? (totalRoomAmount - totalExtraCharges) : totalRoomAmount,
       sourceReferenceType: 'booking',
       sourceReferenceId: bookingId,
       postedAt: new Date().toISOString(),
-    };
+    });
+
+    // Extra Adult Surcharge itemization
+    if (extraAdultsTotal > 0) {
+      chargesList.push({
+        id: `chg-${Date.now()}-adult`,
+        folioId,
+        category: 'room_tariff',
+        chargeStatus: 'posted',
+        title: `Extra Adult Charge (${extraAdultsCount} guest${extraAdultsCount > 1 ? 's' : ''} × ${totalNights} nt @ ₹${extraAdultRate.toLocaleString('en-IN')}/nt)`,
+        amount: extraAdultsTotal,
+        sourceReferenceType: 'booking',
+        sourceReferenceId: bookingId,
+        postedAt: new Date().toISOString(),
+      });
+    }
+
+    // Extra Child Surcharge itemization
+    if (extraChildrenTotal > 0) {
+      chargesList.push({
+        id: `chg-${Date.now()}-child`,
+        folioId,
+        category: 'room_tariff',
+        chargeStatus: 'posted',
+        title: `Extra Child Charge (${extraChildrenCount} child${extraChildrenCount > 1 ? 'ren' : ''} × ${totalNights} nt @ ₹${extraChildRate.toLocaleString('en-IN')}/nt)`,
+        amount: extraChildrenTotal,
+        sourceReferenceType: 'booking',
+        sourceReferenceId: bookingId,
+        postedAt: new Date().toISOString(),
+      });
+    }
 
     const payments: FolioPayment[] = [];
     if (bookingData.advancePaid && bookingData.advancePaid > 0) {
@@ -1027,10 +1093,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         netPayable: totalRoomAmount,
         totalPaid: bookingData.advancePaid || 0,
         balanceDue: Math.max(0, totalRoomAmount - (bookingData.advancePaid || 0)),
-        charges: [roomCharge],
+        charges: chargesList,
         payments,
       },
-      [roomCharge],
+      chargesList,
       payments
     );
 
@@ -1420,13 +1486,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     roomId: string,
     checkIn: string,
     checkOut: string,
-    mealPlan: MealPlan = 'CP'
+    mealPlan: MealPlan = 'CP',
+    adultsCount: number = 2,
+    childrenCount: number = 0
   ) => {
     const tariffs = roomTariffs[roomId] || INITIAL_ROOM_SEASONAL_TARIFFS[roomId] || {
       regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
       season: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
       offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
       weekendSurchargePercent: 10,
+      extraAdultRate: 1200,
+      extraChildRate: 600,
     };
 
     const start = new Date(checkIn);
@@ -1434,7 +1504,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const diffTime = end.getTime() - start.getTime();
     const nights = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
 
-    let totalAmount = 0;
+    let baseRoomAmount = 0;
     const breakdown: {
       date: string;
       rateName: string;
@@ -1471,7 +1541,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         matchedSeasonName += ' (Weekend)';
       }
 
-      totalAmount += baseNightlyRate;
+      baseRoomAmount += baseNightlyRate;
       breakdown.push({
         date: dateStr,
         rateName: `${matchedSeasonName} (${mealPlan})`,
@@ -1482,10 +1552,25 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       curr.setDate(curr.getDate() + 1);
     }
 
+    const extraAdultsCount = Math.max(0, adultsCount - 2);
+    const extraChildrenCount = Math.max(0, childrenCount);
+    const extraAdultRate = tariffs.extraAdultRate ?? 1200;
+    const extraChildRate = tariffs.extraChildRate ?? 600;
+    const extraAdultsCharge = extraAdultsCount * extraAdultRate * nights;
+    const extraChildrenCharge = extraChildrenCount * extraChildRate * nights;
+    const totalAmount = baseRoomAmount + extraAdultsCharge + extraChildrenCharge;
+
     const avgRatePerNight = Math.round(totalAmount / nights);
 
     return {
       totalAmount,
+      baseAmount: baseRoomAmount,
+      extraAdultsCount,
+      extraAdultRate,
+      extraAdultsCharge,
+      extraChildrenCount,
+      extraChildRate,
+      extraChildrenCharge,
       nights,
       avgRatePerNight,
       breakdown,

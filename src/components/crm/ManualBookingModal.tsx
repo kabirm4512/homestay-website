@@ -56,6 +56,8 @@ export default function ManualBookingModal({
   // Stay occupancy & status
   const [adultsCount, setAdultsCount] = useState<number>(2);
   const [childrenCount, setChildrenCount] = useState<number>(0);
+  const [extraAdultChargePerNight, setExtraAdultChargePerNight] = useState<number>(1200);
+  const [extraChildChargePerNight, setExtraChildChargePerNight] = useState<number>(600);
   const [tapeStatus, setTapeStatus] = useState<RoomTapeStatus>('confirmed');
 
   // Advance Payment
@@ -98,6 +100,10 @@ export default function ManualBookingModal({
       const next = new Date(start);
       next.setDate(next.getDate() + 1);
       setCheckOutDate(next.toISOString().split('T')[0]);
+
+      const isSuite = (room?.id || '').includes('20');
+      setExtraAdultChargePerNight(isSuite ? 1500 : 1200);
+      setExtraChildChargePerNight(isSuite ? 750 : 600);
 
       setUseManualRate(true);
       setManualRatePerNight(4500);
@@ -159,15 +165,28 @@ export default function ManualBookingModal({
     return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, [checkInDate, checkOutDate]);
 
+  // Extra Person Calculations
+  const extraAdultsCount = useMemo(() => Math.max(0, adultsCount - 2), [adultsCount]);
+  const extraChildrenCount = useMemo(() => Math.max(0, childrenCount), [childrenCount]);
+  const totalExtraAdultCharges = useMemo(
+    () => extraAdultsCount * extraAdultChargePerNight * totalNights,
+    [extraAdultsCount, extraAdultChargePerNight, totalNights]
+  );
+  const totalExtraChildCharges = useMemo(
+    () => extraChildrenCount * extraChildChargePerNight * totalNights,
+    [extraChildrenCount, extraChildChargePerNight, totalNights]
+  );
+  const totalExtraCharges = totalExtraAdultCharges + totalExtraChildCharges;
+
   // Standard tariff suggestion from dynamic pricing engine
   const standardTariff = useMemo(() => {
     if (!activeRoom || !checkInDate || !checkOutDate) return null;
     try {
-      return calculateDynamicTariff(activeRoom.id, checkInDate, checkOutDate, mealPlan);
+      return calculateDynamicTariff(activeRoom.id, checkInDate, checkOutDate, mealPlan, adultsCount, childrenCount);
     } catch {
       return null;
     }
-  }, [activeRoom, checkInDate, checkOutDate, mealPlan, calculateDynamicTariff]);
+  }, [activeRoom, checkInDate, checkOutDate, mealPlan, adultsCount, childrenCount, calculateDynamicTariff]);
 
   // Update default manual rate when standard tariff calculates
   useEffect(() => {
@@ -181,8 +200,8 @@ export default function ManualBookingModal({
     if (customTotalTariff !== null && customTotalTariff > 0) {
       return customTotalTariff;
     }
-    return totalNights * manualRatePerNight;
-  }, [totalNights, manualRatePerNight, customTotalTariff]);
+    return (totalNights * manualRatePerNight) + totalExtraCharges;
+  }, [totalNights, manualRatePerNight, totalExtraCharges, customTotalTariff]);
 
   // File to base64 reader helper
   const handleFileUpload = (
@@ -239,6 +258,8 @@ export default function ManualBookingModal({
       mealPlan,
       adultsCount,
       childrenCount,
+      extraAdultChargePerNight,
+      extraChildChargePerNight,
       status: tapeStatus,
       specialRequests,
       notes: staffNotes,
@@ -517,56 +538,136 @@ export default function ManualBookingModal({
                     </div>
                     <span className="text-[10px] text-amber-800 mt-1 block">
                       Effective Total Tariff: <strong>₹{effectiveTotalAmount.toLocaleString('en-IN')}</strong>
+                      {totalExtraCharges > 0 && (
+                        <span className="block text-emerald-800 font-semibold mt-0.5">
+                          (Base: ₹{(totalNights * manualRatePerNight).toLocaleString('en-IN')} + Extra Guests: ₹{totalExtraCharges.toLocaleString('en-IN')})
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* 4. Meal Plan & Occupancy */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
-                    <Utensils className="w-3.5 h-3.5 text-forest-600" />
-                    <span>Meal Plan</span>
-                  </label>
-                  <select
-                    value={mealPlan}
-                    onChange={(e) => setMealPlan(e.target.value as MealPlan)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-bold text-forest-900"
-                  >
-                    <option value="EP">EP — Room Only (No Meals)</option>
-                    <option value="CP">CP — Bed &amp; Breakfast</option>
-                    <option value="MAP">MAP — Half Board (Breakfast + Dinner)</option>
-                    <option value="AP">AP — Full Board (All 3 Meals)</option>
-                  </select>
+              {/* 4. Meal Plan & Occupancy with Extra Guest Charges */}
+              <div className="bg-sand-50/70 p-4 rounded-2xl border border-sand-200 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
+                      <Utensils className="w-3.5 h-3.5 text-forest-600" />
+                      <span>Meal Plan</span>
+                    </label>
+                    <select
+                      value={mealPlan}
+                      onChange={(e) => setMealPlan(e.target.value as MealPlan)}
+                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-bold text-forest-900"
+                    >
+                      <option value="EP">EP — Room Only (No Meals)</option>
+                      <option value="CP">CP — Bed &amp; Breakfast</option>
+                      <option value="MAP">MAP — Half Board (Breakfast + Dinner)</option>
+                      <option value="AP">AP — Full Board (All 3 Meals)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-forest-800 block mb-1">
+                      Adults Count (Base: 2)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="6"
+                      value={adultsCount}
+                      onChange={(e) => setAdultsCount(Number(e.target.value))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950"
+                    />
+                    {extraAdultsCount > 0 ? (
+                      <span className="text-[10px] font-bold text-amber-700 mt-1 block">
+                        +{extraAdultsCount} Extra Adult{extraAdultsCount > 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-500 mt-1 block">Standard 2-adult base</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-forest-800 block mb-1">
+                      Children Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="4"
+                      value={childrenCount}
+                      onChange={(e) => setChildrenCount(Number(e.target.value))}
+                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950"
+                    />
+                    {extraChildrenCount > 0 ? (
+                      <span className="text-[10px] font-bold text-emerald-700 mt-1 block">
+                        +{extraChildrenCount} Extra Child{extraChildrenCount > 1 ? 'ren' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-500 mt-1 block">No children</span>
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-forest-800 block mb-1">
-                    Adults Count
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="6"
-                    value={adultsCount}
-                    onChange={(e) => setAdultsCount(Number(e.target.value))}
-                    className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium"
-                  />
-                </div>
+                {/* Extra Guest Rate Configuration & Itemization */}
+                <div className="pt-3 border-t border-sand-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-3 bg-white rounded-xl border border-sand-200 shadow-2xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-forest-900">
+                        Extra Adult Rate (₹ / night)
+                      </label>
+                      {extraAdultsCount > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold">
+                          = ₹{totalExtraAdultCharges.toLocaleString('en-IN')} ({totalNights}N)
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={extraAdultChargePerNight}
+                        onChange={(e) => setExtraAdultChargePerNight(Number(e.target.value) || 0)}
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-sand-300 bg-sand-50/50"
+                        placeholder="1200"
+                      />
+                    </div>
+                    <span className="text-[10px] text-forest-600 mt-0.5 block">
+                      Applies to 3rd adult onward (beyond 2 base adults).
+                    </span>
+                  </div>
 
-                <div>
-                  <label className="text-xs font-bold text-forest-800 block mb-1">
-                    Children Count
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="4"
-                    value={childrenCount}
-                    onChange={(e) => setChildrenCount(Number(e.target.value))}
-                    className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium"
-                  />
+                  <div className="p-3 bg-white rounded-xl border border-sand-200 shadow-2xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-forest-900">
+                        Extra Child Rate (₹ / night)
+                      </label>
+                      {extraChildrenCount > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold">
+                          = ₹{totalExtraChildCharges.toLocaleString('en-IN')} ({totalNights}N)
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={extraChildChargePerNight}
+                        onChange={(e) => setExtraChildChargePerNight(Number(e.target.value) || 0)}
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-sand-300 bg-sand-50/50"
+                        placeholder="600"
+                      />
+                    </div>
+                    <span className="text-[10px] text-forest-600 mt-0.5 block">
+                      Applies per child per night.
+                    </span>
+                  </div>
                 </div>
               </div>
 

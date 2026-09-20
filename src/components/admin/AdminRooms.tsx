@@ -30,6 +30,7 @@ import {
   Sparkles,
   Percent,
   Save,
+  IndianRupee,
 } from 'lucide-react';
 import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
 
@@ -165,6 +166,8 @@ export default function AdminRooms({
     return d.toISOString().split('T')[0];
   });
   const [simMealPlan, setSimMealPlan] = useState<MealPlan>('CP');
+  const [simAdults, setSimAdults] = useState<number>(2);
+  const [simChildren, setSimChildren] = useState<number>(0);
 
   // Handle opening Add modal
   const handleOpenAdd = () => {
@@ -442,7 +445,7 @@ export default function AdminRooms({
   };
 
   // Live simulation calculation
-  const simResult = calculateDynamicTariff(simRoomId, simCheckIn, simCheckOut, simMealPlan);
+  const simResult = calculateDynamicTariff(simRoomId, simCheckIn, simCheckOut, simMealPlan, simAdults, simChildren);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1109,6 +1112,69 @@ export default function AdminRooms({
               </div>
             </div>
 
+            {/* 5. Extra Guest Charges */}
+            <div className="p-4 bg-sand-50 rounded-xl border border-sand-200 space-y-3">
+              <div className="flex items-center justify-between border-b border-sand-200/70 pb-2">
+                <div className="flex items-center space-x-1.5 font-bold text-xs text-forest-950">
+                  <Users className="w-3.5 h-3.5 text-amber-700" />
+                  <span>5. Extra Guest Surcharges (₹ / night)</span>
+                </div>
+                <span className="text-[11px] text-gray-500">Base room rate includes 2 Adults</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    Extra Adult Rate (₹ / night)
+                  </label>
+                  <div className="relative">
+                    <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={currentTariffs.extraAdultRate ?? 1200}
+                      onChange={(e) =>
+                        setCurrentTariffs({
+                          ...currentTariffs,
+                          extraAdultRate: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">
+                    Applies for 3rd adult onward (beyond 2 base adults).
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    Extra Child Rate (₹ / night)
+                  </label>
+                  <div className="relative">
+                    <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={currentTariffs.extraChildRate ?? 600}
+                      onChange={(e) =>
+                        setCurrentTariffs({
+                          ...currentTariffs,
+                          extraChildRate: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">
+                    Applies per child per night.
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="pt-2 flex justify-end">
               <button
                 onClick={handleSaveTariffMatrix}
@@ -1138,8 +1204,8 @@ export default function AdminRooms({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-forest-900 mb-1">
                   Select Room
                 </label>
@@ -1195,6 +1261,36 @@ export default function AdminRooms({
                   <option value="AP">AP (All Meals Included)</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Occupancy
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <select
+                    value={simAdults}
+                    onChange={(e) => setSimAdults(Number(e.target.value))}
+                    className="w-full px-2 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                    title="Adults"
+                  >
+                    <option value={1}>1 Ad</option>
+                    <option value={2}>2 Ad</option>
+                    <option value={3}>3 Ad</option>
+                    <option value={4}>4 Ad</option>
+                  </select>
+                  <select
+                    value={simChildren}
+                    onChange={(e) => setSimChildren(Number(e.target.value))}
+                    className="w-full px-2 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                    title="Children"
+                  >
+                    <option value={0}>0 Ch</option>
+                    <option value={1}>1 Ch</option>
+                    <option value={2}>2 Ch</option>
+                    <option value={3}>3 Ch</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1211,6 +1307,23 @@ export default function AdminRooms({
                     total for {simResult.nights} {simResult.nights === 1 ? 'night' : 'nights'}
                   </span>
                 </h4>
+                {(simResult.extraAdultsCharge > 0 || simResult.extraChildrenCharge > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="text-xs px-2 py-0.5 bg-sand-100 text-forest-800 rounded-md font-semibold">
+                      Base Room: ₹{simResult.baseAmount.toLocaleString('en-IN')}
+                    </span>
+                    {simResult.extraAdultsCharge > 0 && (
+                      <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md font-bold">
+                        +{simResult.extraAdultsCount} Extra Adult(s): ₹{simResult.extraAdultsCharge.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                    {simResult.extraChildrenCharge > 0 && (
+                      <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded-md font-bold">
+                        +{simResult.extraChildrenCount} Extra Child(ren): ₹{simResult.extraChildrenCharge.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="text-left sm:text-right">
