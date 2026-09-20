@@ -177,8 +177,15 @@ function ConciergeContent() {
   const [selectedVehicleTier, setSelectedVehicleTier] = useState<'wagonr' | 'sedan' | 'suv'>('sedan');
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
   const [selectedRentalId, setSelectedRentalId] = useState<string>(rentalVehicles[0]?.id || '');
-  const [pickupDatetime, setPickupDatetime] = useState('2026-09-17T09:00');
-  const [returnDatetime, setReturnDatetime] = useState('2026-09-18T09:00');
+  const [pickupDatetime, setPickupDatetime] = useState(() => {
+    const d = new Date();
+    return `${d.toISOString().split('T')[0]}T09:00`;
+  });
+  const [returnDatetime, setReturnDatetime] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.toISOString().split('T')[0]}T09:00`;
+  });
   const [travelPhone, setTravelPhone] = useState(activeBooking?.guest.phone || '+91 99112 33445');
   const [destinationNotes, setDestinationNotes] = useState('');
   const [lastPlacedTransport, setLastPlacedTransport] = useState<any>(null);

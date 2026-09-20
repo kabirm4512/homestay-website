@@ -94,9 +94,9 @@ export default function ManualBookingModal({
       const start = defaultDate || new Date().toISOString().split('T')[0];
       setCheckInDate(start);
 
-      // Default 2 nights
+      // Default 1 night
       const next = new Date(start);
-      next.setDate(next.getDate() + 2);
+      next.setDate(next.getDate() + 1);
       setCheckOutDate(next.toISOString().split('T')[0]);
 
       setUseManualRate(true);
@@ -131,6 +131,24 @@ export default function ManualBookingModal({
   const activeRoom = useMemo(() => {
     return rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   }, [rooms, selectedRoomId]);
+
+  // Minimum checkout date (at least checkIn + 1 day)
+  const minCheckOutDate = useMemo(() => {
+    if (!checkInDate) return undefined;
+    const next = new Date(checkInDate);
+    next.setDate(next.getDate() + 1);
+    return next.toISOString().split('T')[0];
+  }, [checkInDate]);
+
+  const handleCheckInDateChange = (newIn: string) => {
+    setCheckInDate(newIn);
+    if (!newIn) return;
+    if (!checkOutDate || checkOutDate <= newIn) {
+      const next = new Date(newIn);
+      next.setDate(next.getDate() + 1);
+      setCheckOutDate(next.toISOString().split('T')[0]);
+    }
+  };
 
   // Calculate nights
   const totalNights = useMemo(() => {
@@ -384,7 +402,7 @@ export default function ManualBookingModal({
                     type="date"
                     required
                     value={checkInDate}
-                    onChange={(e) => setCheckInDate(e.target.value)}
+                    onChange={(e) => handleCheckInDateChange(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950 focus:ring-2 focus:ring-forest-600"
                   />
                 </div>
@@ -397,6 +415,7 @@ export default function ManualBookingModal({
                   <input
                     type="date"
                     required
+                    min={minCheckOutDate}
                     value={checkOutDate}
                     onChange={(e) => setCheckOutDate(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950 focus:ring-2 focus:ring-forest-600"

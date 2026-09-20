@@ -550,6 +550,13 @@ export default function DateRangePicker({
               </button>
               <button
                 type="button"
+                onClick={() => applyNightsPreset(1)}
+                className="whitespace-nowrap px-2.5 py-1 rounded-lg bg-white hover:bg-sand-200 text-forest-900 border border-sand-300/70 text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                1 Night
+              </button>
+              <button
+                type="button"
                 onClick={() => applyNightsPreset(2)}
                 className="whitespace-nowrap px-2.5 py-1 rounded-lg bg-white hover:bg-sand-200 text-forest-900 border border-sand-300/70 text-[11px] font-semibold transition-colors cursor-pointer"
               >

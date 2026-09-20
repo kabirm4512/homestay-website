@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Users,
@@ -45,8 +45,20 @@ export default function OperationsHub() {
   const [driverPhone, setDriverPhone] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
 
-  // 1. Front Desk calculations for today (2026-09-16)
-  const todayDateStr = '2026-09-16';
+  // 1. Front Desk calculations for today (dynamic live date)
+  const getTodayDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [todayDateStr, setTodayDateStr] = useState<string>(getTodayDateStr);
+
+  useEffect(() => {
+    setTodayDateStr(getTodayDateStr());
+  }, []);
 
   const todayCheckIns = bookings.filter((b) => b.checkInDate === todayDateStr);
   const todayCheckOuts = bookings.filter((b) => b.checkOutDate === todayDateStr);
@@ -84,7 +96,7 @@ export default function OperationsHub() {
             <h2 className="font-serif font-bold text-xl text-forest-950 flex items-center space-x-2">
               <span>The Operations Hub</span>
               <span className="text-xs bg-amber-100 text-amber-900 border border-amber-300 font-mono px-2.5 py-0.5 rounded-full font-bold">
-                Mid-Day Live Sync
+                Today ({todayDateStr})
               </span>
             </h2>
             <p className="text-xs text-forest-700">

@@ -45,7 +45,10 @@ export default function FinancialLedger() {
   const [activeTab, setActiveTab] = useState<'analytics' | 'folios' | 'expenses'>('analytics');
 
   // Expense Form State
-  const [expenseDate, setExpenseDate] = useState('2026-09-16');
+  const [expenseDate, setExpenseDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseMethod, setExpenseMethod] = useState<PaymentMethod>('upi');
   const [expenseCategory, setExpenseCategory] = useState<ExpenseMasterCategory>('groceries');

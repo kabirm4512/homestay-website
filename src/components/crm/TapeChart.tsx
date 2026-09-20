@@ -49,8 +49,9 @@ export default function TapeChart() {
 
   // Date range state: start date for the 10-day viewing window
   const [baseDate, setBaseDate] = useState<Date>(() => {
-    // default around current time: Sept 14, 2026
-    return new Date(2026, 8, 14); // Months are 0-indexed: 8 = September
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
   });
 
   const [selectedBooking, setSelectedBooking] = useState<CRMBooking | null>(null);
@@ -110,7 +111,9 @@ export default function TapeChart() {
   };
 
   const handleToday = () => {
-    setBaseDate(new Date(2026, 8, 14));
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    setBaseDate(d);
   };
 
   // Filtered rooms
@@ -360,9 +363,10 @@ export default function TapeChart() {
               </button>
               <button
                 onClick={handleToday}
-                className="min-h-[36px] px-2.5 py-1 text-xs font-bold rounded-lg hover:bg-white text-forest-900 transition-colors"
+                className="min-h-[36px] px-3 py-1 text-xs font-bold rounded-lg hover:bg-white text-forest-900 transition-colors cursor-pointer"
+                title="Jump to today"
               >
-                Mid-Sept 2026
+                Today
               </button>
               <button
                 onClick={handleNextDay}
@@ -428,7 +432,7 @@ export default function TapeChart() {
                 </th>
                 {dateColumns.map((d, i) => {
                   const dateKey = formatDateKey(d);
-                  const isToday = dateKey === '2026-09-16';
+                  const isToday = dateKey === formatDateKey(new Date());
                   return (
                     <th
                       key={i}
@@ -494,7 +498,7 @@ export default function TapeChart() {
                     {dateColumns.map((d, dIdx) => {
                       const dateKey = formatDateKey(d);
                       const booking = getBookingForRoomDate(room.id, dateKey);
-                      const isMaintenance = room.currentStatus === 'maintenance' && dateKey <= '2026-09-17';
+                      const isMaintenance = room.currentStatus === 'maintenance';
 
                       if (isMaintenance) {
                         return (
