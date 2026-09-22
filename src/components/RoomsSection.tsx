@@ -2,17 +2,21 @@
 
 import { useState } from 'react';
 import { Room } from '@/types';
-import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight, Coffee } from 'lucide-react';
+import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight, Coffee, Utensils } from 'lucide-react';
 
 interface RoomsSectionProps {
   rooms: Room[];
-  onBookRoom: (room: Room) => void;
+  onBookRoom: (room: Room, dates?: { checkIn: string; checkOut: string }, mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP') => void;
   onEnquireRoom: (room: Room) => void;
 }
 
 export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: RoomsSectionProps) {
   // Store current image index per room
   const [activeImageIndices, setActiveImageIndices] = useState<Record<string, number>>({});
+  // Store selected meal plan per room ('CP' by default)
+  const [selectedPlans, setSelectedPlans] = useState<Record<string, 'EP' | 'CP' | 'MAP' | 'AP'>>({});
+  // Store state for expanding detailed tariff view per room
+  const [expandedTariffs, setExpandedTariffs] = useState<Record<string, boolean>>({});
 
   const nextImage = (roomId: string, total: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,8 +46,7 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
             Rooms & Rates
           </h2>
           <p className="text-gray-600 text-base sm:text-lg">
-            Choose from our private cedar suites and stone cottages. Every room is designed for
-            uncompromised privacy, warmth, and panoramic mountain views.
+            Choose from our private cedar suites and balcony rooms. All rooms feature breathtaking Himalayan views, heated comforts, and flexible meal plan options.
           </p>
           <div className="w-16 h-1 bg-sand-400 mx-auto rounded-full mt-6" />
         </div>
@@ -53,8 +56,20 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
           {rooms.map((room) => {
             const images = room.images && room.images.length > 0
               ? room.images
-              : ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'];
+              : ['/images/hero/deluxe-bedroom-suite.jpg'];
             const currentImgIndex = activeImageIndices[room.id] || 0;
+
+            // Compute exact meal plan rates
+            const planRates: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
+              EP: room.tariffs?.regular?.EP || room.price_per_night,
+              CP: room.tariffs?.regular?.CP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 700 : room.price_per_night + 700),
+              MAP: room.tariffs?.regular?.MAP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 1700 : room.price_per_night + 1700),
+              AP: room.tariffs?.regular?.AP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 2700 : room.price_per_night + 2700),
+            };
+
+            const activePlan = selectedPlans[room.id] || 'CP';
+            const currentRate = planRates[activePlan];
+            const isTariffOpen = !!expandedTariffs[room.id];
 
             return (
               <div
@@ -70,16 +85,36 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
 
-                  {/* Room Type & Breakfast Included Badges */}
+                  {/* Room Type & Active Meal Plan Badge */}
                   <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-1.5">
-                    <span className="bg-forest-900/80 backdrop-blur-md text-sand-200 text-xs font-semibold px-3 py-1.5 rounded-full border border-forest-700/50 flex items-center space-x-1">
+                    <span className="bg-forest-900/85 backdrop-blur-md text-sand-200 text-xs font-semibold px-3 py-1.5 rounded-full border border-forest-700/50 flex items-center space-x-1 shadow-sm">
                       <Sparkles className="w-3 h-3 text-sand-300" />
                       <span>{room.room_type || 'Boutique Room'}</span>
                     </span>
-                    <span className="bg-emerald-900/85 backdrop-blur-md text-emerald-100 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-400/30 flex items-center space-x-1.5 shadow-sm">
-                      <Coffee className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>Breakfast included</span>
-                    </span>
+                    {activePlan === 'CP' && (
+                      <span className="bg-emerald-900/90 backdrop-blur-md text-emerald-100 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-400/30 flex items-center space-x-1.5 shadow-sm">
+                        <Coffee className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>Breakfast included</span>
+                      </span>
+                    )}
+                    {activePlan === 'MAP' && (
+                      <span className="bg-amber-950/90 backdrop-blur-md text-amber-100 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-400/30 flex items-center space-x-1.5 shadow-sm">
+                        <Utensils className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Breakfast + Dinner included</span>
+                      </span>
+                    )}
+                    {activePlan === 'AP' && (
+                      <span className="bg-purple-950/90 backdrop-blur-md text-purple-100 text-xs font-bold px-2.5 py-1 rounded-full border border-purple-400/30 flex items-center space-x-1.5 shadow-sm">
+                        <Utensils className="w-3.5 h-3.5 text-purple-300" />
+                        <span>All Meals Included (Full Board)</span>
+                      </span>
+                    )}
+                    {activePlan === 'EP' && (
+                      <span className="bg-gray-900/80 backdrop-blur-md text-gray-200 text-xs font-semibold px-2.5 py-1 rounded-full border border-gray-600/30 flex items-center space-x-1.5 shadow-sm">
+                        <Bed className="w-3.5 h-3.5 text-gray-300" />
+                        <span>Room Only (EP)</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Room Inventory & Numbers Badge */}
@@ -161,7 +196,7 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     </p>
 
                     {/* Amenities tags */}
-                    <div className="flex flex-wrap gap-1.5 mb-6">
+                    <div className="flex flex-wrap gap-1.5 mb-5">
                       {room.amenities.slice(0, 4).map((amenity, idx) => (
                         <span
                           key={idx}
@@ -179,23 +214,98 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     </div>
                   </div>
 
-                  {/* Price & Action Buttons */}
+                  {/* Pricing, Tariffs & Action Buttons */}
                   <div className="pt-4 border-t border-sand-200">
-                    {/* Breakfast Included Tag */}
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2.5 py-1 rounded-lg">
-                        <Coffee className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Breakfast included</span>
-                      </span>
-                      <span className="text-[11px] text-gray-500 font-medium">Free cancellation</span>
+                    {/* Interactive Meal Plan Selector Tabs */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-forest-900">
+                          Select Meal Plan
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedTariffs((prev) => ({ ...prev, [room.id]: !prev[room.id] }))}
+                          className="text-[11px] font-semibold text-forest-700 hover:text-forest-900 underline cursor-pointer"
+                        >
+                          {isTariffOpen ? 'Hide all plans' : 'Compare plans'}
+                        </button>
+                      </div>
+
+                      {/* 4 Plan Chips */}
+                      <div className="grid grid-cols-4 gap-1.5 p-1 bg-sand-100 rounded-xl border border-sand-200">
+                        {(['EP', 'CP', 'MAP', 'AP'] as const).map((plan) => {
+                          const isSelected = activePlan === plan;
+                          return (
+                            <button
+                              key={plan}
+                              type="button"
+                              onClick={() => setSelectedPlans((prev) => ({ ...prev, [room.id]: plan }))}
+                              className={`py-1.5 px-1 rounded-lg text-center transition-all ${
+                                isSelected
+                                  ? 'bg-forest-900 text-white shadow-sm font-bold'
+                                  : 'text-forest-800 hover:bg-sand-200 font-medium'
+                              }`}
+                            >
+                              <div className="text-xs leading-tight">{plan}</div>
+                              <div className={`text-[10px] leading-tight mt-0.5 ${isSelected ? 'text-sand-300' : 'text-gray-500'}`}>
+                                ₹{planRates[plan].toLocaleString()}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Active Plan Detail Line */}
+                      <div className="mt-2 text-xs text-forest-800 flex items-center justify-between bg-sand-50 px-2.5 py-1.5 rounded-lg border border-sand-200">
+                        <span className="font-medium">
+                          {activePlan === 'EP' && 'EP: Room Only (Meals extra à la carte)'}
+                          {activePlan === 'CP' && 'CP: Includes Farmhouse Breakfast (Popular)'}
+                          {activePlan === 'MAP' && 'MAP: Includes Breakfast & Authentic Dinner'}
+                          {activePlan === 'AP' && 'AP: All Meals (Breakfast, Lunch & Dinner)'}
+                        </span>
+                        <span className="text-[11px] text-gray-500 font-medium">Free cancellation</span>
+                      </div>
+
+                      {/* Collapsible Tariff Comparison Table */}
+                      {isTariffOpen && (
+                        <div className="mt-2 p-2.5 bg-white border border-sand-300 rounded-xl text-xs space-y-1.5 animate-fade-in shadow-inner">
+                          <div className="text-[11px] font-bold text-forest-950 uppercase tracking-wider border-b border-sand-200 pb-1">
+                            Regular Season Tariff Breakdown
+                          </div>
+                          <div className="flex justify-between items-center text-gray-700">
+                            <span>EP (Room Only):</span>
+                            <span className="font-semibold text-forest-900">₹{planRates.EP.toLocaleString()} / night</span>
+                          </div>
+                          <div className="flex justify-between items-center text-gray-700">
+                            <span>CP (Breakfast Included):</span>
+                            <span className="font-semibold text-forest-900">₹{planRates.CP.toLocaleString()} / night</span>
+                          </div>
+                          <div className="flex justify-between items-center text-gray-700">
+                            <span>MAP (Breakfast + Dinner):</span>
+                            <span className="font-semibold text-forest-900">₹{planRates.MAP.toLocaleString()} / night</span>
+                          </div>
+                          <div className="flex justify-between items-center text-gray-700">
+                            <span>AP (All 3 Meals Included):</span>
+                            <span className="font-semibold text-forest-900">₹{planRates.AP.toLocaleString()} / night</span>
+                          </div>
+                          {room.tariffs?.season && (
+                            <div className="pt-1.5 border-t border-sand-200 text-[11px] text-gray-500">
+                              Peak Season (Apr-Jun, Oct-Dec): EP ₹{room.tariffs.season.EP} • CP ₹{room.tariffs.season.CP}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
+                    {/* Prominent Price & Weekend Display */}
                     <div className="flex items-baseline justify-between mb-4">
                       <div>
-                        <span className="text-xs uppercase tracking-wider text-gray-500 block">Nightly Rate</span>
+                        <span className="text-xs uppercase tracking-wider text-gray-500 block">
+                          {activePlan} Nightly Rate
+                        </span>
                         <div className="flex items-baseline space-x-1">
                           <span className="text-2xl font-bold font-serif text-forest-950">
-                            ₹{room.price_per_night.toLocaleString()}
+                            ₹{currentRate.toLocaleString()}
                           </span>
                           <span className="text-xs text-gray-500">/ night</span>
                         </div>
@@ -216,15 +326,15 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     {/* Dual Action Buttons: Book and Enquire */}
                     <div className="grid grid-cols-2 gap-3">
                       <button
-                        onClick={() => onBookRoom(room)}
-                        className="w-full bg-forest-800 hover:bg-forest-900 text-white text-sm font-semibold py-3 px-3 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-1.5"
+                        onClick={() => onBookRoom(room, undefined, activePlan)}
+                        className="w-full bg-forest-800 hover:bg-forest-900 text-white text-sm font-semibold py-3 px-3 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
-                        <span>Book</span>
+                        <span>Book ({activePlan})</span>
                         <ArrowRight className="w-4 h-4 text-sand-300" />
                       </button>
                       <button
                         onClick={() => onEnquireRoom(room)}
-                        className="w-full bg-sand-200 hover:bg-sand-300 text-forest-950 text-sm font-semibold py-3 px-3 rounded-xl transition-colors flex items-center justify-center space-x-1.5"
+                        className="w-full bg-sand-200 hover:bg-sand-300 text-forest-950 text-sm font-semibold py-3 px-3 rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
                         <MessageSquare className="w-4 h-4 text-forest-700" />
                         <span>Enquire</span>
@@ -240,3 +350,4 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
     </section>
   );
 }
+

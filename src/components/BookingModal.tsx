@@ -10,6 +10,7 @@ interface BookingModalProps {
   onClose: () => void;
   room: Room | null;
   initialDates?: { checkIn?: string; checkOut?: string } | null;
+  initialMealPlan?: 'EP' | 'CP' | 'MAP' | 'AP';
   whatsappNumber?: string;
 }
 
@@ -18,6 +19,7 @@ export default function BookingModal({
   onClose,
   room,
   initialDates = null,
+  initialMealPlan,
   whatsappNumber = '918101298882',
 }: BookingModalProps) {
   const [guestName, setGuestName] = useState('');
@@ -66,13 +68,18 @@ export default function BookingModal({
     }
   };
 
-  // Sync initial dates when modal is triggered
+  // Sync initial dates and meal plan when modal is triggered
   useEffect(() => {
-    if (isOpen && initialDates) {
-      if (initialDates.checkIn) setCheckIn(initialDates.checkIn);
-      if (initialDates.checkOut) setCheckOut(initialDates.checkOut);
+    if (isOpen) {
+      if (initialMealPlan) {
+        setMealPlan(initialMealPlan);
+      }
+      if (initialDates) {
+        if (initialDates.checkIn) setCheckIn(initialDates.checkIn);
+        if (initialDates.checkOut) setCheckOut(initialDates.checkOut);
+      }
     }
-  }, [isOpen, initialDates]);
+  }, [isOpen, initialDates, initialMealPlan]);
 
   if (!isOpen || !room) return null;
 
@@ -85,13 +92,6 @@ export default function BookingModal({
     if (diff > 0) nights = diff;
   }
 
-  const mealPlanOffsets: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
-    EP: -500,
-    CP: 0,
-    MAP: 1000,
-    AP: 2000,
-  };
-
   const baseAdults = room.base_adults || 2;
   const extraAdultRate = room.extra_adult_charge ?? room.tariffs?.extraAdultRate ?? 1200;
   const extraChildRate = room.extra_child_charge ?? room.tariffs?.extraChildRate ?? 600;
@@ -99,10 +99,13 @@ export default function BookingModal({
   const extraAdultsCount = Math.max(0, adults - baseAdults);
   const extraChildrenCount = Math.max(0, children);
 
-  const tariffPlanRate = room.tariffs?.regular?.[mealPlan];
-  const effectiveNightlyRate = (tariffPlanRate && tariffPlanRate > 0)
-    ? tariffPlanRate
-    : Math.max(1000, room.price_per_night + mealPlanOffsets[mealPlan]);
+  const planRates: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
+    EP: room.tariffs?.regular?.EP || room.price_per_night,
+    CP: room.tariffs?.regular?.CP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 700 : room.price_per_night + 700),
+    MAP: room.tariffs?.regular?.MAP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 1700 : room.price_per_night + 1700),
+    AP: room.tariffs?.regular?.AP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 2700 : room.price_per_night + 2700),
+  };
+  const effectiveNightlyRate = planRates[mealPlan] || room.price_per_night;
   const baseStayPrice = nights * effectiveNightlyRate;
   const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
   const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
@@ -224,11 +227,13 @@ export default function BookingModal({
             <h3 className="font-serif text-2xl font-bold text-white">{room.name}</h3>
             <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-full">
               <Coffee className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Breakfast included</span>
+              <span>
+                {mealPlan === 'EP' ? 'Room Only' : mealPlan === 'CP' ? 'Breakfast included' : mealPlan === 'MAP' ? 'Breakfast + Dinner' : 'All Meals Included'}
+              </span>
             </span>
           </div>
           <p className="text-xs text-sand-200 mt-1 font-light">
-            ₹{room.price_per_night.toLocaleString()} / night • Includes Complimentary Gourmet Breakfast
+            ₹{effectiveNightlyRate.toLocaleString()} / night • {mealPlan === 'EP' ? 'Room Only (No Meals Included)' : mealPlan === 'CP' ? 'Includes Complimentary Gourmet Breakfast' : mealPlan === 'MAP' ? 'Includes Breakfast & Pahadi Dinner' : 'Includes All 3 Daily Meals (Full Board)'}
           </p>
         </div>
 
@@ -365,7 +370,9 @@ export default function BookingModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs">EP (Room Only)</span>
-                      <span className="text-[10px] opacity-80">-₹500</span>
+                      <span className={`text-[10px] font-bold ${mealPlan === 'EP' ? 'text-sand-300' : 'text-forest-700'}`}>
+                        ₹{planRates.EP.toLocaleString()}
+                      </span>
                     </div>
                     <span className="text-[10px] block opacity-80 mt-0.5">Stay without meals</span>
                   </button>
@@ -381,7 +388,9 @@ export default function BookingModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs">CP (Breakfast)</span>
-                      <span className="text-[10px] text-amber-300 font-bold">Standard</span>
+                      <span className={`text-[10px] font-bold ${mealPlan === 'CP' ? 'text-amber-300' : 'text-forest-700'}`}>
+                        ₹{planRates.CP.toLocaleString()}
+                      </span>
                     </div>
                     <span className="text-[10px] block opacity-80 mt-0.5">Fresh Gourmet Breakfast</span>
                   </button>
@@ -397,7 +406,9 @@ export default function BookingModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs">MAP (Half Board)</span>
-                      <span className="text-[10px] opacity-80">+₹1,000</span>
+                      <span className={`text-[10px] font-bold ${mealPlan === 'MAP' ? 'text-sand-300' : 'text-forest-700'}`}>
+                        ₹{planRates.MAP.toLocaleString()}
+                      </span>
                     </div>
                     <span className="text-[10px] block opacity-80 mt-0.5">Breakfast + Pahadi Dinner</span>
                   </button>
@@ -413,7 +424,9 @@ export default function BookingModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs">AP (Full Board)</span>
-                      <span className="text-[10px] opacity-80">+₹2,000</span>
+                      <span className={`text-[10px] font-bold ${mealPlan === 'AP' ? 'text-sand-300' : 'text-forest-700'}`}>
+                        ₹{planRates.AP.toLocaleString()}
+                      </span>
                     </div>
                     <span className="text-[10px] block opacity-80 mt-0.5">All 3 Meals Included</span>
                   </button>

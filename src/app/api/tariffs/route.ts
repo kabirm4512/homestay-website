@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getRoomTariffs, saveRoomTariff, getSeasonalDateRanges, saveSeasonalDateRanges } from '@/lib/data-service';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const tariffs = await getRoomTariffs();
     const seasonalDateRanges = await getSeasonalDateRanges();
-    return NextResponse.json({ success: true, data: { tariffs, seasonalDateRanges } });
+    return NextResponse.json(
+      { success: true, data: { tariffs, seasonalDateRanges } },
+      { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
+    );
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

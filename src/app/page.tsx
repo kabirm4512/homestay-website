@@ -30,7 +30,10 @@ export default function HomePage() {
         const saved = localStorage.getItem('wp_site_rooms');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          const hasStaleUnsplash = Array.isArray(parsed) && parsed.some((r: Room) =>
+            r.images?.some((img: string) => img.includes('images.unsplash.com'))
+          );
+          if (Array.isArray(parsed) && parsed.length > 0 && !hasStaleUnsplash) return parsed;
         }
       } catch {}
     }
@@ -98,6 +101,7 @@ export default function HomePage() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [selectedBookingRoom, setSelectedBookingRoom] = useState<Room | null>(null);
   const [bookingDates, setBookingDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
+  const [bookingMealPlan, setBookingMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('CP');
 
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [availabilityDates, setAvailabilityDates] = useState<{
@@ -114,18 +118,15 @@ export default function HomePage() {
     async function loadData() {
       try {
         const [roomsRes, cmsRes] = await Promise.all([
-          fetch('/api/rooms').then((r) => r.json()).catch(() => null),
-          fetch('/api/cms').then((r) => r.json()).catch(() => null),
+          fetch('/api/rooms', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+          fetch('/api/cms', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
         ]);
 
         if (roomsRes && roomsRes.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
-          const savedRooms = typeof window !== 'undefined' ? localStorage.getItem('wp_site_rooms') : null;
-          if (!savedRooms) {
-            setRooms(roomsRes.data);
-            try {
-              localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
-            } catch {}
-          }
+          setRooms(roomsRes.data);
+          try {
+            localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
+          } catch {}
         }
 
         if (cmsRes && cmsRes.success && cmsRes.data) {
@@ -187,10 +188,13 @@ export default function HomePage() {
     setInquiryModalOpen(true);
   };
 
-  const handleBookRoom = (room: Room, dates?: { checkIn: string; checkOut: string }) => {
+  const handleBookRoom = (room: Room, dates?: { checkIn: string; checkOut: string }, mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP') => {
     setSelectedBookingRoom(room);
     if (dates) {
       setBookingDates(dates);
+    }
+    if (mealPlan) {
+      setBookingMealPlan(mealPlan);
     }
     setBookingModalOpen(true);
   };
@@ -288,6 +292,7 @@ export default function HomePage() {
         onClose={() => setBookingModalOpen(false)}
         room={selectedBookingRoom}
         initialDates={bookingDates}
+        initialMealPlan={bookingMealPlan}
         whatsappNumber={siteInfo.whatsapp}
       />
 

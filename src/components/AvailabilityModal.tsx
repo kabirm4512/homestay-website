@@ -550,7 +550,7 @@ export default function AvailabilityModal({
                       <img
                         src={
                           room.images?.[0] ||
-                          'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=600&q=80'
+                          '/images/hero/deluxe-bedroom-suite.jpg'
                         }
                         alt={room.name}
                         className="w-full h-full object-cover"

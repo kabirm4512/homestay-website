@@ -90,8 +90,20 @@ function getStoreData(): LocalStoreData {
     if (fs.existsSync(storePath)) {
       const raw = fs.readFileSync(storePath, 'utf-8');
       const parsed = JSON.parse(raw);
+      const loadedRooms: Room[] = Array.isArray(parsed.rooms) && parsed.rooms.length > 0 ? parsed.rooms : [...INITIAL_ROOMS];
+      const sanitizedRooms = loadedRooms.map((room: Room) => {
+        const hasStaleUnsplash = room.images?.some((img: string) => img.includes('images.unsplash.com'));
+        if (hasStaleUnsplash) {
+          const defaultRoom = INITIAL_ROOMS.find((r) => r.id === room.id);
+          if (defaultRoom) {
+            return { ...room, images: defaultRoom.images };
+          }
+        }
+        return room;
+      });
+
       return {
-        rooms: Array.isArray(parsed.rooms) && parsed.rooms.length > 0 ? parsed.rooms : [...INITIAL_ROOMS],
+        rooms: sanitizedRooms,
         heroSlides: Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 ? parsed.heroSlides : [...INITIAL_HERO_SLIDES],
         aboutData: parsed.aboutData?.headline ? parsed.aboutData : { ...INITIAL_ABOUT_DATA },
         siteInfo: parsed.siteInfo?.name ? parsed.siteInfo : { ...INITIAL_SITE_INFO },
@@ -246,7 +258,7 @@ export async function saveRoom(room: Partial<Room> & { name: string }): Promise<
       bed_type: room.bed_type || 'King Bed',
       room_size_sqft: Number(room.room_size_sqft) || 350,
       amenities: room.amenities || ['Mountain View', 'Wi-Fi', 'Breakfast'],
-      images: room.images && room.images.length > 0 ? room.images : ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'],
+      images: room.images && room.images.length > 0 ? room.images : ['/images/hero/deluxe-bedroom-suite.jpg'],
       total_inventory: Number(room.total_inventory) || 1,
       available_inventory: room.available_inventory !== undefined ? Number(room.available_inventory) : 1,
       is_active: room.is_active !== undefined ? room.is_active : true,
