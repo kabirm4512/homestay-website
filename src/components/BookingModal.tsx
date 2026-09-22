@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
 import DateRangePicker from './DateRangePicker';
-import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard, Users } from 'lucide-react';
+import { X, Calendar, User, Phone, Mail, CheckCircle, Loader2, CreditCard, Users, Coffee } from 'lucide-react';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -220,7 +220,13 @@ export default function BookingModal({
           <span className="text-xs uppercase tracking-widest text-sand-300 font-semibold block mb-1">
             Instant Direct Reservation
           </span>
-          <h3 className="font-serif text-2xl font-bold text-white">{room.name}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+            <h3 className="font-serif text-2xl font-bold text-white">{room.name}</h3>
+            <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-full">
+              <Coffee className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Breakfast included</span>
+            </span>
+          </div>
           <p className="text-xs text-sand-200 mt-1 font-light">
             ₹{room.price_per_night.toLocaleString()} / night • Includes Complimentary Gourmet Breakfast
           </p>

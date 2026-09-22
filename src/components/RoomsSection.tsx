@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Room } from '@/types';
-import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight, Coffee } from 'lucide-react';
 
 interface RoomsSectionProps {
   rooms: Room[];
@@ -70,11 +70,15 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
 
-                  {/* Room Type Badge */}
-                  <div className="absolute top-4 left-4 z-10">
+                  {/* Room Type & Breakfast Included Badges */}
+                  <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-1.5">
                     <span className="bg-forest-900/80 backdrop-blur-md text-sand-200 text-xs font-semibold px-3 py-1.5 rounded-full border border-forest-700/50 flex items-center space-x-1">
                       <Sparkles className="w-3 h-3 text-sand-300" />
                       <span>{room.room_type || 'Boutique Room'}</span>
+                    </span>
+                    <span className="bg-emerald-900/85 backdrop-blur-md text-emerald-100 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-400/30 flex items-center space-x-1.5 shadow-sm">
+                      <Coffee className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Breakfast included</span>
                     </span>
                   </div>
 
@@ -177,6 +181,15 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
 
                   {/* Price & Action Buttons */}
                   <div className="pt-4 border-t border-sand-200">
+                    {/* Breakfast Included Tag */}
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2.5 py-1 rounded-lg">
+                        <Coffee className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Breakfast included</span>
+                      </span>
+                      <span className="text-[11px] text-gray-500 font-medium">Free cancellation</span>
+                    </div>
+
                     <div className="flex items-baseline justify-between mb-4">
                       <div>
                         <span className="text-xs uppercase tracking-wider text-gray-500 block">Nightly Rate</span>

@@ -18,6 +18,7 @@ import {
   ArrowRight,
   ArrowLeft,
   Sparkles,
+  Coffee,
 } from 'lucide-react';
 
 interface AvailabilityModalProps {
@@ -589,9 +590,15 @@ export default function AvailabilityModal({
                         )}
                       </div>
 
-                      <p className="text-xs text-gray-500 line-clamp-1">
-                        {room.tagline || room.description}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                          <Coffee className="w-3 h-3 text-emerald-600" />
+                          <span>Breakfast included</span>
+                        </span>
+                        <p className="text-xs text-gray-500 line-clamp-1">
+                          {room.tagline || room.description}
+                        </p>
+                      </div>
 
                       <div className="flex flex-wrap items-center gap-3 text-xs text-forest-800">
                         <span className="flex items-center space-x-1">
@@ -638,6 +645,10 @@ export default function AvailabilityModal({
                         <div className="text-lg sm:text-xl font-bold text-forest-900">
                           ₹{room.price_per_night.toLocaleString()}
                           <span className="text-xs font-normal text-gray-600"> /night</span>
+                        </div>
+                        <div className="text-[11px] text-emerald-700 font-semibold flex items-center md:justify-end gap-1">
+                          <Coffee className="w-3 h-3 text-emerald-600" />
+                          <span>Breakfast included</span>
                         </div>
                         <div className="text-[11px] text-forest-700 font-medium">
                           ₹{totalStayPrice.toLocaleString()} for {stayNights}{' '}
