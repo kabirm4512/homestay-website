@@ -464,6 +464,16 @@ function CheckinContent() {
                 </button>
               </form>
 
+              <div className="pt-1 text-center">
+                <Link
+                  href="/portal"
+                  className="inline-flex items-center space-x-1.5 text-xs font-bold text-forest-900 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-1.5 rounded-full transition-colors shadow-2xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Looking for the All-in-One Guest Portal &amp; Bills? Click here →</span>
+                </Link>
+              </div>
+
               {notFound && (
                 <div className="p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl text-left space-y-3 max-w-md mx-auto animate-fade-in shadow-sm">
                   <div className="flex items-start space-x-2.5">

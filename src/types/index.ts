@@ -75,9 +75,17 @@ export interface HeroSlide {
   badge?: string;
 }
 
+export interface AboutImageItem {
+  src: string;
+  alt: string;
+  caption?: string;
+  subtitle?: string;
+}
+
 export interface AboutSectionData {
   headline: string;
   story: string;
+  images?: (string | AboutImageItem)[];
   highlights: {
     icon: string;
     title: string;

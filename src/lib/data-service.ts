@@ -19,7 +19,18 @@ import {
   INITIAL_BOOKINGS as INITIAL_CRM_BOOKINGS,
 } from './crm-data';
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
-import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest } from '@/types/crm';
+import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, Expense } from '@/types/crm';
+
+export interface StaffAlert {
+  id: string;
+  type: 'order' | 'special_request';
+  roomNumber: number;
+  guestName: string;
+  orderDetails: string;
+  totalAmount: number;
+  createdAt: string;
+  acknowledged: boolean;
+}
 
 interface LocalStoreData {
   rooms: Room[];
@@ -35,6 +46,10 @@ interface LocalStoreData {
   menuItems: MenuItem[];
   transferRoutes: TransferRoute[];
   rentalVehicles: RentalVehicle[];
+  folios?: GuestFolio[];
+  foodOrders?: FoodOrder[];
+  staffAlerts?: StaffAlert[];
+  expenses?: Expense[];
 }
 
 const BUNDLED_STORE_PATH = path.join(process.cwd(), 'data', 'homestay-store.json');
@@ -62,6 +77,10 @@ function getInitialStore(): LocalStoreData {
     menuItems: [...INITIAL_MENU_ITEMS],
     transferRoutes: [...INITIAL_TRANSFER_ROUTES],
     rentalVehicles: [...INITIAL_RENTAL_VEHICLES],
+    folios: [],
+    foodOrders: [],
+    staffAlerts: [],
+    expenses: [],
   };
 }
 
@@ -85,6 +104,10 @@ function getStoreData(): LocalStoreData {
         menuItems: Array.isArray(parsed.menuItems) && parsed.menuItems.length >= 50 ? parsed.menuItems : [...INITIAL_MENU_ITEMS],
         transferRoutes: Array.isArray(parsed.transferRoutes) && parsed.transferRoutes.length > 0 ? parsed.transferRoutes : [...INITIAL_TRANSFER_ROUTES],
         rentalVehicles: Array.isArray(parsed.rentalVehicles) && parsed.rentalVehicles.length > 0 ? parsed.rentalVehicles : [...INITIAL_RENTAL_VEHICLES],
+        folios: Array.isArray(parsed.folios) ? parsed.folios : [],
+        foodOrders: Array.isArray(parsed.foodOrders) ? parsed.foodOrders : [],
+        staffAlerts: Array.isArray(parsed.staffAlerts) ? parsed.staffAlerts : [],
+        expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
       };
     }
   } catch (err) {
@@ -940,4 +963,230 @@ export async function getReviews(): Promise<Review[]> {
   const store = getStoreData();
   return store.reviews;
 }
+
+// ==========================================
+// ORDERS, SPECIAL REQUESTS & REAL-TIME ALERTS
+// ==========================================
+
+export async function getStaffAlerts(unacknowledgedOnly = true): Promise<StaffAlert[]> {
+  const store = getStoreData();
+  const alerts = store.staffAlerts || [];
+  if (unacknowledgedOnly) {
+    return alerts.filter(a => !a.acknowledged);
+  }
+  return alerts;
+}
+
+export async function acknowledgeStaffAlert(alertId: string): Promise<boolean> {
+  const store = getStoreData();
+  let found = false;
+  store.staffAlerts = (store.staffAlerts || []).map(a => {
+    if (a.id === alertId) {
+      found = true;
+      return { ...a, acknowledged: true };
+    }
+    return a;
+  });
+  if (found) {
+    saveStoreData(store);
+  }
+  return found;
+}
+
+export interface RecordOrderParams {
+  type: 'food_order' | 'special_request';
+  bookingId?: string;
+  bookingReference?: string;
+  roomNumber: number;
+  guestName: string;
+  guestPhone?: string;
+  items: Array<{ name: string; price: number; quantity?: number }>;
+  totalAmount: number;
+  notes?: string;
+  chargeCategory?: 'food_beverage' | 'miscellaneous';
+}
+
+export async function recordOrderOrSpecialRequest(params: RecordOrderParams): Promise<{
+  success: boolean;
+  alert: StaffAlert;
+  folio?: GuestFolio;
+  order?: any;
+}> {
+  const store = getStoreData();
+  const now = new Date().toISOString();
+
+  // 1. Format order details string
+  const itemsSummary = (params.items || [])
+    .map(i => `${i.quantity ? i.quantity + 'x ' : ''}${i.name}`)
+    .join(', ');
+  const detailsStr = params.type === 'special_request'
+    ? `🎉 ${itemsSummary || 'Special Request'}${params.notes ? ' — ' + params.notes : ''}`
+    : `${itemsSummary || 'Food Order'}${params.notes ? ' (' + params.notes + ')' : ''}`;
+
+  // 2. Create staff notification alert
+  const alert: StaffAlert = {
+    id: 'alt-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    type: params.type === 'special_request' ? 'special_request' : 'order',
+    roomNumber: params.roomNumber,
+    guestName: params.guestName,
+    orderDetails: detailsStr,
+    totalAmount: Number(params.totalAmount),
+    createdAt: now,
+    acknowledged: false,
+  };
+
+  store.staffAlerts = [alert, ...(store.staffAlerts || [])].slice(0, 50);
+
+  // 3. If food order, add to foodOrders
+  let orderRecord: any = null;
+  if (params.type === 'food_order') {
+    orderRecord = {
+      id: 'ord-' + Date.now(),
+      orderNumber: 2000 + Math.floor(Math.random() * 8000),
+      bookingId: params.bookingId || `bk-room-${params.roomNumber}`,
+      roomNumber: params.roomNumber,
+      guestName: params.guestName,
+      items: params.items.map(i => ({
+        itemId: 'item-' + Math.random().toString(36).slice(2, 6),
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity || 1,
+      })),
+      totalAmount: params.totalAmount,
+      status: 'pending',
+      specialInstructions: params.notes,
+      chargePostedToFolio: true,
+      createdAt: now,
+    };
+    store.foodOrders = [orderRecord, ...(store.foodOrders || [])];
+  }
+
+  // 4. Post Folio Charge to room bill
+  const folios = store.folios || [];
+  let folio = folios.find(f =>
+    (params.bookingId && f.bookingId === params.bookingId) ||
+    f.roomNumber === params.roomNumber
+  );
+
+  const chargeCat = params.chargeCategory || (params.type === 'special_request' ? 'miscellaneous' : 'food_beverage');
+  const chargeTitle = params.type === 'special_request'
+    ? `Celebration Add-on: ${params.items[0]?.name || 'Special Request'}`
+    : `In-Room Dine-In Order (#${orderRecord?.orderNumber || 'Online'})`;
+
+  const newCharge: FolioCharge = {
+    id: 'chg-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    folioId: folio ? folio.id : `fol-${Date.now()}`,
+    category: chargeCat,
+    chargeStatus: 'posted',
+    title: chargeTitle,
+    amount: Number(params.totalAmount),
+    notes: params.notes,
+    postedAt: now,
+  };
+
+  if (folio) {
+    const updatedCharges = [...folio.charges, newCharge];
+    const roomChg = updatedCharges
+      .filter(c => c.category === 'room_tariff' && c.chargeStatus !== 'void')
+      .reduce((s, c) => s + c.amount, 0);
+    const fbChg = updatedCharges
+      .filter(c => c.category === 'food_beverage' && c.chargeStatus !== 'void')
+      .reduce((s, c) => s + c.amount, 0);
+    const addChg = updatedCharges
+      .filter(c => ['transport_transfer', 'vehicle_rental', 'laundry', 'miscellaneous'].includes(c.category) && c.chargeStatus !== 'void')
+      .reduce((s, c) => s + c.amount, 0);
+    const subtotal = roomChg + fbChg + addChg - (folio.discountAmount || 0);
+    const tax = Math.round(subtotal * 0.05 * 10) / 10;
+    const net = subtotal + tax;
+    const paid = folio.payments.reduce((s, p) => s + p.amount, 0);
+
+    folio = {
+      ...folio,
+      charges: updatedCharges,
+      totalRoomCharges: roomChg,
+      totalFbCharges: fbChg,
+      totalAddonCharges: addChg,
+      totalTax: tax,
+      netPayable: net,
+      balanceDue: Math.max(0, net - paid),
+    };
+
+    store.folios = folios.map(f => f.id === folio!.id ? folio! : f);
+  } else {
+    // Create new folio for this room/stay
+    const folioId = `fol-${Date.now()}`;
+    const initialCharges = [
+      {
+        id: `chg-${Date.now()}-room`,
+        folioId,
+        category: 'room_tariff' as const,
+        chargeStatus: 'posted' as const,
+        title: `Room Stay: Room ${params.roomNumber}`,
+        amount: 4500,
+        postedAt: now,
+      },
+      newCharge,
+    ];
+    const subtotal = 4500 + Number(params.totalAmount);
+    const tax = Math.round(subtotal * 0.05 * 10) / 10;
+    const net = subtotal + tax;
+
+    folio = {
+      id: folioId,
+      bookingId: params.bookingId || `bk-room-${params.roomNumber}`,
+      guestId: 'gst-' + Date.now(),
+      guestName: params.guestName,
+      roomNumber: params.roomNumber,
+      roomName: `Room ${params.roomNumber}`,
+      folioNumber: `FOL-2026-${params.roomNumber}${Math.floor(10 + Math.random() * 90)}`,
+      status: 'open',
+      totalRoomCharges: 4500,
+      totalFbCharges: chargeCat === 'food_beverage' ? Number(params.totalAmount) : 0,
+      totalAddonCharges: chargeCat === 'miscellaneous' ? Number(params.totalAmount) : 0,
+      totalTax: tax,
+      discountAmount: 0,
+      netPayable: net,
+      totalPaid: 0,
+      balanceDue: net,
+      charges: initialCharges,
+      payments: [],
+    };
+    store.folios = [folio, ...folios];
+  }
+
+  saveStoreData(store);
+  return { success: true, alert, folio, order: orderRecord };
+}
+
+export async function getFolioForBooking(bookingIdOrRef: string, roomNumber?: number): Promise<GuestFolio | null> {
+  const store = getStoreData();
+  const folios = store.folios || [];
+  const found = folios.find(f =>
+    (bookingIdOrRef && (f.bookingId.toLowerCase() === bookingIdOrRef.toLowerCase() || f.folioNumber.toLowerCase() === bookingIdOrRef.toLowerCase())) ||
+    (roomNumber && f.roomNumber === roomNumber)
+  );
+  return found || null;
+}
+
+// ==========================================
+// MANAGER EXPENSES
+// ==========================================
+
+export async function saveExpenseItem(expense: Omit<Expense, 'id' | 'createdAt'>): Promise<Expense> {
+  const store = getStoreData();
+  const newExp: Expense = {
+    ...expense,
+    id: 'exp-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    createdAt: new Date().toISOString(),
+  };
+  store.expenses = [newExp, ...(store.expenses || [])];
+  saveStoreData(store);
+  return newExp;
+}
+
+export async function getStoreExpenses(): Promise<Expense[]> {
+  const store = getStoreData();
+  return store.expenses || [];
+}
+
 

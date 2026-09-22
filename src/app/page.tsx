@@ -43,7 +43,8 @@ export default function HomePage() {
         const saved = localStorage.getItem('wp_site_cms');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) return parsed.heroSlides;
+          const hasStaleUnsplash = Array.isArray(parsed.heroSlides) && parsed.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
+          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 && !hasStaleUnsplash) return parsed.heroSlides;
         }
       } catch {}
     }
@@ -129,7 +130,14 @@ export default function HomePage() {
 
         if (cmsRes && cmsRes.success && cmsRes.data) {
           const savedCMS = typeof window !== 'undefined' ? localStorage.getItem('wp_site_cms') : null;
-          if (!savedCMS) {
+          let hasStaleHero = false;
+          if (savedCMS) {
+            try {
+              const parsedCMS = JSON.parse(savedCMS);
+              hasStaleHero = Array.isArray(parsedCMS.heroSlides) && parsedCMS.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
+            } catch {}
+          }
+          if (!savedCMS || hasStaleHero) {
             if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
             if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
             if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);

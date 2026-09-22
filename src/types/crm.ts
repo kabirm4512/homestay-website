@@ -118,6 +118,7 @@ export interface CRMBooking {
   mealPlan: MealPlan;
   adultsCount: number;
   childrenCount: number;
+  infantsCount?: number;
   extraAdultsCount?: number;
   extraChildrenCount?: number;
   extraAdultChargePerNight?: number;

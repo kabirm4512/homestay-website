@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Trees,
@@ -10,7 +10,6 @@ import {
   ChefHat,
   Receipt,
   BedDouble,
-  CalendarCheck,
   MessageSquareText,
   Sliders,
   ExternalLink,
@@ -22,6 +21,11 @@ import {
   QrCode,
   Users,
   UtensilsCrossed,
+  Plus,
+  Sparkles,
+  ClipboardList,
+  Wrench,
+  Settings,
 } from 'lucide-react';
 
 import AdminAuth from '@/components/admin/AdminAuth';
@@ -33,7 +37,7 @@ import AdminCMS from '@/components/admin/AdminCMS';
 import AdminAddonsCMS from '@/components/admin/AdminAddonsCMS';
 import AdminStaffManagement from '@/components/admin/AdminStaffManagement';
 
-// New Boutique CRM Modules
+// Boutique CRM & Concierge Modules
 import TapeChart from '@/components/crm/TapeChart';
 import OperationsHub from '@/components/crm/OperationsHub';
 import KitchenPortal from '@/components/crm/KitchenPortal';
@@ -42,6 +46,9 @@ import RoleSwitcher from '@/components/crm/RoleSwitcher';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import BottomNav from '@/components/pwa/BottomNav';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
+import ManualBookingModal from '@/components/crm/ManualBookingModal';
+import QuickExpenseModal from '@/components/crm/QuickExpenseModal';
+import StaffOrderFlash from '@/components/crm/StaffOrderFlash';
 import { useCRM } from '@/context/CRMContext';
 
 import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
@@ -50,42 +57,32 @@ import {
   INITIAL_HERO_SLIDES,
   INITIAL_ABOUT_DATA,
   INITIAL_SITE_INFO,
+  INITIAL_REVIEWS,
   INITIAL_INQUIRIES,
   INITIAL_BOOKINGS,
-  INITIAL_REVIEWS,
 } from '@/lib/mock-data';
 
-export default function AdminPage() {
-  const {
-    role,
-    toast: crmToast,
-    showToast: showCrmToast,
-    dispatchRequests,
-    foodOrders,
-    currentUser,
-    setCurrentUser,
-  } = useCRM();
+type PrimaryWorkspace = 'front_desk' | 'orders_concierge' | 'operations' | 'ledger' | 'settings';
 
+export default function AdminPage() {
+  const { role, currentUser, setCurrentUser, dispatchRequests, foodOrders } = useCRM();
+
+  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
-    name: 'Administrator',
+    name: 'Estate Manager',
     role: 'admin',
   });
 
-  // Check existing session token on mount
+  // Check auth session
   useEffect(() => {
     try {
-      const storedToken = localStorage.getItem('homestay_admin_token') || sessionStorage.getItem('homestay_admin_token');
-      const storedUser = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
-
-      if (storedToken && storedUser) {
-        const parsed = JSON.parse(storedUser);
-        if (parsed.id === 'staff-2' || parsed.id === 'staff-3') {
-          localStorage.removeItem('homestay_admin_token');
-          localStorage.removeItem('homestay_admin_user');
-          localStorage.removeItem('wp_crm_current_user');
-          sessionStorage.removeItem('homestay_admin_token');
+      const stored = localStorage.getItem('savera_admin_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.expiresAt && parsed.expiresAt < Date.now()) {
+          localStorage.removeItem('savera_admin_session');
           setIsAuthenticated(false);
         } else {
           setAdminUser({
@@ -105,47 +102,65 @@ export default function AdminPage() {
     }
   }, [setCurrentUser]);
 
-  // Active navigation tab with persistence across reloads
-  const [activeTab, setActiveTab] = useState<string>(() => {
+  // Primary Workspace state with persistence
+  const [workspace, setWorkspace] = useState<PrimaryWorkspace>(() => {
     if (typeof window !== 'undefined') {
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const tabParam = urlParams.get('tab');
-        if (tabParam) return tabParam;
-        const saved = localStorage.getItem('wp_admin_active_tab');
-        if (saved) return saved;
+        const tabParam = urlParams.get('tab') || localStorage.getItem('wp_admin_workspace');
+        if (tabParam) {
+          if (['front_desk', 'tape_chart'].includes(tabParam)) return 'front_desk';
+          if (['orders_concierge', 'kitchen', 'dispatch'].includes(tabParam)) return 'orders_concierge';
+          if (['operations', 'dashboard', 'tasks'].includes(tabParam)) return 'operations';
+          if (['ledger', 'staff'].includes(tabParam)) return 'ledger';
+          if (['settings', 'rooms', 'addons', 'cms', 'inquiries', 'overview'].includes(tabParam)) return 'settings';
+        }
       } catch {}
     }
-    return 'tape_chart';
+    return 'front_desk';
   });
 
-  const handleSelectTab = useCallback((tab: string) => {
-    setActiveTab(tab);
+  // Active Subtab inside workspace
+  const [activeSubtab, setActiveSubtab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('wp_admin_active_tab', tab);
+        const urlParams = new URLSearchParams(window.location.search);
+        const sub = urlParams.get('subtab') || urlParams.get('tab') || localStorage.getItem('wp_admin_subtab');
+        if (sub) return sub;
+      } catch {}
+    }
+    return 'default';
+  });
+
+  // Switch Workspace & update URL/storage
+  const handleSelectWorkspace = useCallback((ws: PrimaryWorkspace, sub?: string) => {
+    setWorkspace(ws);
+    const defaultSub = sub || (
+      ws === 'front_desk' ? 'tape_chart' :
+      ws === 'orders_concierge' ? 'kitchen' :
+      ws === 'operations' ? 'tasks' :
+      ws === 'ledger' ? 'ledger' :
+      'rooms'
+    );
+    setActiveSubtab(defaultSub);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_workspace', ws);
+        localStorage.setItem('wp_admin_subtab', defaultSub);
         const url = new URL(window.location.href);
-        url.searchParams.set('tab', tab);
-
-        // Keep relevant subtab in URL if switching to a tab that has subtabs
-        let sub = '';
-        if (tab === 'rooms') {
-          sub = localStorage.getItem('wp_admin_rooms_subtab') || 'inventory';
-        } else if (tab === 'cms') {
-          sub = localStorage.getItem('wp_admin_cms_subtab') || 'hero';
-        } else if (tab === 'addons') {
-          sub = localStorage.getItem('wp_admin_addons_subtab') || 'dining';
-        }
-
-        if (sub) {
-          url.searchParams.set('subtab', sub);
-        } else {
-          url.searchParams.delete('subtab');
-        }
+        url.searchParams.set('tab', ws);
+        url.searchParams.set('subtab', defaultSub);
         window.history.replaceState({}, '', url.toString());
       } catch {}
     }
   }, []);
+
+  // Quick Action Modal states
+  const [isManualCheckInOpen, setIsManualCheckInOpen] = useState<boolean>(false);
+  const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState<boolean>(false);
+  const [showQRHubModal, setShowQRHubModal] = useState<boolean>(false);
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
 
   // Website CMS states with Local-First persistence
   const [rooms, setRooms] = useState<Room[]>(() => {
@@ -161,8 +176,31 @@ export default function AdminPage() {
     return INITIAL_ROOMS;
   });
 
-  const [inquiries, setInquiries] = useState<Inquiry[]>(INITIAL_INQUIRIES);
-  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+  const [inquiries, setInquiries] = useState<Inquiry[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('homestay_inquiries');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return INITIAL_INQUIRIES;
+  });
+
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('homestay_bookings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return INITIAL_BOOKINGS;
+  });
 
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
     if (typeof window !== 'undefined') {
@@ -170,7 +208,8 @@ export default function AdminPage() {
         const saved = localStorage.getItem('wp_site_cms');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) return parsed.heroSlides;
+          const hasStaleUnsplash = Array.isArray(parsed.heroSlides) && parsed.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
+          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 && !hasStaleUnsplash) return parsed.heroSlides;
         }
       } catch {}
     }
@@ -216,11 +255,7 @@ export default function AdminPage() {
     return INITIAL_REVIEWS;
   });
 
-  const [loadingData, setLoadingData] = useState<boolean>(false);
-  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
-  const [showQRHubModal, setShowQRHubModal] = useState(false);
-
-  // Synchronous optimistic state and local storage callbacks
+  // Synchronous optimistic updates
   const handleUpdateRooms = useCallback((updatedRooms: Room[]) => {
     setRooms(updatedRooms);
     if (typeof window !== 'undefined') {
@@ -256,26 +291,22 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Local toast fallback
+  // Toast feedback
   const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setLocalToast({ message, type });
-    setTimeout(() => {
-      setLocalToast(null);
-    }, 4000);
+    setTimeout(() => setLocalToast(null), 4000);
   }, []);
 
-  // Sync role changes to default tabs
+  // Auto-switch for kitchen role
   useEffect(() => {
     if (role === 'kitchen_staff') {
-      handleSelectTab('kitchen');
+      handleSelectWorkspace('orders_concierge', 'kitchen');
     }
-  }, [role, handleSelectTab]);
+  }, [role, handleSelectWorkspace]);
 
   // Fetch live homestay data
   const fetchData = useCallback(async () => {
-    setLoadingData(true);
     try {
       const [roomsRes, inqRes, bkRes, cmsRes] = await Promise.all([
         fetch('/api/rooms').then((r) => r.json()).catch(() => null),
@@ -285,38 +316,25 @@ export default function AdminPage() {
       ]);
 
       if (roomsRes?.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
-        // Only override if local storage doesn't already hold customized rooms
-        const savedRooms = typeof window !== 'undefined' ? localStorage.getItem('wp_site_rooms') : null;
-        if (!savedRooms) {
-          setRooms(roomsRes.data);
-          try {
-            localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
-          } catch {}
-        }
+        setRooms(roomsRes.data);
+        localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
       }
-      if (inqRes?.success && inqRes.data) {
+      if (inqRes?.success && Array.isArray(inqRes.data)) {
         setInquiries(inqRes.data);
+        localStorage.setItem('homestay_inquiries', JSON.stringify(inqRes.data));
       }
-      if (bkRes?.success && bkRes.data) {
+      if (bkRes?.success && Array.isArray(bkRes.data)) {
         setBookings(bkRes.data);
+        localStorage.setItem('homestay_bookings', JSON.stringify(bkRes.data));
       }
       if (cmsRes?.success && cmsRes.data) {
-        const savedCMS = typeof window !== 'undefined' ? localStorage.getItem('wp_site_cms') : null;
-        if (!savedCMS) {
-          if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
-          if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
-          if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
-          if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
-          try {
-            localStorage.setItem('wp_site_cms', JSON.stringify(cmsRes.data));
-          } catch {}
-        }
+        const { heroSlides: hs, aboutData: ab, siteInfo: si, reviews: rev } = cmsRes.data;
+        if (Array.isArray(hs) && hs.length > 0) setHeroSlides(hs);
+        if (ab?.headline) setAboutData(ab);
+        if (si?.name) setSiteInfo(si);
+        if (Array.isArray(rev) && rev.length > 0) setReviews(rev);
       }
-    } catch {
-      // fallback
-    } finally {
-      setLoadingData(false);
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -326,27 +344,12 @@ export default function AdminPage() {
   }, [isAuthenticated, fetchData]);
 
   const handleAuthenticated = (token: string, user: { name: string; role: string }) => {
-    try {
-      localStorage.setItem('homestay_admin_token', token);
-      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
-    } catch {
-      // fallback
-    }
     setAdminUser(user);
     setIsAuthenticated(true);
-    showToast(`Welcome back, ${user.name}!`);
   };
 
   const handleLogout = () => {
-    try {
-      localStorage.removeItem('homestay_admin_token');
-      localStorage.removeItem('homestay_admin_user');
-      localStorage.removeItem('wp_crm_current_user');
-      sessionStorage.removeItem('homestay_admin_token');
-    } catch {
-      // ignore
-    }
-    setCurrentUser(null);
+    localStorage.removeItem('savera_admin_session');
     setIsAuthenticated(false);
     showToast('Signed out of staff portal.');
   };
@@ -373,14 +376,15 @@ export default function AdminPage() {
 
   const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
   const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending').length;
+  const totalOrdersBadge = pendingKitchenCount + pendingDispatchCount;
 
   return (
     <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-16 md:pb-6">
-      {/* 1. Global Admin Top Navbar */}
+      {/* ================= 1. GLOBAL ADMIN TOP NAVBAR ================= */}
       <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           {/* Brand Logo & Title */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 shrink-0">
             <Link href="/" className="flex items-center space-x-2.5 group">
               <div className="w-9 h-9 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center group-hover:bg-forest-700 transition-colors">
                 <Trees className="w-5 h-5 text-amber-300" />
@@ -391,37 +395,57 @@ export default function AdminPage() {
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Boutique CRM & Concierge</span>
+                  <span>Boutique CRM &amp; Concierge</span>
                 </span>
               </div>
             </Link>
           </div>
 
-          {/* Right Header Controls: Role Switcher, PWA Install, Live Concierge Link, User */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Header Quick Actions (+ Manual Check-In, + Quick Expense) & Staff Tools */}
+          <div className="flex items-center space-x-2 sm:space-x-2.5 overflow-x-auto no-scrollbar py-1">
+            {/* Quick Action 1: + Manual Check-In */}
+            <button
+              onClick={() => setIsManualCheckInOpen(true)}
+              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-500/50 transition-all shadow-sm cursor-pointer shrink-0"
+              title="Initiate manual check-in, assign room & generate guest portal link"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
+              <span>Manual Check-In</span>
+            </button>
+
+            {/* Quick Action 2: + Quick Expense */}
+            <button
+              onClick={() => setIsQuickExpenseOpen(true)}
+              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-forest-950 bg-amber-400 hover:bg-amber-300 active:scale-95 px-3 py-1.5 rounded-xl border border-amber-300 transition-all shadow-sm cursor-pointer shrink-0"
+              title="1-tap fast manager expense logger"
+            >
+              <Receipt className="w-3.5 h-3.5 text-forest-950" />
+              <span>Quick Expense</span>
+            </button>
+
+            {/* Dine-In QR Standees Generator */}
+            <button
+              onClick={() => setShowQRHubModal(true)}
+              className="min-h-[38px] hidden md:flex items-center space-x-1.5 text-xs font-semibold text-sand-200 hover:text-white bg-forest-800/80 hover:bg-forest-800 px-2.5 py-1.5 rounded-xl border border-forest-700 transition-colors shrink-0 cursor-pointer"
+              title="In-Room Dine-In QR Standees"
+            >
+              <QrCode className="w-3.5 h-3.5 text-amber-400" />
+              <span>QRs</span>
+            </button>
+
             {/* Fast Role Switcher */}
             <RoleSwitcher />
 
             {/* PWA Install Button */}
             <PWAInstaller variant="button" />
 
-            {/* Dine-In QR Standees Generator */}
-            <button
-              onClick={() => setShowQRHubModal(true)}
-              className="min-h-[44px] flex items-center space-x-1.5 text-xs font-bold text-amber-300 hover:text-amber-200 bg-forest-800/90 hover:bg-forest-800 px-3 py-1.5 rounded-xl border border-amber-500/40 transition-colors shadow-xs cursor-pointer"
-              title="Preview, print and download In-Room Dine-In QR Cards"
-            >
-              <QrCode className="w-4 h-4 text-amber-400" />
-              <span>Dine-In QRs</span>
-            </button>
-
             {/* Logged-in Staff Badge */}
-            <div className="hidden md:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60">
+            <div className="hidden lg:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60 shrink-0">
               <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center uppercase">
                 {(currentUser?.fullName || adminUser.name).charAt(0)}
               </div>
               <div className="text-left">
-                <span className="text-[11px] font-bold text-white block leading-none truncate max-w-[130px]">
+                <span className="text-[11px] font-bold text-white block leading-none truncate max-w-[110px]">
                   {currentUser?.fullName || adminUser.name}
                 </span>
                 <span className="text-[9px] text-amber-300 uppercase tracking-wider font-semibold capitalize">
@@ -430,226 +454,321 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="h-5 w-px bg-forest-700 hidden sm:block" />
+            <div className="h-5 w-px bg-forest-700 hidden sm:block shrink-0" />
 
-            {/* Refresh Data Action */}
+            {/* Refresh Data */}
             <button
               onClick={handleRefresh}
-              className="min-h-[44px] min-w-[44px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center cursor-pointer"
+              className="min-h-[38px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
               title="Refresh Homestay Live Data"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5" />
             </button>
 
             {/* View Live Website */}
             <Link
               href="/"
               target="_blank"
-              className="min-h-[44px] px-2.5 py-1.5 text-xs font-semibold text-sand-200 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center space-x-1.5"
+              className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-sand-200 hover:text-white rounded-xl hover:bg-forest-800 transition-colors hidden sm:flex items-center space-x-1.5 shrink-0"
               title="View Public Website"
             >
               <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">Website</span>
+              <span>Site</span>
             </Link>
 
-            {/* Sign Out Button */}
+            {/* Sign Out */}
             <button
               onClick={handleLogout}
-              className="min-h-[44px] px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:text-white rounded-xl hover:bg-rose-950/50 border border-rose-800/60 transition-colors flex items-center space-x-1.5 cursor-pointer"
+              className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:text-white rounded-xl hover:bg-rose-950/50 border border-rose-800/60 transition-colors flex items-center space-x-1 cursor-pointer shrink-0"
               title="Sign out of staff portal"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
 
-        {/* Desktop Navigation Tabs Bar */}
-        <div className="bg-forest-950/70 border-t border-forest-800/80 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar">
-            {/* Module A: Tape Chart */}
-            <button
-              onClick={() => handleSelectTab('tape_chart')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'tape_chart'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-              <span>Tape Chart (7 Rooms)</span>
-            </button>
+        {/* ================= 2. REDESIGNED 5 LUXURY WORKSPACES BAR ================= */}
+        <div className="bg-forest-950/80 border-t border-forest-800/90 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-2 no-scrollbar">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* Workspace 1: Front Desk (Tape Chart) */}
+              <button
+                onClick={() => handleSelectWorkspace('front_desk', 'tape_chart')}
+                className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  workspace === 'front_desk'
+                    ? 'bg-amber-500 text-forest-950 shadow-sm'
+                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                }`}
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span>Front Desk (7 Rooms)</span>
+              </button>
 
-            {/* Module B: Operations Hub */}
-            <button
-              onClick={() => handleSelectTab('dashboard')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'dashboard'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Daily Operations Hub</span>
-            </button>
+              {/* Workspace 2: Orders & Concierge */}
+              <button
+                onClick={() => handleSelectWorkspace('orders_concierge', 'kitchen')}
+                className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  workspace === 'orders_concierge'
+                    ? 'bg-amber-500 text-forest-950 shadow-sm'
+                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                }`}
+              >
+                <UtensilsCrossed className="w-4 h-4" />
+                <span>Orders &amp; Concierge</span>
+                {totalOrdersBadge > 0 && (
+                  <span className="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.2 rounded-full">
+                    {totalOrdersBadge}
+                  </span>
+                )}
+              </button>
 
-            {/* Module B/C: Dispatch Hub */}
-            <button
-              onClick={() => handleSelectTab('dispatch')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'dispatch'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" />
-              <span>Orders / Dispatch</span>
-              {pendingDispatchCount > 0 && (
-                <span className="ml-1 text-[10px] bg-amber-400 text-forest-950 font-bold px-1.5 py-0.2 rounded-full">
-                  {pendingDispatchCount}
-                </span>
-              )}
-            </button>
+              {/* Workspace 3: Ops & Expenses */}
+              <button
+                onClick={() => handleSelectWorkspace('operations', 'tasks')}
+                className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  workspace === 'operations'
+                    ? 'bg-amber-500 text-forest-950 shadow-sm'
+                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Ops &amp; Expenses</span>
+              </button>
 
-            {/* Dedicated Kitchen View */}
-            <button
-              onClick={() => handleSelectTab('kitchen')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'kitchen'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <ChefHat className="w-3.5 h-3.5" />
-              <span>Kitchen & Mandate</span>
-              {pendingKitchenCount > 0 && (
-                <span className="ml-1 text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.2 rounded-full">
-                  {pendingKitchenCount}
-                </span>
-              )}
-            </button>
+              {/* Workspace 4: Financial Ledger & Staff */}
+              <button
+                onClick={() => handleSelectWorkspace('ledger', 'ledger')}
+                className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  workspace === 'ledger'
+                    ? 'bg-amber-500 text-forest-950 shadow-sm'
+                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                }`}
+              >
+                <Receipt className="w-4 h-4" />
+                <span>Ledger &amp; Staff</span>
+                {role !== 'admin' && (
+                  <span className="text-[9px] bg-rose-900/60 text-rose-300 font-mono px-1 rounded">
+                    Admin
+                  </span>
+                )}
+              </button>
 
-            {/* Module D: Financial Ledger (Admin Only) */}
-            <button
-              onClick={() => handleSelectTab('ledger')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'ledger'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>Financial Ledger & PNL</span>
-              {role !== 'admin' && (
-                <span className="text-[10px] bg-rose-900/70 text-rose-300 font-mono px-1.5 py-0.2 rounded">
-                  Admin Only
-                </span>
-              )}
-            </button>
-
-            {/* Staff & User Management (Admin Only) */}
-            <button
-              onClick={() => handleSelectTab('staff')}
-              className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === 'staff'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Staff & Logins</span>
-              {role !== 'admin' && (
-                <span className="text-[10px] bg-rose-900/70 text-rose-300 font-mono px-1.5 py-0.2 rounded">
-                  Admin Only
-                </span>
-              )}
-            </button>
-
-            <div className="h-4 w-px bg-forest-800 mx-1 hidden lg:block" />
-
-            {/* Website CMS Tabs */}
-            <button
-              onClick={() => handleSelectTab('overview')}
-              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === 'overview'
-                  ? 'bg-forest-800 text-white'
-                  : 'text-forest-400 hover:text-forest-200'
-              }`}
-            >
-              <span>Site Overview</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectTab('rooms')}
-              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === 'rooms'
-                  ? 'bg-forest-800 text-white'
-                  : 'text-forest-400 hover:text-forest-200'
-              }`}
-            >
-              <BedDouble className="w-3.5 h-3.5" />
-              <span>Site Rooms & Tariffs</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectTab('addons')}
-              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === 'addons'
-                  ? 'bg-forest-800 text-white'
-                  : 'text-forest-400 hover:text-forest-200'
-              }`}
-            >
-              <UtensilsCrossed className="w-3.5 h-3.5" />
-              <span>Dine-in & Travel Add-ons</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectTab('inquiries')}
-              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === 'inquiries'
-                  ? 'bg-forest-800 text-white'
-                  : 'text-forest-400 hover:text-forest-200'
-              }`}
-            >
-              <MessageSquareText className="w-3.5 h-3.5" />
-              <span>Web Inquiries</span>
-            </button>
-
-            <button
-              onClick={() => handleSelectTab('cms')}
-              className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === 'cms'
-                  ? 'bg-forest-800 text-white'
-                  : 'text-forest-400 hover:text-forest-200'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>CMS & Reviews</span>
-            </button>
+              {/* Workspace 5: Website Settings & CMS */}
+              <button
+                onClick={() => handleSelectWorkspace('settings', 'rooms')}
+                className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  workspace === 'settings'
+                    ? 'bg-amber-500 text-forest-950 shadow-sm'
+                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                <span>Website Settings</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Secondary Subtab Bar for Active Workspace */}
+        {workspace === 'orders_concierge' && (
+          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+            <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
+              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <button
+                onClick={() => setActiveSubtab('kitchen')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'kitchen' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <ChefHat className="w-3.5 h-3.5" />
+                <span>Kitchen KDS &amp; Mandates</span>
+                {pendingKitchenCount > 0 && (
+                  <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                    {pendingKitchenCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveSubtab('dispatch')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'dispatch' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Transfers &amp; Rentals Dispatch</span>
+                {pendingDispatchCount > 0 && (
+                  <span className="bg-amber-500 text-forest-950 text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
+                    {pendingDispatchCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveSubtab('orders')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'orders' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>Orders Log</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {workspace === 'operations' && (
+          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+            <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
+              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <button
+                onClick={() => setActiveSubtab('tasks')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'tasks' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Daily Housekeeping &amp; Property Tasks</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('expenses')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'expenses' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Manager Expense Records</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {workspace === 'ledger' && (
+          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+            <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
+              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <button
+                onClick={() => setActiveSubtab('ledger')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'ledger' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Financial Ledger &amp; P&amp;L</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('staff')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'staff' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Staff Accounts &amp; Permissions</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {workspace === 'settings' && (
+          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto no-scrollbar">
+            <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
+              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Settings:</span>
+              <button
+                onClick={() => setActiveSubtab('rooms')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'rooms' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <BedDouble className="w-3.5 h-3.5" />
+                <span>Site Rooms &amp; Tariffs</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('addons')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'addons' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <UtensilsCrossed className="w-3.5 h-3.5" />
+                <span>Dine-In Menu &amp; Add-ons</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('cms')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'cms' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>CMS &amp; Reviews</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('inquiries')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'inquiries' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <MessageSquareText className="w-3.5 h-3.5" />
+                <span>Web Inquiries</span>
+              </button>
+              <button
+                onClick={() => setActiveSubtab('overview')}
+                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
+                  activeSubtab === 'overview' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                }`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Overview Analytics</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* 2. Main Module View */}
+      {/* ================= 3. MAIN WORKSPACE VIEW ================= */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Module A: Tape Chart */}
-        {activeTab === 'tape_chart' && <TapeChart />}
+        {/* Workspace 1: Front Desk (Tape Chart) */}
+        {workspace === 'front_desk' && <TapeChart />}
 
-        {/* Module B: Operations Hub */}
-        {activeTab === 'dashboard' && <OperationsHub />}
+        {/* Workspace 2: Orders & Concierge */}
+        {workspace === 'orders_concierge' && (
+          <>
+            {activeSubtab === 'kitchen' && <KitchenPortal />}
+            {activeSubtab === 'dispatch' && <OperationsHub />}
+            {activeSubtab === 'orders' && <OperationsHub />}
+          </>
+        )}
 
-        {/* Orders / Dispatch Hub */}
-        {activeTab === 'dispatch' && <OperationsHub />}
+        {/* Workspace 3: Ops & Expenses */}
+        {workspace === 'operations' && (
+          <>
+            {activeSubtab === 'tasks' && <OperationsHub />}
+            {activeSubtab === 'expenses' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-sand-200">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-forest-950">Manager Expenses</h3>
+                    <p className="text-xs text-forest-600">Quickly record daily homestay expenses or review financial ledger.</p>
+                  </div>
+                  <button
+                    onClick={() => setIsQuickExpenseOpen(true)}
+                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-forest-950 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Log New Expense</span>
+                  </button>
+                </div>
+                <FinancialLedger />
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Dedicated Kitchen View */}
-        {activeTab === 'kitchen' && <KitchenPortal />}
-
-        {/* Module D: Financial Ledger (Admin Only, RBAC Guarded) */}
-        {activeTab === 'ledger' && (
+        {/* Workspace 4: Ledger & Staff (RBAC Guarded) */}
+        {workspace === 'ledger' && (
           role === 'admin' ? (
-            <FinancialLedger />
+            <>
+              {activeSubtab === 'ledger' && <FinancialLedger />}
+              {activeSubtab === 'staff' && <AdminStaffManagement />}
+            </>
           ) : (
-            <div className="bg-white rounded-3xl p-8 border border-sand-200 text-center max-w-md mx-auto my-12 shadow-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl p-8 border border-sand-200 text-center max-w-md mx-auto my-12 shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-800 flex items-center justify-center mx-auto mb-3">
                 <Receipt className="w-6 h-6" />
               </div>
@@ -658,127 +777,123 @@ export default function AdminPage() {
                 Financial Ledger, P&amp;L reports, expense records, and revenue analytics are strictly confidential and restricted to Administrator accounts.
               </p>
               <button
-                onClick={() => handleSelectTab('tape_chart')}
+                onClick={() => handleSelectWorkspace('front_desk')}
                 className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors cursor-pointer"
               >
-                Return to Operations
+                Return to Front Desk
               </button>
             </div>
           )
         )}
 
-        {/* Staff & User Access Management (Admin Only, RBAC Guarded) */}
-        {activeTab === 'staff' && (
-          role === 'admin' ? (
-            <AdminStaffManagement />
-          ) : (
-            <div className="bg-white rounded-3xl p-8 border border-sand-200 text-center max-w-md mx-auto my-12 shadow-sm animate-in fade-in">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="font-serif font-bold text-lg text-forest-950 mb-1">Admin Access Required</h3>
-              <p className="text-xs text-forest-700/80 mb-4">
-                Only Estate Administrators have authority to create and manage individual employee accounts, access levels, and credentials.
-              </p>
-              <button
-                onClick={() => handleSelectTab('tape_chart')}
-                className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors"
-              >
-                Return to Tape Chart
-              </button>
-            </div>
-          )
-        )}
-
-        {/* Website CMS Tabs */}
-        {activeTab === 'overview' && (
-          <AdminOverview
-            rooms={rooms}
-            inquiries={inquiries}
-            bookings={bookings}
-            onNavigateTab={(tab) => handleSelectTab(tab)}
-            onOpenAddRoom={() => {
-              handleSelectTab('rooms');
-              setIsAddRoomOpen(true);
-            }}
-          />
-        )}
-
-        {activeTab === 'rooms' && (
-          <AdminRooms
-            rooms={rooms}
-            onUpdateRooms={handleUpdateRooms}
-            onRefresh={fetchData}
-            showToast={showToast}
-            isAddModalOpen={isAddRoomOpen}
-            onCloseAddModal={() => setIsAddRoomOpen(false)}
-          />
-        )}
-
-        {activeTab === 'bookings' && (
-          <AdminBookings
-            bookings={bookings}
-            onRefresh={fetchData}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'inquiries' && (
-          <AdminInquiries
-            inquiries={inquiries}
-            onRefresh={fetchData}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'addons' && <AdminAddonsCMS />}
-
-        {activeTab === 'cms' && (
-          <AdminCMS
-            heroSlides={heroSlides}
-            aboutData={aboutData}
-            siteInfo={siteInfo}
-            reviews={reviews}
-            onUpdateCMS={handleUpdateCMS}
-            onRefresh={fetchData}
-            showToast={showToast}
-          />
+        {/* Workspace 5: Website Settings & CMS */}
+        {workspace === 'settings' && (
+          <>
+            {activeSubtab === 'rooms' && (
+              <AdminRooms
+                rooms={rooms}
+                onUpdateRooms={handleUpdateRooms}
+                onRefresh={fetchData}
+                showToast={showToast}
+                isAddModalOpen={isAddRoomOpen}
+                onCloseAddModal={() => setIsAddRoomOpen(false)}
+              />
+            )}
+            {activeSubtab === 'addons' && <AdminAddonsCMS />}
+            {activeSubtab === 'cms' && (
+              <AdminCMS
+                heroSlides={heroSlides}
+                aboutData={aboutData}
+                siteInfo={siteInfo}
+                reviews={reviews}
+                onUpdateCMS={handleUpdateCMS}
+                onRefresh={fetchData}
+                showToast={showToast}
+              />
+            )}
+            {activeSubtab === 'inquiries' && (
+              <AdminInquiries
+                inquiries={inquiries}
+                onRefresh={fetchData}
+                showToast={showToast}
+              />
+            )}
+            {activeSubtab === 'overview' && (
+              <AdminOverview
+                rooms={rooms}
+                inquiries={inquiries}
+                bookings={bookings}
+                onNavigateTab={(tab) => {
+                  if (['rooms', 'addons', 'cms', 'inquiries'].includes(tab)) {
+                    setActiveSubtab(tab);
+                  } else {
+                    handleSelectWorkspace(tab as PrimaryWorkspace);
+                  }
+                }}
+                onOpenAddRoom={() => {
+                  setActiveSubtab('rooms');
+                  setIsAddRoomOpen(true);
+                }}
+              />
+            )}
+          </>
         )}
       </main>
 
-      {/* 3. Mobile Fixed Bottom Navigation Bar */}
-      <BottomNav
-        activeTab={activeTab}
-        onSelectTab={(tab) => handleSelectTab(tab)}
-        role={role}
-        pendingDispatchCount={pendingDispatchCount}
-        pendingKitchenOrdersCount={pendingKitchenCount}
+      {/* ================= 4. REAL-TIME STAFF ORDER FLASH CARD ================= */}
+      <StaffOrderFlash
+        onViewOrders={() => {
+          handleSelectWorkspace('orders_concierge', 'kitchen');
+        }}
       />
+
+      {/* ================= 5. QUICK ACTION MODALS ================= */}
+      {/* Manual Check-In Modal */}
+      {isManualCheckInOpen && (
+        <ManualBookingModal
+          isOpen={isManualCheckInOpen}
+          onClose={() => setIsManualCheckInOpen(false)}
+          onBookingCreated={() => {
+            fetchData();
+            showToast('New reservation created & assigned successfully!');
+          }}
+        />
+      )}
+
+      {/* Quick Manager Expense Logger Modal */}
+      {isQuickExpenseOpen && (
+        <QuickExpenseModal
+          isOpen={isQuickExpenseOpen}
+          onClose={() => setIsQuickExpenseOpen(false)}
+          defaultManagerName={currentUser?.fullName || adminUser.name}
+        />
+      )}
 
       {/* In-Room Dine-In QR Standee Hub Modal */}
       {showQRHubModal && (
         <InRoomQRHub isOpen={showQRHubModal} onClose={() => setShowQRHubModal(false)} />
       )}
 
-      {/* 4. Global Toast Notifications */}
-      {(crmToast || localToast) && (
-        <div className="fixed bottom-18 md:bottom-6 right-4 sm:right-6 z-50 animate-in slide-in-from-bottom-2 duration-200">
-          <div
-            className={`flex items-center space-x-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold ${
-              (crmToast?.type || localToast?.type) === 'error'
-                ? 'bg-rose-900 border-rose-800 text-white'
-                : 'bg-forest-900 border-forest-800 text-white'
-            }`}
-          >
-            {(crmToast?.type || localToast?.type) === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            )}
-            <span>{crmToast?.message || localToast?.message}</span>
-          </div>
-        </div>
-      )}
+      {/* Mobile Fixed Bottom Navigation */}
+      <BottomNav
+        activeTab={
+          workspace === 'front_desk' ? 'tape_chart' :
+          workspace === 'orders_concierge' ? (activeSubtab === 'kitchen' ? 'kitchen' : 'dispatch') :
+          workspace === 'operations' ? 'dashboard' :
+          workspace === 'ledger' ? 'ledger' :
+          'dashboard'
+        }
+        onSelectTab={(tab) => {
+          if (tab === 'tape_chart') handleSelectWorkspace('front_desk', 'tape_chart');
+          else if (tab === 'dashboard') handleSelectWorkspace('operations', 'tasks');
+          else if (tab === 'dispatch') handleSelectWorkspace('orders_concierge', 'dispatch');
+          else if (tab === 'kitchen') handleSelectWorkspace('orders_concierge', 'kitchen');
+          else if (tab === 'ledger') handleSelectWorkspace('ledger', 'ledger');
+        }}
+        role={role}
+        pendingDispatchCount={pendingDispatchCount}
+        pendingKitchenOrdersCount={pendingKitchenCount}
+      />
     </div>
   );
 }

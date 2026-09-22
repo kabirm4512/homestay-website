@@ -175,24 +175,38 @@
   "heroSlides": [
     {
       "id": "slide-1",
-      "image": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1920&q=85",
-      "title": "Escape to Tranquility in the Himalayan Hills",
-      "subtitle": "An intimate boutique homestay surrounded by ancient pine forests, birdsong, and breathtaking valley views.",
-      "badge": "Serene Mountain Getaway"
+      "image": "/images/hero/himalayan-view-lounge.jpg",
+      "title": "Wake Up to Majestic Kanchenjunga Views",
+      "subtitle": "Sip freshly brewed Darjeeling tea from our warm wooden lounge, with panoramic views of snow-capped peaks and valleys right outside your window.",
+      "badge": "Breathtaking Himalayan Panoramas"
     },
     {
       "id": "slide-2",
-      "image": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1920&q=85",
-      "title": "Slow Living, Warm Hospitality & Organic Feasts",
-      "subtitle": "Farm-to-table organic meals, evening bonfires under starry skies, and heartfelt personal service.",
-      "badge": "Handcrafted Experiences"
+      "image": "/images/hero/deluxe-bedroom-suite.jpg",
+      "title": "Cozy Wooden Sanctuaries Crafted for Rest",
+      "subtitle": "Relax in handcrafted timber suites featuring plush floral bedding, ambient lighting, heated comforts, and thoughtful boutique amenities.",
+      "badge": "Handcrafted Timber Suites"
     },
     {
       "id": "slide-3",
-      "image": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1920&q=85",
-      "title": "Your Private Mountain Sanctuary Awaits",
-      "subtitle": "Hand-built cedar wood suites designed for deep rest, creative workations, and cherished memories.",
-      "badge": "Boutique Comfort"
+      "image": "/images/hero/spacious-balcony-room.jpg",
+      "title": "Generous Living with Private Balcony Serenity",
+      "subtitle": "Unwind in airy, thoughtfully designed rooms opening directly onto private balconies with sweeping views of fresh pine canopies.",
+      "badge": "Spacious Balcony Comfort"
+    },
+    {
+      "id": "slide-4",
+      "image": "/images/hero/scenic-valley-balcony.jpg",
+      "title": "Step Out to Endless Valleys & Open Skies",
+      "subtitle": "Breathe in pure mountain air from your secluded private balcony commanding endless panoramas of misty ridges and lush Himalayan slopes.",
+      "badge": "Private Mountain Balconies"
+    },
+    {
+      "id": "slide-5",
+      "image": "/images/hero/tibetan-heritage-lounge.jpg",
+      "title": "Immerse in Authentic Himalayan Art & Heritage",
+      "subtitle": "Experience timeless mountain hospitality in our heritage lounge adorned with hand-painted Buddhist murals, Tibetan artistry, and warm fireside charm.",
+      "badge": "Authentic Himalayan Heritage"
     }
   ],
   "aboutData": {
@@ -246,6 +260,32 @@
       {
         "value": "7 Rooms",
         "label": "Private Balconies"
+      }
+    ],
+    "images": [
+      {
+        "src": "/images/about/balcony-view.jpg",
+        "alt": "Private mountain view balcony overlooking Himalayan valley",
+        "caption": "Private Mountain Balcony",
+        "subtitle": "Valley & sunrise vistas"
+      },
+      {
+        "src": "/images/about/bedroom-suite.jpg",
+        "alt": "Handcrafted timber bedroom suite with balcony access",
+        "caption": "Cedar Wood Bedroom Suite",
+        "subtitle": "Warm Himalayan comforts"
+      },
+      {
+        "src": "/images/about/traditional-lounge.jpg",
+        "alt": "Artisanal Himalayan lounge with traditional Buddhist mural",
+        "caption": "Artisanal Lounge",
+        "subtitle": "Traditional Tibetan wall art"
+      },
+      {
+        "src": "/images/about/mountain-window.jpg",
+        "alt": "Living room window framing snow-capped Kanchenjunga peaks",
+        "caption": "Kanchenjunga Window View",
+        "subtitle": "Morning Darjeeling tea"
       }
     ]
   },

@@ -558,10 +558,10 @@ export default function AdminCMS({
                     Image URL *
                   </label>
                   <input
-                    type="url"
+                    type="text"
                     value={newSlide.image}
                     onChange={(e) => setNewSlide({ ...newSlide, image: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
+                    placeholder="/images/hero/... or https://..."
                     className="w-full px-3 py-2 bg-white border border-sand-300 rounded-xl text-xs"
                   />
                 </div>

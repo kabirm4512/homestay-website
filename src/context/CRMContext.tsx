@@ -103,6 +103,7 @@ interface CRMContextType {
     mealPlan: MealPlan;
     adultsCount: number;
     childrenCount: number;
+    infantsCount?: number;
     extraAdultChargePerNight?: number;
     extraChildChargePerNight?: number;
     status: RoomTapeStatus;
@@ -979,6 +980,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     mealPlan: MealPlan;
     adultsCount: number;
     childrenCount: number;
+    infantsCount?: number;
     extraAdultChargePerNight?: number;
     extraChildChargePerNight?: number;
     status: RoomTapeStatus;
@@ -1068,6 +1070,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       mealPlan: bookingData.mealPlan,
       adultsCount: bookingData.adultsCount || 2,
       childrenCount: bookingData.childrenCount || 0,
+      infantsCount: bookingData.infantsCount || 0,
       extraAdultsCount,
       extraChildrenCount,
       extraAdultChargePerNight: extraAdultRate,
