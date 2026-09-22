@@ -179,6 +179,9 @@ export async function saveRoom(room: Partial<Room> & { name: string }): Promise<
           ...r,
           ...room,
           id: r.id,
+          name: room.name || r.name,
+          tagline: room.tagline !== undefined ? room.tagline : r.tagline,
+          description: room.description !== undefined ? room.description : r.description,
           price_per_night: Number(room.price_per_night !== undefined ? room.price_per_night : r.price_per_night),
           weekend_price: Number(room.weekend_price !== undefined ? room.weekend_price : r.weekend_price),
           base_adults: Number(room.base_adults !== undefined ? room.base_adults : (r.base_adults || 2)),
@@ -190,6 +193,8 @@ export async function saveRoom(room: Partial<Room> & { name: string }): Promise<
           total_inventory: Number(room.total_inventory !== undefined ? room.total_inventory : r.total_inventory),
           available_inventory: Number(room.available_inventory !== undefined ? room.available_inventory : r.available_inventory),
           is_active: room.is_active !== undefined ? room.is_active : r.is_active,
+          amenities: Array.isArray(room.amenities) ? room.amenities : r.amenities,
+          images: Array.isArray(room.images) && room.images.length > 0 ? room.images : r.images,
           tariffs: room.tariffs !== undefined ? room.tariffs : r.tariffs,
           updated_at: new Date().toISOString()
         } as Room;
@@ -229,6 +234,17 @@ export async function saveRoom(room: Partial<Room> & { name: string }): Promise<
   // Also sync tariffs in store if provided
   if (savedRoom.tariffs) {
     store.roomTariffs[savedRoom.id] = savedRoom.tariffs;
+    if (savedRoom.id === 'room-cat-1') {
+      store.roomTariffs['room-101'] = savedRoom.tariffs;
+      store.roomTariffs['room-102'] = savedRoom.tariffs;
+      store.roomTariffs['room-103'] = savedRoom.tariffs;
+    } else if (savedRoom.id === 'room-cat-2') {
+      store.roomTariffs['room-104'] = savedRoom.tariffs;
+    } else if (savedRoom.id === 'room-cat-3') {
+      store.roomTariffs['room-201'] = savedRoom.tariffs;
+      store.roomTariffs['room-202'] = savedRoom.tariffs;
+      store.roomTariffs['room-203'] = savedRoom.tariffs;
+    }
   }
 
   saveStoreData(store);
@@ -262,8 +278,39 @@ export async function getRoomTariffs(): Promise<Record<string, RoomSeasonalTarif
 export async function saveRoomTariff(roomId: string, tariffs: RoomSeasonalTariffs): Promise<boolean> {
   const store = getStoreData();
   store.roomTariffs[roomId] = tariffs;
+
+  // Synchronize category IDs and physical room IDs
+  if (roomId === 'room-cat-1') {
+    store.roomTariffs['room-101'] = tariffs;
+    store.roomTariffs['room-102'] = tariffs;
+    store.roomTariffs['room-103'] = tariffs;
+  } else if (roomId === 'room-cat-2') {
+    store.roomTariffs['room-104'] = tariffs;
+  } else if (roomId === 'room-cat-3') {
+    store.roomTariffs['room-201'] = tariffs;
+    store.roomTariffs['room-202'] = tariffs;
+    store.roomTariffs['room-203'] = tariffs;
+  } else if (['room-101', 'room-102', 'room-103'].includes(roomId)) {
+    store.roomTariffs['room-cat-1'] = tariffs;
+  } else if (roomId === 'room-104') {
+    store.roomTariffs['room-cat-2'] = tariffs;
+  } else if (['room-201', 'room-202', 'room-203'].includes(roomId)) {
+    store.roomTariffs['room-cat-3'] = tariffs;
+  }
+
   // Also sync tariffs and prices to the room object if found
-  const roomIndex = store.rooms.findIndex(r => r.id === roomId);
+  const targetCategoryMap: Record<string, string> = {
+    'room-101': 'room-cat-1',
+    'room-102': 'room-cat-1',
+    'room-103': 'room-cat-1',
+    'room-104': 'room-cat-2',
+    'room-201': 'room-cat-3',
+    'room-202': 'room-cat-3',
+    'room-203': 'room-cat-3',
+  };
+  const targetCat = targetCategoryMap[roomId] || roomId;
+
+  const roomIndex = store.rooms.findIndex(r => r.id === roomId || r.id === targetCat);
   if (roomIndex >= 0) {
     const r = store.rooms[roomIndex];
     const baseRate = tariffs.regular.EP || tariffs.regular.CP || r.price_per_night;

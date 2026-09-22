@@ -24,11 +24,70 @@ import {
 } from '@/lib/mock-data';
 
 export default function HomePage() {
-  const [rooms, setRooms] = useState<Room[]>(INITIAL_ROOMS);
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
-  const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
-  const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [rooms, setRooms] = useState<Room[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_rooms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return INITIAL_ROOMS;
+  });
+
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) return parsed.heroSlides;
+        }
+      } catch {}
+    }
+    return INITIAL_HERO_SLIDES;
+  });
+
+  const [aboutData, setAboutData] = useState<AboutSectionData>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.aboutData?.headline) return parsed.aboutData;
+        }
+      } catch {}
+    }
+    return INITIAL_ABOUT_DATA;
+  });
+
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.siteInfo?.name) return parsed.siteInfo;
+        }
+      } catch {}
+    }
+    return INITIAL_SITE_INFO;
+  });
+
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) return parsed.reviews;
+        }
+      } catch {}
+    }
+    return INITIAL_REVIEWS;
+  });
 
   // Modal states
   const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
@@ -58,21 +117,53 @@ export default function HomePage() {
           fetch('/api/cms').then((r) => r.json()).catch(() => null),
         ]);
 
-        if (roomsRes && roomsRes.success && roomsRes.data?.length > 0) {
-          setRooms(roomsRes.data);
+        if (roomsRes && roomsRes.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
+          const savedRooms = typeof window !== 'undefined' ? localStorage.getItem('wp_site_rooms') : null;
+          if (!savedRooms) {
+            setRooms(roomsRes.data);
+            try {
+              localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
+            } catch {}
+          }
         }
 
         if (cmsRes && cmsRes.success && cmsRes.data) {
-          if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
-          if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
-          if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
-          if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
+          const savedCMS = typeof window !== 'undefined' ? localStorage.getItem('wp_site_cms') : null;
+          if (!savedCMS) {
+            if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
+            if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
+            if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+            if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
+            try {
+              localStorage.setItem('wp_site_cms', JSON.stringify(cmsRes.data));
+            } catch {}
+          }
         }
       } catch (err) {
         console.warn('Using local pre-seeded homestay content:', err);
       }
     }
     loadData();
+
+    // Multi-tab real-time synchronization
+    const handleStorage = (e: StorageEvent) => {
+      try {
+        if (e.key === 'wp_site_rooms' && e.newValue) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) setRooms(parsed);
+        }
+        if (e.key === 'wp_site_cms' && e.newValue) {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) setHeroSlides(parsed.heroSlides);
+          if (parsed.aboutData?.headline) setAboutData(parsed.aboutData);
+          if (parsed.siteInfo?.name) setSiteInfo(parsed.siteInfo);
+          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) setReviews(parsed.reviews);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const handleOpenGeneralInquiry = (initialDates?: { checkIn: string; checkOut: string; guests: number }) => {

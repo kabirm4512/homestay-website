@@ -338,16 +338,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const savedTariffs = localStorage.getItem('wp_crm_room_tariffs');
       if (savedTariffs) setRoomTariffs(JSON.parse(savedTariffs));
 
-      // Hydrate from server disk store if available
+      // Hydrate from server disk store if available without stomping local changes
       try {
         fetch('/api/tariffs')
           .then((r) => r.json())
           .then((json) => {
             if (json?.success && json.data) {
               if (json.data.tariffs && Object.keys(json.data.tariffs).length > 0) {
-                setRoomTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
+                setRoomTariffs((prev) => ({ ...json.data.tariffs, ...prev }));
               }
-              if (Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
+              if (!savedRanges && Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
                 setSeasonalDateRanges(json.data.seasonalDateRanges);
               }
             }
@@ -358,19 +358,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           .then((r) => r.json())
           .then((json) => {
             if (json?.success && json.data) {
-              if (Array.isArray(json.data.menuItems) && json.data.menuItems.length > 0) {
+              if (!savedMenuItems && Array.isArray(json.data.menuItems) && json.data.menuItems.length > 0) {
                 setMenuItems(json.data.menuItems);
                 try {
                   localStorage.setItem('wp_crm_menu_items', JSON.stringify(json.data.menuItems));
                 } catch {}
               }
-              if (Array.isArray(json.data.transferRoutes) && json.data.transferRoutes.length > 0) {
+              if (!savedRoutes && Array.isArray(json.data.transferRoutes) && json.data.transferRoutes.length > 0) {
                 setTransferRoutes(json.data.transferRoutes);
                 try {
                   localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(json.data.transferRoutes));
                 } catch {}
               }
-              if (Array.isArray(json.data.rentalVehicles) && json.data.rentalVehicles.length > 0) {
+              if (!savedVehicles && Array.isArray(json.data.rentalVehicles) && json.data.rentalVehicles.length > 0) {
                 setRentalVehicles(json.data.rentalVehicles);
                 try {
                   localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(json.data.rentalVehicles));

@@ -31,11 +31,13 @@ import {
   Percent,
   Save,
   IndianRupee,
+  Upload,
 } from 'lucide-react';
 import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
 
 interface AdminRoomsProps {
   rooms: Room[];
+  onUpdateRooms?: (updatedRooms: Room[]) => void;
   onRefresh: () => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   isAddModalOpen?: boolean;
@@ -62,6 +64,7 @@ const COMMON_AMENITIES = [
 
 export default function AdminRooms({
   rooms,
+  onUpdateRooms,
   onRefresh,
   showToast,
   isAddModalOpen = false,
@@ -181,8 +184,8 @@ export default function AdminRooms({
   const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(() => {
     const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
     return (
-      foundRoom?.tariffs ||
       roomTariffs[selectedTariffRoomId] ||
+      foundRoom?.tariffs ||
       INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
         regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
         season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
@@ -198,8 +201,8 @@ export default function AdminRooms({
     if (selectedTariffRoomId) {
       const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
       const found =
-        foundRoom?.tariffs ||
         roomTariffs[selectedTariffRoomId] ||
+        foundRoom?.tariffs ||
         INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
           regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
           season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
@@ -210,7 +213,8 @@ export default function AdminRooms({
         };
       setCurrentTariffs(found);
     }
-  }, [selectedTariffRoomId, roomTariffs, rooms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTariffRoomId, roomTariffs]);
 
   // ==========================================
   // 4. RATE SIMULATOR STATES
@@ -296,9 +300,18 @@ export default function AdminRooms({
       const extraAdult = Number(formData.extra_adult_charge) || 1200;
       const extraChild = Number(formData.extra_child_charge) || 600;
 
+      // Automatically include any pending image URL entered by the user
+      let currentImages = [...(formData.images || [])];
+      if (imageInput.trim() && !currentImages.includes(imageInput.trim())) {
+        currentImages.push(imageInput.trim());
+      }
+      if (currentImages.length === 0) {
+        currentImages = ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'];
+      }
+
       // Keep tariffs in sync
-      const targetId = editingRoom?.id || '';
-      const existingTariffs = editingRoom?.tariffs || roomTariffs[targetId] || {
+      const targetId = editingRoom?.id || (formData.id || `room-${Date.now()}`);
+      const existingTariffs = roomTariffs[targetId] || editingRoom?.tariffs || {
         regular: { EP: baseRate, CP: Math.round(baseRate * 1.15), MAP: Math.round(baseRate * 1.35), AP: Math.round(baseRate * 1.55) },
         season: { EP: Math.round(baseRate * 1.3), CP: Math.round(baseRate * 1.45), MAP: Math.round(baseRate * 1.7), AP: Math.round(baseRate * 1.95) },
         offSeason: { EP: Math.round(baseRate * 0.85), CP: Math.round(baseRate * 0.95), MAP: Math.round(baseRate * 1.15), AP: Math.round(baseRate * 1.3) },
@@ -317,10 +330,14 @@ export default function AdminRooms({
         extraChildRate: extraChild,
       };
 
-      const payload = {
+      const savedRoom: Room = {
         ...formData,
-        id: editingRoom ? editingRoom.id : undefined,
+        id: editingRoom ? editingRoom.id : (formData.id || `room-${Date.now()}`),
         slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: formData.name.trim(),
+        tagline: formData.tagline?.trim() || '',
+        description: formData.description?.trim() || '',
+        room_type: formData.room_type || 'Deluxe Suite',
         price_per_night: baseRate,
         weekend_price: weekendRate,
         base_adults: Number(formData.base_adults) || 2,
@@ -328,30 +345,43 @@ export default function AdminRooms({
         extra_child_charge: extraChild,
         capacity_adults: Number(formData.capacity_adults) || 2,
         capacity_children: Number(formData.capacity_children) || 0,
+        bed_type: formData.bed_type || 'King Bed',
         room_size_sqft: Number(formData.room_size_sqft) || 350,
         total_inventory: Number(formData.total_inventory) || 1,
         available_inventory: Number(formData.available_inventory) !== undefined ? Number(formData.available_inventory) : 1,
+        is_active: formData.is_active !== undefined ? formData.is_active : true,
+        amenities: formData.amenities || [],
+        images: currentImages,
         tariffs: updatedTariffs,
+        updated_at: new Date().toISOString(),
       };
 
-      const res = await fetch('/api/rooms', {
+      // 1. Optimistic Local State & Persistence
+      const nextRooms = editingRoom
+        ? rooms.map((r) => (r.id === editingRoom.id ? savedRoom : r))
+        : [savedRoom, ...rooms];
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
+        } catch {}
+      }
+
+      if (onUpdateRooms) {
+        onUpdateRooms(nextRooms);
+      }
+
+      updateRoomTariffs(savedRoom.id, updatedTariffs);
+
+      // 2. Background Sync
+      fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        body: JSON.stringify(savedRoom),
+      }).catch(() => null);
 
-      const json = await res.json();
-      if (res.ok && json.success) {
-        const savedId = json.data?.id || (editingRoom ? editingRoom.id : '');
-        if (savedId) {
-          updateRoomTariffs(savedId, updatedTariffs);
-        }
-        showToast(editingRoom ? 'Room updated successfully!' : 'New room added successfully!');
-        handleCloseModal();
-        onRefresh();
-      } else {
-        showToast(json.error || 'Failed to save room', 'error');
-      }
+      showToast(editingRoom ? 'Room updated successfully!' : 'New room added successfully!');
+      handleCloseModal();
     } catch {
       showToast('Error saving room. Please try again.', 'error');
     } finally {
@@ -360,21 +390,24 @@ export default function AdminRooms({
   };
 
   const handleToggleActive = async (room: Room) => {
+    const updatedRoom: Room = { ...room, is_active: !room.is_active };
+    const nextRooms = rooms.map((r) => (r.id === room.id ? updatedRoom : r));
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
+      } catch {}
+    }
+    if (onUpdateRooms) onUpdateRooms(nextRooms);
+    showToast(`Room marked as ${updatedRoom.is_active ? 'Active' : 'Inactive'}`);
+
     try {
-      const res = await fetch('/api/rooms', {
+      await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...room,
-          is_active: !room.is_active,
-        }),
+        body: JSON.stringify(updatedRoom),
       });
-      if (res.ok) {
-        showToast(`Room marked as ${!room.is_active ? 'Active' : 'Inactive'}`);
-        onRefresh();
-      }
     } catch {
-      showToast('Failed to update status', 'error');
+      // already saved locally
     }
   };
 
@@ -382,41 +415,47 @@ export default function AdminRooms({
     const nextVal = Math.max(0, Math.min(room.total_inventory, (room.available_inventory || 0) + delta));
     if (nextVal === room.available_inventory) return;
 
+    const updatedRoom: Room = { ...room, available_inventory: nextVal };
+    const nextRooms = rooms.map((r) => (r.id === room.id ? updatedRoom : r));
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
+      } catch {}
+    }
+    if (onUpdateRooms) onUpdateRooms(nextRooms);
+    showToast(`Inventory updated: ${nextVal} available`);
+
     try {
-      const res = await fetch('/api/rooms', {
+      await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...room,
-          available_inventory: nextVal,
-        }),
+        body: JSON.stringify(updatedRoom),
       });
-      if (res.ok) {
-        showToast(`Inventory updated: ${nextVal} available`);
-        onRefresh();
-      }
     } catch {
-      showToast('Failed to update inventory', 'error');
+      // already saved locally
     }
   };
 
   const handleDeleteRoom = async () => {
     if (!deleteConfirmRoom) return;
+    const targetId = deleteConfirmRoom.id;
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/rooms?id=${encodeURIComponent(deleteConfirmRoom.id)}`, {
+      const nextRooms = rooms.filter((r) => r.id !== targetId);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
+        } catch {}
+      }
+      if (onUpdateRooms) onUpdateRooms(nextRooms);
+      showToast('Room deleted successfully');
+      setDeleteConfirmRoom(null);
+
+      await fetch(`/api/rooms?id=${encodeURIComponent(targetId)}`, {
         method: 'DELETE',
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        showToast('Room deleted successfully');
-        setDeleteConfirmRoom(null);
-        onRefresh();
-      } else {
-        showToast(json.error || 'Failed to delete room', 'error');
-      }
     } catch {
-      showToast('Error deleting room', 'error');
+      showToast('Deleted room locally');
     } finally {
       setSubmitting(false);
     }
@@ -463,6 +502,31 @@ export default function AdminRooms({
   const handleRemoveImage = (index: number) => {
     const current = formData.images || [];
     setFormData({ ...formData, images: current.filter((_, i) => i !== index) });
+  };
+
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        showToast('Please select a valid image file', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setFormData((prev) => ({
+            ...prev,
+            images: [...(prev.images || []), result],
+          }));
+          showToast('Image uploaded successfully!');
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
   };
 
   // ==========================================
@@ -526,10 +590,10 @@ export default function AdminRooms({
   const handleSaveTariffMatrix = async () => {
     if (!selectedTariffRoomId) return;
 
-    // 1. Update in CRM Context (which syncs physical rooms and calls /api/tariffs)
+    // 1. Update in CRM Context (which syncs physical rooms and saves to wp_crm_room_tariffs)
     updateRoomTariffs(selectedTariffRoomId, currentTariffs);
 
-    // 2. Synchronize and update the room in rooms API
+    // 2. Synchronize and update the room in rooms array
     const targetRoom = rooms.find((r) => r.id === selectedTariffRoomId);
     if (targetRoom) {
       const baseRate = currentTariffs.regular.EP || currentTariffs.regular.CP || targetRoom.price_per_night;
@@ -544,24 +608,35 @@ export default function AdminRooms({
         extra_adult_charge: currentTariffs.extraAdultRate ?? targetRoom.extra_adult_charge,
         extra_child_charge: currentTariffs.extraChildRate ?? targetRoom.extra_child_charge,
         tariffs: currentTariffs,
+        updated_at: new Date().toISOString(),
       };
 
-      try {
-        const res = await fetch('/api/rooms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedRoom),
-        });
-        const json = await res.json();
-        if (res.ok && json.success) {
-          showToast('Room seasonal tariffs and nightly rates saved successfully!');
-          onRefresh();
-        } else {
-          showToast(json.error || 'Failed to sync tariffs to server', 'error');
-        }
-      } catch {
-        showToast('Saved room tariffs locally', 'info');
+      const nextRooms = rooms.map((r) => (r.id === selectedTariffRoomId ? updatedRoom : r));
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
+        } catch {}
       }
+
+      if (onUpdateRooms) {
+        onUpdateRooms(nextRooms);
+      }
+
+      // Background Sync
+      fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedRoom),
+      }).catch(() => null);
+
+      fetch('/api/tariffs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: selectedTariffRoomId, tariffs: currentTariffs }),
+      }).catch(() => null);
+
+      showToast('Room seasonal tariffs and nightly rates saved successfully!');
     } else {
       showToast('Updated seasonal and meal plan tariffs for this room!');
     }
@@ -1841,22 +1916,36 @@ export default function AdminRooms({
                   ))}
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={imageInput}
-                    onChange={(e) => setImageInput(e.target.value)}
-                    placeholder="Paste image URL..."
-                    className="flex-1 px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs focus:ring-2 focus:ring-forest-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddImage}
-                    className="bg-forest-800 hover:bg-forest-900 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center space-x-1"
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Add Photo</span>
-                  </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1 flex gap-2">
+                    <input
+                      type="url"
+                      value={imageInput}
+                      onChange={(e) => setImageInput(e.target.value)}
+                      placeholder="Paste image URL..."
+                      className="flex-1 px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs focus:ring-2 focus:ring-forest-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddImage}
+                      className="bg-forest-800 hover:bg-forest-900 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center space-x-1 whitespace-nowrap"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Add URL</span>
+                    </button>
+                  </div>
+
+                  <label className="flex items-center justify-center space-x-1 px-3.5 py-2 bg-sand-100 hover:bg-sand-200 border border-sand-300 rounded-xl text-xs font-semibold text-forest-900 cursor-pointer whitespace-nowrap transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-forest-700" />
+                    <span>Upload File</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageFileUpload}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
 

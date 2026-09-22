@@ -147,17 +147,114 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Website CMS states
-  const [rooms, setRooms] = useState<Room[]>(INITIAL_ROOMS);
+  // Website CMS states with Local-First persistence
+  const [rooms, setRooms] = useState<Room[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_rooms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return INITIAL_ROOMS;
+  });
+
   const [inquiries, setInquiries] = useState<Inquiry[]>(INITIAL_INQUIRIES);
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
-  const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
-  const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) return parsed.heroSlides;
+        }
+      } catch {}
+    }
+    return INITIAL_HERO_SLIDES;
+  });
+
+  const [aboutData, setAboutData] = useState<AboutSectionData>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.aboutData?.headline) return parsed.aboutData;
+        }
+      } catch {}
+    }
+    return INITIAL_ABOUT_DATA;
+  });
+
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.siteInfo?.name) return parsed.siteInfo;
+        }
+      } catch {}
+    }
+    return INITIAL_SITE_INFO;
+  });
+
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wp_site_cms');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) return parsed.reviews;
+        }
+      } catch {}
+    }
+    return INITIAL_REVIEWS;
+  });
+
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [showQRHubModal, setShowQRHubModal] = useState(false);
+
+  // Synchronous optimistic state and local storage callbacks
+  const handleUpdateRooms = useCallback((updatedRooms: Room[]) => {
+    setRooms(updatedRooms);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_site_rooms', JSON.stringify(updatedRooms));
+      } catch {}
+    }
+  }, []);
+
+  const handleUpdateCMS = useCallback((data: {
+    heroSlides?: HeroSlide[];
+    aboutData?: AboutSectionData;
+    siteInfo?: SiteInfo;
+    reviews?: Review[];
+  }) => {
+    if (data.heroSlides) setHeroSlides(data.heroSlides);
+    if (data.aboutData) setAboutData(data.aboutData);
+    if (data.siteInfo) setSiteInfo(data.siteInfo);
+    if (data.reviews) setReviews(data.reviews);
+
+    if (typeof window !== 'undefined') {
+      try {
+        const existingRaw = localStorage.getItem('wp_site_cms');
+        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+        const merged = {
+          heroSlides: data.heroSlides || existing.heroSlides || INITIAL_HERO_SLIDES,
+          aboutData: data.aboutData || existing.aboutData || INITIAL_ABOUT_DATA,
+          siteInfo: data.siteInfo || existing.siteInfo || INITIAL_SITE_INFO,
+          reviews: data.reviews || existing.reviews || INITIAL_REVIEWS,
+        };
+        localStorage.setItem('wp_site_cms', JSON.stringify(merged));
+      } catch {}
+    }
+  }, []);
 
   // Local toast fallback
   const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -187,8 +284,15 @@ export default function AdminPage() {
         fetch('/api/cms').then((r) => r.json()).catch(() => null),
       ]);
 
-      if (roomsRes?.success && roomsRes.data?.length > 0) {
-        setRooms(roomsRes.data);
+      if (roomsRes?.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
+        // Only override if local storage doesn't already hold customized rooms
+        const savedRooms = typeof window !== 'undefined' ? localStorage.getItem('wp_site_rooms') : null;
+        if (!savedRooms) {
+          setRooms(roomsRes.data);
+          try {
+            localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
+          } catch {}
+        }
       }
       if (inqRes?.success && inqRes.data) {
         setInquiries(inqRes.data);
@@ -197,10 +301,16 @@ export default function AdminPage() {
         setBookings(bkRes.data);
       }
       if (cmsRes?.success && cmsRes.data) {
-        if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
-        if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
-        if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
-        if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
+        const savedCMS = typeof window !== 'undefined' ? localStorage.getItem('wp_site_cms') : null;
+        if (!savedCMS) {
+          if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
+          if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
+          if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+          if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
+          try {
+            localStorage.setItem('wp_site_cms', JSON.stringify(cmsRes.data));
+          } catch {}
+        }
       }
     } catch {
       // fallback
@@ -597,6 +707,7 @@ export default function AdminPage() {
         {activeTab === 'rooms' && (
           <AdminRooms
             rooms={rooms}
+            onUpdateRooms={handleUpdateRooms}
             onRefresh={fetchData}
             showToast={showToast}
             isAddModalOpen={isAddRoomOpen}
@@ -628,6 +739,7 @@ export default function AdminPage() {
             aboutData={aboutData}
             siteInfo={siteInfo}
             reviews={reviews}
+            onUpdateCMS={handleUpdateCMS}
             onRefresh={fetchData}
             showToast={showToast}
           />
