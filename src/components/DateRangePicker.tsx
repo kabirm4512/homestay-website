@@ -412,7 +412,7 @@ export default function DateRangePicker({
           TRIGGER BUTTONS (Check-in card + Duration pill + Check-out card)
          ========================================================================= */}
       {mode === 'popover' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 items-stretch">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 items-stretch">
           {/* Check-in Trigger */}
           <button
             type="button"
@@ -420,23 +420,23 @@ export default function DateRangePicker({
               setPickingTarget('checkIn');
               setIsOpen(true);
             }}
-            className={`w-full text-left bg-sand-50/90 hover:bg-sand-100 transition-all border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between cursor-pointer focus:outline-none ${
+            className={`w-full text-left bg-sand-50/90 hover:bg-sand-100 transition-all border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col justify-between cursor-pointer focus:outline-none ${
               isOpen && pickingTarget === 'checkIn'
                 ? 'border-forest-700 ring-2 ring-forest-700/20 shadow-md bg-white'
                 : 'border-sand-300/80 hover:border-forest-600/60'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1.5">
-                <CalendarIcon className="w-3.5 h-3.5 text-forest-700 shrink-0" />
+            <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1 sm:space-x-1.5">
+                <CalendarIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-forest-700 shrink-0" />
                 <span>Check-in</span>
               </span>
-              <span className="text-[10px] text-gray-500 font-medium">From 1:00 PM</span>
+              <span className="text-[9px] sm:text-[10px] text-gray-500 font-medium hidden xs:inline sm:inline">1:00 PM</span>
             </div>
-            <div className="text-sm sm:text-base font-bold text-forest-950">
+            <div className="text-xs sm:text-base font-bold text-forest-950 truncate">
               {checkIn ? formatHumanDate(checkIn, 'short') : 'Select Arrival'}
             </div>
-            <div className="text-[11px] text-forest-700/80 mt-0.5 font-medium">
+            <div className="text-[10px] sm:text-[11px] text-forest-700/80 mt-0.5 font-medium truncate">
               {checkIn ? formatHumanDate(checkIn, 'weekday') : 'Choose date'}
             </div>
           </button>
@@ -448,28 +448,27 @@ export default function DateRangePicker({
               setPickingTarget('checkOut');
               setIsOpen(true);
             }}
-            className={`w-full text-left bg-sand-50/90 hover:bg-sand-100 transition-all border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between cursor-pointer focus:outline-none ${
+            className={`w-full text-left bg-sand-50/90 hover:bg-sand-100 transition-all border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 flex flex-col justify-between cursor-pointer focus:outline-none ${
               isOpen && pickingTarget === 'checkOut'
                 ? 'border-forest-700 ring-2 ring-forest-700/20 shadow-md bg-white'
                 : 'border-sand-300/80 hover:border-forest-600/60'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1.5">
-                <CalendarIcon className="w-3.5 h-3.5 text-forest-700 shrink-0" />
+            <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-forest-800 flex items-center space-x-1 sm:space-x-1.5">
+                <CalendarIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-forest-700 shrink-0" />
                 <span>Check-out</span>
               </span>
-              <span className="text-[10px] text-gray-500 font-medium">By 11:00 AM</span>
-            </div>
-            <div className="text-sm sm:text-base font-bold text-forest-950 flex items-center justify-between">
-              <span>{checkOut ? formatHumanDate(checkOut, 'short') : 'Select Departure'}</span>
               {nightsCount > 0 && (
-                <span className="bg-forest-900 text-sand-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  {nightsCount} {nightsCount === 1 ? 'Night' : 'Nights'}
+                <span className="bg-forest-900 text-sand-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full shrink-0">
+                  {nightsCount} {nightsCount === 1 ? 'Nt' : 'Nts'}
                 </span>
               )}
             </div>
-            <div className="text-[11px] text-forest-700/80 mt-0.5 font-medium">
+            <div className="text-xs sm:text-base font-bold text-forest-950 truncate">
+              {checkOut ? formatHumanDate(checkOut, 'short') : 'Select Departure'}
+            </div>
+            <div className="text-[10px] sm:text-[11px] text-forest-700/80 mt-0.5 font-medium truncate">
               {checkOut ? formatHumanDate(checkOut, 'weekday') : 'Min 1 night'}
             </div>
           </button>
