@@ -190,7 +190,7 @@ export interface MenuItem {
   name: string;
   description: string;
   price: number;
-  itemType: 'beverage' | 'snack' | 'main';
+  itemType: 'beverage' | 'snack' | 'main' | 'breakfast' | 'thali' | 'sides';
   isAvailable: boolean;
   isLateNightEligible: boolean;
   prepTimeMinutes: number;

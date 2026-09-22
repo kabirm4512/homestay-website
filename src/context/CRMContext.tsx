@@ -312,7 +312,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       if (savedHousekeeping) setHousekeepingTasks(JSON.parse(savedHousekeeping));
 
       const savedMenuItems = localStorage.getItem('wp_crm_menu_items');
-      if (savedMenuItems) setMenuItems(JSON.parse(savedMenuItems));
+      if (savedMenuItems) {
+        try {
+          const parsed = JSON.parse(savedMenuItems);
+          if (Array.isArray(parsed) && parsed.length >= 50) {
+            setMenuItems(parsed);
+          } else {
+            setMenuItems(INITIAL_MENU_ITEMS);
+            localStorage.setItem('wp_crm_menu_items', JSON.stringify(INITIAL_MENU_ITEMS));
+          }
+        } catch {
+          setMenuItems(INITIAL_MENU_ITEMS);
+        }
+      } else {
+        localStorage.setItem('wp_crm_menu_items', JSON.stringify(INITIAL_MENU_ITEMS));
+      }
 
       const savedOrders = localStorage.getItem('wp_crm_food_orders');
       if (savedOrders) setFoodOrders(JSON.parse(savedOrders));

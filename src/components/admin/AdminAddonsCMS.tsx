@@ -96,7 +96,9 @@ export default function AdminAddonsCMS() {
   // ==========================================
   // 1. DINING / MENU ITEM STATES
   // ==========================================
-  const [diningCategoryFilter, setDiningCategoryFilter] = useState<'all' | 'beverage' | 'snack' | 'main'>('all');
+  const [diningCategoryFilter, setDiningCategoryFilter] = useState<
+    'all' | 'beverage' | 'breakfast' | 'snack' | 'main' | 'thali' | 'sides'
+  >('all');
   const [diningSearch, setDiningSearch] = useState('');
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
   const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
@@ -562,10 +564,10 @@ export default function AdminAddonsCMS() {
                 />
               </div>
 
-              <div className="flex items-center space-x-1 bg-sand-100 p-1 rounded-xl text-xs">
+              <div className="flex items-center space-x-1 bg-sand-100 p-1 rounded-xl text-xs overflow-x-auto">
                 <button
                   onClick={() => setDiningCategoryFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
                     diningCategoryFilter === 'all'
                       ? 'bg-white text-forest-900 shadow-sm'
                       : 'text-gray-600 hover:text-forest-900'
@@ -575,7 +577,7 @@ export default function AdminAddonsCMS() {
                 </button>
                 <button
                   onClick={() => setDiningCategoryFilter('beverage')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
                     diningCategoryFilter === 'beverage'
                       ? 'bg-white text-forest-900 shadow-sm'
                       : 'text-gray-600 hover:text-forest-900'
@@ -584,8 +586,18 @@ export default function AdminAddonsCMS() {
                   Beverages
                 </button>
                 <button
+                  onClick={() => setDiningCategoryFilter('breakfast')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                    diningCategoryFilter === 'breakfast'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
+                >
+                  Breakfast
+                </button>
+                <button
                   onClick={() => setDiningCategoryFilter('snack')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
                     diningCategoryFilter === 'snack'
                       ? 'bg-white text-forest-900 shadow-sm'
                       : 'text-gray-600 hover:text-forest-900'
@@ -595,13 +607,33 @@ export default function AdminAddonsCMS() {
                 </button>
                 <button
                   onClick={() => setDiningCategoryFilter('main')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
                     diningCategoryFilter === 'main'
                       ? 'bg-white text-forest-900 shadow-sm'
                       : 'text-gray-600 hover:text-forest-900'
                   }`}
                 >
                   Mains
+                </button>
+                <button
+                  onClick={() => setDiningCategoryFilter('thali')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                    diningCategoryFilter === 'thali'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
+                >
+                  Thalis
+                </button>
+                <button
+                  onClick={() => setDiningCategoryFilter('sides')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                    diningCategoryFilter === 'sides'
+                      ? 'bg-white text-forest-900 shadow-sm'
+                      : 'text-gray-600 hover:text-forest-900'
+                  }`}
+                >
+                  Sides
                 </button>
               </div>
             </div>
@@ -632,8 +664,14 @@ export default function AdminAddonsCMS() {
                           className={`w-2 h-2 rounded-full ${
                             item.itemType === 'beverage'
                               ? 'bg-amber-500'
+                              : item.itemType === 'breakfast'
+                              ? 'bg-yellow-500'
                               : item.itemType === 'snack'
                               ? 'bg-orange-500'
+                              : item.itemType === 'thali'
+                              ? 'bg-purple-600'
+                              : item.itemType === 'sides'
+                              ? 'bg-stone-500'
                               : 'bg-emerald-600'
                           }`}
                         />
@@ -1259,14 +1297,17 @@ export default function AdminAddonsCMS() {
                     onChange={(e) =>
                       setMenuFormData({
                         ...menuFormData,
-                        itemType: e.target.value as 'beverage' | 'snack' | 'main',
+                        itemType: e.target.value as 'beverage' | 'breakfast' | 'snack' | 'main' | 'thali' | 'sides',
                       })
                     }
                     className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
                   >
-                    <option value="beverage">Beverage / Chai</option>
-                    <option value="snack">Snack / Starter</option>
-                    <option value="main">Main Course / Thali</option>
+                    <option value="beverage">Beverage (Tea / Coffee / Drinks)</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="snack">Snack / Soup / Street Food</option>
+                    <option value="main">Main Course / Curries</option>
+                    <option value="thali">Thali (Set Meal)</option>
+                    <option value="sides">Rice, Breads & Sides</option>
                   </select>
                 </div>
                 <div>

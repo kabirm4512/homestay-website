@@ -78,7 +78,7 @@ function getStoreData(): LocalStoreData {
         bookings: Array.isArray(parsed.bookings) ? parsed.bookings : [...INITIAL_BOOKINGS],
         roomTariffs: parsed.roomTariffs && Object.keys(parsed.roomTariffs).length > 0 ? parsed.roomTariffs : { ...INITIAL_ROOM_SEASONAL_TARIFFS },
         seasonalDateRanges: Array.isArray(parsed.seasonalDateRanges) && parsed.seasonalDateRanges.length > 0 ? parsed.seasonalDateRanges : [...INITIAL_SEASONAL_DATE_RANGES],
-        menuItems: Array.isArray(parsed.menuItems) && parsed.menuItems.length > 0 ? parsed.menuItems : [...INITIAL_MENU_ITEMS],
+        menuItems: Array.isArray(parsed.menuItems) && parsed.menuItems.length >= 50 ? parsed.menuItems : [...INITIAL_MENU_ITEMS],
         transferRoutes: Array.isArray(parsed.transferRoutes) && parsed.transferRoutes.length > 0 ? parsed.transferRoutes : [...INITIAL_TRANSFER_ROUTES],
         rentalVehicles: Array.isArray(parsed.rentalVehicles) && parsed.rentalVehicles.length > 0 ? parsed.rentalVehicles : [...INITIAL_RENTAL_VEHICLES],
       };

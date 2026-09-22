@@ -183,7 +183,9 @@ function ConciergeContent() {
   }, [simulateLateNight]);
 
   // Filtered menu categories
-  const [selectedFoodCategory, setSelectedFoodCategory] = useState<'all' | 'beverage' | 'snack' | 'main'>('all');
+  const [selectedFoodCategory, setSelectedFoodCategory] = useState<
+    'all' | 'beverage' | 'breakfast' | 'snack' | 'main' | 'thali' | 'sides'
+  >('all');
 
   // Food Cart state: map of menuItemId -> quantity
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -258,8 +260,8 @@ function ConciergeContent() {
   // Filter menu items by category and enforce time-based 10:00 PM Mains restriction
   const availableMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
-      // If late night, hide Mains completely unless marked isLateNightEligible!
-      if (isLateNight && item.itemType === 'main' && !item.isLateNightEligible) {
+      // If late night, hide Mains and Thalis unless marked isLateNightEligible!
+      if (isLateNight && (item.itemType === 'main' || item.itemType === 'thali') && !item.isLateNightEligible) {
         return false;
       }
       if (selectedFoodCategory !== 'all' && item.itemType !== selectedFoodCategory) {
@@ -276,7 +278,7 @@ function ConciergeContent() {
     // Filter out any items that are no longer available or mains during late night
     const validItems = cartItemsDetailed.filter((ci) => {
       if (!ci.item.isAvailable) return false;
-      if (isLateNight && ci.item.itemType === 'main' && !ci.item.isLateNightEligible) return false;
+      if (isLateNight && (ci.item.itemType === 'main' || ci.item.itemType === 'thali') && !ci.item.isLateNightEligible) return false;
       return true;
     });
 
@@ -700,40 +702,70 @@ function ConciergeContent() {
                   className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                     selectedFoodCategory === 'all'
                       ? 'bg-forest-900 text-white shadow-xs'
-                      : 'bg-white border border-sand-300 text-forest-800'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
                   }`}
                 >
-                  All Items
+                  All Items ({menuItems.length})
                 </button>
                 <button
                   onClick={() => setSelectedFoodCategory('beverage')}
                   className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                     selectedFoodCategory === 'beverage'
                       ? 'bg-forest-900 text-white shadow-xs'
-                      : 'bg-white border border-sand-300 text-forest-800'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
                   }`}
                 >
-                  Beverages & Hot Brews
+                  Beverages & Brews
+                </button>
+                <button
+                  onClick={() => setSelectedFoodCategory('breakfast')}
+                  className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedFoodCategory === 'breakfast'
+                      ? 'bg-forest-900 text-white shadow-xs'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
+                  }`}
+                >
+                  Breakfast
                 </button>
                 <button
                   onClick={() => setSelectedFoodCategory('snack')}
                   className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                     selectedFoodCategory === 'snack'
                       ? 'bg-forest-900 text-white shadow-xs'
-                      : 'bg-white border border-sand-300 text-forest-800'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
                   }`}
                 >
-                  Himalayan Snacks
+                  Snacks & Soups
                 </button>
                 <button
                   onClick={() => setSelectedFoodCategory('main')}
                   className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                     selectedFoodCategory === 'main'
                       ? 'bg-forest-900 text-white shadow-xs'
-                      : 'bg-white border border-sand-300 text-forest-800'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
                   }`}
                 >
-                  Traditional Mains
+                  Main Course
+                </button>
+                <button
+                  onClick={() => setSelectedFoodCategory('thali')}
+                  className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedFoodCategory === 'thali'
+                      ? 'bg-forest-900 text-white shadow-xs'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
+                  }`}
+                >
+                  Thalis (Set Meals)
+                </button>
+                <button
+                  onClick={() => setSelectedFoodCategory('sides')}
+                  className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedFoodCategory === 'sides'
+                      ? 'bg-forest-900 text-white shadow-xs'
+                      : 'bg-white border border-sand-300 text-forest-800 hover:bg-sand-100'
+                  }`}
+                >
+                  Rice, Breads & Sides
                 </button>
               </div>
 
