@@ -1,0 +1,1050 @@
+{
+  "rooms": [
+    {
+      "id": "room-cat-1",
+      "name": "Deluxe Mountain View with Balcony",
+      "slug": "deluxe-mountain-view-balcony",
+      "tagline": "Panoramic Himalayan Sunrise & Private Balcony (Rooms 101, 102, 103)",
+      "description": "Wake up to awe-inspiring golden sunrise rays bathing the snow-capped Himalayan peaks. Perched on the first floor with an expansive private balcony, each room features warm deodar cedar timber work, a king bed with organic cotton duvets, an artisanal tea/coffee bar, heated blankets, and a luxury en-suite rain shower.",
+      "room_type": "Deluxe Balcony",
+      "price_per_night": 4500,
+      "weekend_price": 5200,
+      "base_adults": 2,
+      "capacity_adults": 3,
+      "capacity_children": 2,
+      "extra_adult_charge": 1200,
+      "extra_child_charge": 600,
+      "bed_type": "King Bed",
+      "room_size_sqft": 380,
+      "amenities": [
+        "Private Mountain Balcony",
+        "Panoramic Himalayan Sunrise",
+        "High-Speed Starlink Wi-Fi",
+        "Artisanal Tea Station",
+        "Heated Blankets",
+        "En-Suite Glass Rain Shower",
+        "Complimentary Farmhouse Breakfast"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "total_inventory": 3,
+      "available_inventory": 3,
+      "is_active": true,
+      "tariffs": {
+        "regular": {
+          "EP": 4500,
+          "CP": 5200,
+          "MAP": 6200,
+          "AP": 7200
+        },
+        "season": {
+          "EP": 5800,
+          "CP": 6600,
+          "MAP": 7800,
+          "AP": 8900
+        },
+        "offSeason": {
+          "EP": 3800,
+          "CP": 4300,
+          "MAP": 5100,
+          "AP": 5900
+        },
+        "weekendSurchargePercent": 10,
+        "extraAdultRate": 1200,
+        "extraChildRate": 600
+      }
+    },
+    {
+      "id": "room-cat-2",
+      "name": "Deluxe Forest View with Balcony",
+      "slug": "deluxe-forest-view-balcony",
+      "tagline": "Peaceful Pine Canopy Serenity & Forest Birdsong (Room 104)",
+      "description": "An intimate mountain retreat bordering our protected pine grove. Your secluded private balcony opens directly into the lush tree canopy, offering fresh mountain pine scents and morning bird songs. Boasting handcrafted stone and warm wood detailing, heated comforts, and a dedicated reading desk.",
+      "room_type": "Deluxe Balcony",
+      "price_per_night": 4200,
+      "weekend_price": 4800,
+      "base_adults": 2,
+      "capacity_adults": 2,
+      "capacity_children": 1,
+      "extra_adult_charge": 1200,
+      "extra_child_charge": 600,
+      "bed_type": "King Bed",
+      "room_size_sqft": 360,
+      "amenities": [
+        "Private Pine Forest Balcony",
+        "Canopy Birdsong View",
+        "Starlink Wi-Fi",
+        "Wood-Paneled Work Desk",
+        "Heated Blankets",
+        "Modern En-Suite Bathroom",
+        "Herbal Mountain Toiletries"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1540518614846-7ede433c4ef0?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "total_inventory": 1,
+      "available_inventory": 1,
+      "is_active": true,
+      "tariffs": {
+        "regular": {
+          "EP": 4200,
+          "CP": 4800,
+          "MAP": 5800,
+          "AP": 6800
+        },
+        "season": {
+          "EP": 5400,
+          "CP": 6100,
+          "MAP": 7200,
+          "AP": 8300
+        },
+        "offSeason": {
+          "EP": 3500,
+          "CP": 4000,
+          "MAP": 4800,
+          "AP": 5600
+        },
+        "weekendSurchargePercent": 10,
+        "extraAdultRate": 1200,
+        "extraChildRate": 600
+      }
+    },
+    {
+      "id": "room-cat-3",
+      "name": "Premium Mountain View Suites",
+      "slug": "premium-mountain-view-suites",
+      "tagline": "Top-Tier Panoramic Observation Balconies & Fireplace (Rooms 201, 202, 203)",
+      "description": "Our signature luxury accommodations perched commandingly on the upper floor. These expansive 520 sq.ft. suites feature a sprawling 180-degree private observation balcony, an artisanal wood-burning stove / fireplace, a separate plush lounge with daybed, and a master king bed. Perfect for families or travelers seeking mountain grandeur.",
+      "room_type": "Premium Suite",
+      "price_per_night": 6500,
+      "weekend_price": 7500,
+      "base_adults": 2,
+      "capacity_adults": 4,
+      "capacity_children": 2,
+      "extra_adult_charge": 1500,
+      "extra_child_charge": 750,
+      "bed_type": "1 King Bed + 1 Daybed",
+      "room_size_sqft": 520,
+      "amenities": [
+        "180° Panoramic Observation Balcony",
+        "Artisanal Fireplace / Wood Heater",
+        "Lounge Area with Daybed",
+        "Complimentary Gourmet Breakfast",
+        "High-Speed Starlink Wi-Fi",
+        "Luxury Rain Shower & Vanity",
+        "Artisanal French Press Coffee Bar"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "total_inventory": 3,
+      "available_inventory": 3,
+      "is_active": true,
+      "tariffs": {
+        "regular": {
+          "EP": 6500,
+          "CP": 7400,
+          "MAP": 8600,
+          "AP": 9800
+        },
+        "season": {
+          "EP": 8500,
+          "CP": 9600,
+          "MAP": 11000,
+          "AP": 12500
+        },
+        "offSeason": {
+          "EP": 5200,
+          "CP": 5900,
+          "MAP": 6900,
+          "AP": 7900
+        },
+        "weekendSurchargePercent": 12,
+        "extraAdultRate": 1500,
+        "extraChildRate": 750
+      }
+    }
+  ],
+  "heroSlides": [
+    {
+      "id": "slide-1",
+      "image": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1920&q=85",
+      "title": "Escape to Tranquility in the Himalayan Hills",
+      "subtitle": "An intimate boutique homestay surrounded by ancient pine forests, birdsong, and breathtaking valley views.",
+      "badge": "Serene Mountain Getaway"
+    },
+    {
+      "id": "slide-2",
+      "image": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1920&q=85",
+      "title": "Slow Living, Warm Hospitality & Organic Feasts",
+      "subtitle": "Farm-to-table organic meals, evening bonfires under starry skies, and heartfelt personal service.",
+      "badge": "Handcrafted Experiences"
+    },
+    {
+      "id": "slide-3",
+      "image": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1920&q=85",
+      "title": "Your Private Mountain Sanctuary Awaits",
+      "subtitle": "Hand-built cedar wood suites designed for deep rest, creative workations, and cherished memories.",
+      "badge": "Boutique Comfort"
+    }
+  ],
+  "aboutData": {
+    "headline": "A Soulful Mountain Retreat Born from a Love for Darjeeling",
+    "story": "Perched along the historic Hill Cart Road in West Point, Darjeeling, Savera Homestay was envisioned as a tranquil mountain sanctuary where time slows down. Preserving authentic Himalayan warmth while introducing modern boutique comforts, our 7 rooms with private balconies look out toward majestic mountain sunrises and misty pine ridges. Here, your mornings begin with the aroma of fresh Darjeeling brew and birdsong, and your days unfold in serene Himalayan bliss.",
+    "highlights": [
+      {
+        "icon": "Mountain",
+        "title": "Breathtaking Panoramas",
+        "desc": "Private balconies commanding sweeping sunrise views across the misty Darjeeling hills."
+      },
+      {
+        "icon": "Utensils",
+        "title": "Home-Cooked Mountain Meals",
+        "desc": "Authentic Pahadi delicacies, steaming momos, and fresh thalis cooked with local ingredients."
+      },
+      {
+        "icon": "Flame",
+        "title": "Evening Chai & Warmth",
+        "desc": "Unwind with authentic Darjeeling first-flush tea, cozy blankets, and warm hospitality."
+      },
+      {
+        "icon": "Wifi",
+        "title": "High-Speed Starlink Wi-Fi",
+        "desc": "Seamless high-speed internet and comfortable timber work corners for remote workations."
+      },
+      {
+        "icon": "HeartHandshake",
+        "title": "Heartfelt Hospitality",
+        "desc": "Dedicated in-house hosts to assist with local mountain cabs, sightseeing, and custom itineraries."
+      },
+      {
+        "icon": "Footprints",
+        "title": "Prime West Point Location",
+        "desc": "Peaceful hilltop setting on Hill Cart Road with effortless access to Darjeeling landmarks."
+      }
+    ],
+    "stats": [
+      {
+        "value": "4.9 ★",
+        "label": "Google Rating"
+      },
+      {
+        "value": "150+",
+        "label": "Delighted Guests"
+      },
+      {
+        "value": "6,700 ft",
+        "label": "Darjeeling Altitude"
+      },
+      {
+        "value": "7 Rooms",
+        "label": "Private Balconies"
+      }
+    ]
+  },
+  "siteInfo": {
+    "name": "Savera Homestay",
+    "tagline": "A Boutique Mountain Homestay",
+    "phone": "+91 81012 98882",
+    "whatsapp": "918101298882",
+    "email": "info.saverahomestay@gmail.com",
+    "address": "35a, Hill Cart Rd, West Point, Cart Road, Darjeeling, West Bengal 734101",
+    "check_in_time": "1:00 PM",
+    "check_out_time": "11:00 AM",
+    "map_embed_url": "https://maps.google.com/maps?q=35a,+Hill+Cart+Rd,+West+Point,+Cart+Road,+Darjeeling,+West+Bengal+734101&output=embed",
+    "map_url": "https://maps.app.goo.gl/KMJe676np8aDYExD6",
+    "google_business_url": "https://share.google/ufeIhNLjkk7qoPffW",
+    "directions": "Situated on 35a, Hill Cart Road in West Point, Darjeeling, West Bengal 734101. Located conveniently along the Cart Road stretch, easily reachable from Darjeeling town center (Mall Road / Chowrasta) or arriving from Siliguri, NJP Railway Station, and Bagdogra Airport (IXB).",
+    "policies": [
+      {
+        "title": "Sanctuary Quiet Hours",
+        "desc": "To preserve serenity and mountain peace, quiet hours commence from 10:00 PM to 7:00 AM."
+      },
+      {
+        "title": "Smoking Ethics",
+        "desc": "Smoking is strictly prohibited inside bedrooms. Designated open outdoor balcony zones are available."
+      },
+      {
+        "title": "Cancellation & Refund Policy",
+        "desc": "Full refund if cancelled 7+ days prior to check-in. 50% refund within 3-7 days. Non-refundable within 72 hours of arrival."
+      },
+      {
+        "title": "Local Identity Verification",
+        "desc": "Valid government photo ID (Aadhaar / Passport / Voter ID) required for all adult guests upon arrival."
+      }
+    ],
+    "amenitiesList": [
+      "Private Balconies in Every Room",
+      "High-Speed Wi-Fi for Workations",
+      "Fresh In-Room Dining & Pahadi Kitchen",
+      "Complimentary Morning Breakfast",
+      "Private En-Suite Heated Bathrooms",
+      "NJP & Bagdogra Transfer Assistance",
+      "Electric Kettles & Artisanal Darjeeling Tea",
+      "Warm Woolen Blankets & Room Heaters"
+    ]
+  },
+  "reviews": [
+    {
+      "id": "rev-1",
+      "author_name": "Ananya Sengupta",
+      "author_location": "Kolkata, India",
+      "rating": 5,
+      "review_text": "Savera Homestay is an absolute gem in Darjeeling! The private mountain view balcony offered mesmerizing morning sunrises. The hosts treated us with so much care and the piping hot home-cooked meals were delicious.",
+      "review_date": "2 weeks ago",
+      "is_featured": true
+    },
+    {
+      "id": "rev-2",
+      "author_name": "Marcus & Elena Vance",
+      "author_location": "London, UK",
+      "rating": 5,
+      "review_text": "We spent a week working remotely from the Orchard Cottage. High speed internet was rock solid, the quietude was invigorating, and evening fires with the hosts gave us memories for a lifetime. Absolutely 10/10 stay.",
+      "review_date": "1 month ago",
+      "is_featured": true
+    },
+    {
+      "id": "rev-3",
+      "author_name": "Dr. Rohan Malhotra",
+      "author_location": "Delhi NCR",
+      "rating": 5,
+      "review_text": "The cleanest and most peaceful homestay experience in the valley. Zero commercial tourist noise, just birdsong and crisp pine aroma. The staff goes above and beyond for every small request.",
+      "review_date": "2 months ago",
+      "is_featured": true
+    },
+    {
+      "id": "rev-4",
+      "author_name": "Pooja & Siddharth",
+      "author_location": "Mumbai, India",
+      "rating": 4.9,
+      "review_text": "Booked for our 5th anniversary and it exceeded every expectation. The room decor is tasteful, the bed is extremely comfortable, and the private balcony was our favorite spot for morning tea.",
+      "review_date": "3 months ago",
+      "is_featured": true
+    }
+  ],
+  "inquiries": [],
+  "bookings": [],
+  "roomTariffs": {
+    "room-cat-1": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-cat-2": {
+      "regular": {
+        "EP": 4200,
+        "CP": 4800,
+        "MAP": 5800,
+        "AP": 6800
+      },
+      "season": {
+        "EP": 5400,
+        "CP": 6100,
+        "MAP": 7200,
+        "AP": 8300
+      },
+      "offSeason": {
+        "EP": 3500,
+        "CP": 4000,
+        "MAP": 4800,
+        "AP": 5600
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-cat-3": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12,
+      "extraAdultRate": 1500,
+      "extraChildRate": 750
+    },
+    "room-101": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-102": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-103": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-104": {
+      "regular": {
+        "EP": 4200,
+        "CP": 4800,
+        "MAP": 5800,
+        "AP": 6800
+      },
+      "season": {
+        "EP": 5400,
+        "CP": 6100,
+        "MAP": 7200,
+        "AP": 8300
+      },
+      "offSeason": {
+        "EP": 3500,
+        "CP": 4000,
+        "MAP": 4800,
+        "AP": 5600
+      },
+      "weekendSurchargePercent": 10,
+      "extraAdultRate": 1200,
+      "extraChildRate": 600
+    },
+    "room-201": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12,
+      "extraAdultRate": 1500,
+      "extraChildRate": 750
+    },
+    "room-202": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12,
+      "extraAdultRate": 1500,
+      "extraChildRate": 750
+    },
+    "room-203": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12,
+      "extraAdultRate": 1500,
+      "extraChildRate": 750
+    },
+    "room-1": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10
+    },
+    "room-2": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10
+    },
+    "room-3": {
+      "regular": {
+        "EP": 4500,
+        "CP": 5200,
+        "MAP": 6200,
+        "AP": 7200
+      },
+      "season": {
+        "EP": 5800,
+        "CP": 6600,
+        "MAP": 7800,
+        "AP": 8900
+      },
+      "offSeason": {
+        "EP": 3800,
+        "CP": 4300,
+        "MAP": 5100,
+        "AP": 5900
+      },
+      "weekendSurchargePercent": 10
+    },
+    "room-4": {
+      "regular": {
+        "EP": 4200,
+        "CP": 4800,
+        "MAP": 5800,
+        "AP": 6800
+      },
+      "season": {
+        "EP": 5400,
+        "CP": 6100,
+        "MAP": 7200,
+        "AP": 8300
+      },
+      "offSeason": {
+        "EP": 3500,
+        "CP": 4000,
+        "MAP": 4800,
+        "AP": 5600
+      },
+      "weekendSurchargePercent": 10
+    },
+    "room-5": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12
+    },
+    "room-6": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12
+    },
+    "room-7": {
+      "regular": {
+        "EP": 6500,
+        "CP": 7400,
+        "MAP": 8600,
+        "AP": 9800
+      },
+      "season": {
+        "EP": 8500,
+        "CP": 9600,
+        "MAP": 11000,
+        "AP": 12500
+      },
+      "offSeason": {
+        "EP": 5200,
+        "CP": 5900,
+        "MAP": 6900,
+        "AP": 7900
+      },
+      "weekendSurchargePercent": 12
+    }
+  },
+  "seasonalDateRanges": [
+    {
+      "id": "season-1",
+      "name": "Summer Peak Holidays 2026",
+      "seasonType": "season",
+      "startDate": "2026-05-01",
+      "endDate": "2026-06-30",
+      "description": "High summer demand, warm mountain days and crisp evenings."
+    },
+    {
+      "id": "season-2",
+      "name": "Autumn & Durga Puja / Diwali Peak",
+      "seasonType": "season",
+      "startDate": "2026-10-01",
+      "endDate": "2026-11-15",
+      "description": "Festive mountain holiday season with crystal clear Himalayan views."
+    },
+    {
+      "id": "season-3",
+      "name": "Christmas & New Year Gala Peak",
+      "seasonType": "season",
+      "startDate": "2026-12-20",
+      "endDate": "2027-01-05",
+      "description": "Winter festive peak with live bonfires and celebration dinners."
+    },
+    {
+      "id": "season-4",
+      "name": "Monsoon Green Season (Off-Season)",
+      "seasonType": "off_season",
+      "startDate": "2026-07-15",
+      "endDate": "2026-08-31",
+      "description": "Lush greenery, misty mountain waterfalls with relaxing discounted tariffs."
+    },
+    {
+      "id": "season-5",
+      "name": "Post-Winter Lean Period (Off-Season)",
+      "seasonType": "off_season",
+      "startDate": "2026-01-15",
+      "endDate": "2026-02-28",
+      "description": "Quiet workation and budget solitude retreat months."
+    }
+  ],
+  "menuItems": [
+    {
+      "id": "menu-1",
+      "categoryId": "bev",
+      "categoryName": "Beverages & Hot Brews",
+      "name": "Darjeeling First Flush Autumn Tea",
+      "description": "Fresh artisanal single-estate Makaibari Muscatel tea served in earthen clay kettle with Himalayan wildflower honey.",
+      "price": 180,
+      "itemType": "beverage",
+      "isAvailable": true,
+      "isLateNightEligible": true,
+      "prepTimeMinutes": 10,
+      "imageUrl": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-2",
+      "categoryId": "bev",
+      "categoryName": "Beverages & Hot Brews",
+      "name": "Spiced Mountain Masala Chai",
+      "description": "Hand-ground cinnamon, green cardamom, fresh hill ginger, and organic farm cow milk boiled to aromatic perfection.",
+      "price": 120,
+      "itemType": "beverage",
+      "isAvailable": true,
+      "isLateNightEligible": true,
+      "prepTimeMinutes": 12,
+      "imageUrl": "https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-3",
+      "categoryId": "bev",
+      "categoryName": "Beverages & Hot Brews",
+      "name": "Himalayan Badam & Kesar Milk",
+      "description": "Rich warm whole milk simmered with Kashmiri saffron strands, crushed almonds, and crushed pistachio.",
+      "price": 240,
+      "itemType": "beverage",
+      "isAvailable": true,
+      "isLateNightEligible": true,
+      "prepTimeMinutes": 15,
+      "imageUrl": "https://images.unsplash.com/photo-1577805947697-89e18249d767?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-4",
+      "categoryId": "snack",
+      "categoryName": "Himalayan Snacks",
+      "name": "Authentic Steamed Veg Momos (8 Pcs)",
+      "description": "Delicate hand-wrapped dumplings stuffed with finely minced farm cabbage, paneer, and spring scallions. Served with spicy fire-roasted tomato dalle chilli chutney.",
+      "price": 260,
+      "itemType": "snack",
+      "isAvailable": true,
+      "isLateNightEligible": true,
+      "prepTimeMinutes": 20,
+      "imageUrl": "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-5",
+      "categoryId": "snack",
+      "categoryName": "Himalayan Snacks",
+      "name": "Steamed Chicken Kothey Momos (8 Pcs)",
+      "description": "Juicy local organic poultry mince dumplings, pan-seared on bottom for a golden crunch, accompanied by fragrant broth and sesame dipping sauce.",
+      "price": 320,
+      "itemType": "snack",
+      "isAvailable": true,
+      "isLateNightEligible": false,
+      "prepTimeMinutes": 25,
+      "imageUrl": "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-6",
+      "categoryId": "snack",
+      "categoryName": "Himalayan Snacks",
+      "name": "Crispy Mountain Potato Wedges & Dalle Mayo",
+      "description": "High-altitude organic red potatoes dusted with mountain herbs and smoked paprika, served with homemade Himalayan chilli mayo.",
+      "price": 220,
+      "itemType": "snack",
+      "isAvailable": true,
+      "isLateNightEligible": true,
+      "prepTimeMinutes": 15,
+      "imageUrl": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-7",
+      "categoryId": "main",
+      "categoryName": "Traditional Mains",
+      "name": "Pahadi Kadi & Steamed Brown Rice Thali",
+      "description": "Tangy slow-simmered Himalayan yogurt stew tempered with mustard seeds and mountain fenugreek, served with fragrant local red rice, seasonal greens, and homemade pickles.",
+      "price": 380,
+      "itemType": "main",
+      "isAvailable": true,
+      "isLateNightEligible": false,
+      "prepTimeMinutes": 30,
+      "imageUrl": "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-8",
+      "categoryId": "main",
+      "categoryName": "Traditional Mains",
+      "name": "Himalayan Country Chicken Curry & Hot Phulkas",
+      "description": "Free-range country chicken slow-braised in an artisanal stone-ground gravy of hill spices, served with 4 ghee-brushed phulkas and fresh mint salad.",
+      "price": 490,
+      "itemType": "main",
+      "isAvailable": true,
+      "isLateNightEligible": false,
+      "prepTimeMinutes": 35,
+      "imageUrl": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-9",
+      "categoryId": "main",
+      "categoryName": "Traditional Mains",
+      "name": "Tibetan Vegetable Thukpa with Tingmo Bread",
+      "description": "Hearty steaming bowl of handmade wheat noodles in a ginger-garlic-cilantro aromatic broth with bok choy and tofu, paired with fluffy flower-shaped steamed Tingmo bread.",
+      "price": 350,
+      "itemType": "main",
+      "isAvailable": true,
+      "isLateNightEligible": false,
+      "prepTimeMinutes": 25,
+      "imageUrl": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=400&q=80"
+    },
+    {
+      "id": "menu-10",
+      "categoryId": "main",
+      "categoryName": "Traditional Mains",
+      "name": "Bhutanese Ema Datshi & Red Rice",
+      "description": "Traditional stew made with organic mountain chilis and artisanal yak cheese, rich and comforting, served with steaming Bhutanese red rice.",
+      "price": 420,
+      "itemType": "main",
+      "isAvailable": false,
+      "isLateNightEligible": false,
+      "prepTimeMinutes": 30,
+      "imageUrl": "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=400&q=80"
+    }
+  ],
+  "transferRoutes": [
+    {
+      "id": "route-1",
+      "title": "Darjeeling to NJP Railway Station / Bagdogra Airport (IXB)",
+      "origin": "Savera Homestay, Darjeeling",
+      "destination": "NJP Railway Station or Bagdogra Airport",
+      "priceWagonR": 3500,
+      "priceSedan": 4200,
+      "priceSUV": 5500,
+      "estimatedDurationHours": 3.5,
+      "isActive": true,
+      "seasonalTariffs": {
+        "season": {
+          "priceWagonR": 4200,
+          "priceSedan": 5000,
+          "priceSUV": 6500
+        },
+        "offSeason": {
+          "priceWagonR": 3000,
+          "priceSedan": 3600,
+          "priceSUV": 4800
+        }
+      },
+      "modifiers": [
+        {
+          "id": "mod-1",
+          "routeId": "route-1",
+          "name": "Via Mirik Lake, Pine Forest & Sumendu Lake Promenade",
+          "extraCharge": 1500,
+          "extraDurationHours": 2.5
+        },
+        {
+          "id": "mod-2",
+          "routeId": "route-1",
+          "name": "Via Kurseong Eagle's Crag & Makaibari Tea Garden Tasting",
+          "extraCharge": 1200,
+          "extraDurationHours": 2
+        }
+      ]
+    },
+    {
+      "id": "route-2",
+      "title": "Darjeeling to Gangtok (Sikkim)",
+      "origin": "Savera Homestay, Darjeeling",
+      "destination": "Gangtok Hotel / MG Marg",
+      "priceWagonR": 4800,
+      "priceSedan": 5600,
+      "priceSUV": 7200,
+      "estimatedDurationHours": 4.5,
+      "isActive": true,
+      "seasonalTariffs": {
+        "season": {
+          "priceWagonR": 5600,
+          "priceSedan": 6500,
+          "priceSUV": 8400
+        },
+        "offSeason": {
+          "priceWagonR": 4200,
+          "priceSedan": 4900,
+          "priceSUV": 6200
+        }
+      },
+      "modifiers": [
+        {
+          "id": "mod-3",
+          "routeId": "route-2",
+          "name": "Via Namchi Char Dham & Ravangla Buddha Park Heritage Tour",
+          "extraCharge": 2200,
+          "extraDurationHours": 3
+        },
+        {
+          "id": "mod-4",
+          "routeId": "route-2",
+          "name": "Via Teesta River Confluence & Lovers Meet Viewpoint",
+          "extraCharge": 900,
+          "extraDurationHours": 1.5
+        }
+      ]
+    },
+    {
+      "id": "route-3",
+      "title": "Darjeeling Full Day Heritage Sightseeing (Tiger Hill & Tea Gardens)",
+      "origin": "Savera Homestay, Darjeeling",
+      "destination": "Tiger Hill, Batasia Loop, Ghoom Monastery & Happy Valley",
+      "priceWagonR": 2800,
+      "priceSedan": 3400,
+      "priceSUV": 4500,
+      "estimatedDurationHours": 6,
+      "isActive": true,
+      "seasonalTariffs": {
+        "season": {
+          "priceWagonR": 3400,
+          "priceSedan": 4000,
+          "priceSUV": 5200
+        },
+        "offSeason": {
+          "priceWagonR": 2400,
+          "priceSedan": 2900,
+          "priceSUV": 3800
+        }
+      },
+      "modifiers": [
+        {
+          "id": "mod-5",
+          "routeId": "route-3",
+          "name": "Add Himalayan Mountaineering Institute (HMI) & Zoo",
+          "extraCharge": 600,
+          "extraDurationHours": 1.5
+        },
+        {
+          "id": "mod-6",
+          "routeId": "route-3",
+          "name": "Add Japanese Peace Pagoda & Rock Garden Vista",
+          "extraCharge": 800,
+          "extraDurationHours": 2
+        }
+      ]
+    }
+  ],
+  "rentalVehicles": [
+    {
+      "id": "veh-1",
+      "vehicleName": "Royal Enfield Classic 350 (Stealth Black)",
+      "vehicleType": "bike",
+      "ratePerDay": 1800,
+      "depositRequired": 2000,
+      "isAvailable": true,
+      "specs": "349cc J-Series Engine • Dual-Channel ABS • USB Port • Hill Torque",
+      "imageUrl": "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=600&q=80",
+      "seasonalTariffs": {
+        "seasonRatePerDay": 2200,
+        "offSeasonRatePerDay": 1500
+      }
+    },
+    {
+      "id": "veh-2",
+      "vehicleName": "Royal Enfield Himalayan 450 (Kamet White)",
+      "vehicleType": "bike",
+      "ratePerDay": 2200,
+      "depositRequired": 2500,
+      "isAvailable": true,
+      "specs": "452cc Sherpa Liquid-Cooled • Long Travel Suspension • Ride-by-Wire • High Clearance",
+      "imageUrl": "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=600&q=80",
+      "seasonalTariffs": {
+        "seasonRatePerDay": 2600,
+        "offSeasonRatePerDay": 1900
+      }
+    },
+    {
+      "id": "veh-3",
+      "vehicleName": "Honda Activa 6G (Matte Axis Grey)",
+      "vehicleType": "scooty",
+      "ratePerDay": 900,
+      "depositRequired": 1000,
+      "isAvailable": true,
+      "specs": "110cc PGM-FI Engine • Telescopic Suspension • Combi Brake System • Lightweight City Commuter",
+      "imageUrl": "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80",
+      "seasonalTariffs": {
+        "seasonRatePerDay": 1100,
+        "offSeasonRatePerDay": 750
+      }
+    }
+  ]
+}

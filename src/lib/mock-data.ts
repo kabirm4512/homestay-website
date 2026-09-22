@@ -33,7 +33,15 @@ export const INITIAL_ROOMS: Room[] = [
     ],
     total_inventory: 3,
     available_inventory: 3,
-    is_active: true
+    is_active: true,
+    tariffs: {
+      regular: { EP: 4500, CP: 5200, MAP: 6200, AP: 7200 },
+      season: { EP: 5800, CP: 6600, MAP: 7800, AP: 8900 },
+      offSeason: { EP: 3800, CP: 4300, MAP: 5100, AP: 5900 },
+      weekendSurchargePercent: 10,
+      extraAdultRate: 1200,
+      extraChildRate: 600,
+    }
   },
   {
     id: 'room-cat-2',
@@ -67,7 +75,15 @@ export const INITIAL_ROOMS: Room[] = [
     ],
     total_inventory: 1,
     available_inventory: 1,
-    is_active: true
+    is_active: true,
+    tariffs: {
+      regular: { EP: 4200, CP: 4800, MAP: 5800, AP: 6800 },
+      season: { EP: 5400, CP: 6100, MAP: 7200, AP: 8300 },
+      offSeason: { EP: 3500, CP: 4000, MAP: 4800, AP: 5600 },
+      weekendSurchargePercent: 10,
+      extraAdultRate: 1200,
+      extraChildRate: 600,
+    }
   },
   {
     id: 'room-cat-3',
@@ -101,7 +117,15 @@ export const INITIAL_ROOMS: Room[] = [
     ],
     total_inventory: 3,
     available_inventory: 3,
-    is_active: true
+    is_active: true,
+    tariffs: {
+      regular: { EP: 6500, CP: 7400, MAP: 8600, AP: 9800 },
+      season: { EP: 8500, CP: 9600, MAP: 11000, AP: 12500 },
+      offSeason: { EP: 5200, CP: 5900, MAP: 6900, AP: 7900 },
+      weekendSurchargePercent: 12,
+      extraAdultRate: 1500,
+      extraChildRate: 750,
+    }
   }
 ];
 

@@ -37,7 +37,7 @@ import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
 interface AdminRoomsProps {
   rooms: Room[];
   onRefresh: () => void;
-  showToast: (msg: string, type?: 'success' | 'error') => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   isAddModalOpen?: boolean;
   onCloseAddModal?: () => void;
 }
@@ -77,7 +77,33 @@ export default function AdminRooms({
     calculateDynamicTariff,
   } = useCRM();
 
-  const [activeSubTab, setActiveSubTab] = useState<'inventory' | 'seasons' | 'tariffs' | 'simulator'>('inventory');
+  const [activeSubTab, setActiveSubTabState] = useState<'inventory' | 'seasons' | 'tariffs' | 'simulator'>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sub = urlParams.get('subtab');
+      if (sub && ['inventory', 'seasons', 'tariffs', 'simulator'].includes(sub)) {
+        return sub as any;
+      }
+      const saved = localStorage.getItem('wp_admin_rooms_subtab');
+      if (saved && ['inventory', 'seasons', 'tariffs', 'simulator'].includes(saved)) {
+        return saved as any;
+      }
+    }
+    return 'inventory';
+  });
+
+  const handleSelectSubTab = (tab: 'inventory' | 'seasons' | 'tariffs' | 'simulator') => {
+    setActiveSubTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_rooms_subtab', tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'rooms');
+        url.searchParams.set('subtab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  };
 
   // ==========================================
   // 1. ROOM INVENTORY & DETAILS STATES
@@ -97,6 +123,9 @@ export default function AdminRooms({
     room_type: 'Deluxe Suite',
     price_per_night: 4500,
     weekend_price: 5200,
+    base_adults: 2,
+    extra_adult_charge: 1200,
+    extra_child_charge: 600,
     capacity_adults: 2,
     capacity_children: 1,
     bed_type: 'King Bed',
@@ -126,32 +155,62 @@ export default function AdminRooms({
   // ==========================================
   // 3. TARIFFS & MEAL PLANS STATES
   // ==========================================
-  const [selectedTariffRoomId, setSelectedTariffRoomId] = useState<string>(
-    rooms.length > 0 ? rooms[0].id : 'room-1'
-  );
-  const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(
-    roomTariffs[selectedTariffRoomId] ||
+  const [selectedTariffRoomId, setSelectedTariffRoomIdState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('wp_admin_rooms_tariff_room');
+      if (saved && rooms.some((r) => r.id === saved)) return saved;
+    }
+    return rooms.length > 0 ? rooms[0].id : 'room-cat-1';
+  });
+
+  const handleSelectTariffRoom = (roomId: string) => {
+    setSelectedTariffRoomIdState(roomId);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_rooms_tariff_room', roomId);
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (rooms.length > 0 && !rooms.some((r) => r.id === selectedTariffRoomId)) {
+      handleSelectTariffRoom(rooms[0].id);
+    }
+  }, [rooms, selectedTariffRoomId]);
+
+  const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(() => {
+    const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
+    return (
+      foundRoom?.tariffs ||
+      roomTariffs[selectedTariffRoomId] ||
       INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
         regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
         season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
         offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
         weekendSurchargePercent: 10,
+        extraAdultRate: 1200,
+        extraChildRate: 600,
       }
-  );
+    );
+  });
 
   useEffect(() => {
     if (selectedTariffRoomId) {
+      const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
       const found =
+        foundRoom?.tariffs ||
         roomTariffs[selectedTariffRoomId] ||
         INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
           regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
           season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
           offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
           weekendSurchargePercent: 10,
+          extraAdultRate: 1200,
+          extraChildRate: 600,
         };
       setCurrentTariffs(found);
     }
-  }, [selectedTariffRoomId, roomTariffs]);
+  }, [selectedTariffRoomId, roomTariffs, rooms]);
 
   // ==========================================
   // 4. RATE SIMULATOR STATES
@@ -180,6 +239,9 @@ export default function AdminRooms({
       room_type: 'Deluxe Suite',
       price_per_night: 4500,
       weekend_price: 5200,
+      base_adults: 2,
+      extra_adult_charge: 1200,
+      extra_child_charge: 600,
       capacity_adults: 2,
       capacity_children: 1,
       bed_type: 'King Bed',
@@ -204,6 +266,9 @@ export default function AdminRooms({
     setEditingRoom(room);
     setFormData({
       ...room,
+      base_adults: room.base_adults || 2,
+      extra_adult_charge: room.extra_adult_charge ?? room.tariffs?.extraAdultRate ?? 1200,
+      extra_child_charge: room.extra_child_charge ?? room.tariffs?.extraChildRate ?? 600,
       amenities: [...(room.amenities || [])],
       images: [...(room.images || [])],
     });
@@ -226,17 +291,47 @@ export default function AdminRooms({
 
     setSubmitting(true);
     try {
+      const baseRate = Number(formData.price_per_night);
+      const weekendRate = formData.weekend_price ? Number(formData.weekend_price) : baseRate;
+      const extraAdult = Number(formData.extra_adult_charge) || 1200;
+      const extraChild = Number(formData.extra_child_charge) || 600;
+
+      // Keep tariffs in sync
+      const targetId = editingRoom?.id || '';
+      const existingTariffs = editingRoom?.tariffs || roomTariffs[targetId] || {
+        regular: { EP: baseRate, CP: Math.round(baseRate * 1.15), MAP: Math.round(baseRate * 1.35), AP: Math.round(baseRate * 1.55) },
+        season: { EP: Math.round(baseRate * 1.3), CP: Math.round(baseRate * 1.45), MAP: Math.round(baseRate * 1.7), AP: Math.round(baseRate * 1.95) },
+        offSeason: { EP: Math.round(baseRate * 0.85), CP: Math.round(baseRate * 0.95), MAP: Math.round(baseRate * 1.15), AP: Math.round(baseRate * 1.3) },
+        weekendSurchargePercent: 10,
+        extraAdultRate: extraAdult,
+        extraChildRate: extraChild,
+      };
+
+      const updatedTariffs: RoomSeasonalTariffs = {
+        ...existingTariffs,
+        regular: {
+          ...existingTariffs.regular,
+          EP: baseRate,
+        },
+        extraAdultRate: extraAdult,
+        extraChildRate: extraChild,
+      };
+
       const payload = {
         ...formData,
         id: editingRoom ? editingRoom.id : undefined,
         slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        price_per_night: Number(formData.price_per_night),
-        weekend_price: formData.weekend_price ? Number(formData.weekend_price) : Number(formData.price_per_night),
+        price_per_night: baseRate,
+        weekend_price: weekendRate,
+        base_adults: Number(formData.base_adults) || 2,
+        extra_adult_charge: extraAdult,
+        extra_child_charge: extraChild,
         capacity_adults: Number(formData.capacity_adults) || 2,
         capacity_children: Number(formData.capacity_children) || 0,
         room_size_sqft: Number(formData.room_size_sqft) || 350,
         total_inventory: Number(formData.total_inventory) || 1,
         available_inventory: Number(formData.available_inventory) !== undefined ? Number(formData.available_inventory) : 1,
+        tariffs: updatedTariffs,
       };
 
       const res = await fetch('/api/rooms', {
@@ -247,6 +342,10 @@ export default function AdminRooms({
 
       const json = await res.json();
       if (res.ok && json.success) {
+        const savedId = json.data?.id || (editingRoom ? editingRoom.id : '');
+        if (savedId) {
+          updateRoomTariffs(savedId, updatedTariffs);
+        }
         showToast(editingRoom ? 'Room updated successfully!' : 'New room added successfully!');
         handleCloseModal();
         onRefresh();
@@ -424,10 +523,48 @@ export default function AdminRooms({
   // ==========================================
   // TARIFF MATRIX SAVE HANDLER
   // ==========================================
-  const handleSaveTariffMatrix = () => {
+  const handleSaveTariffMatrix = async () => {
     if (!selectedTariffRoomId) return;
+
+    // 1. Update in CRM Context (which syncs physical rooms and calls /api/tariffs)
     updateRoomTariffs(selectedTariffRoomId, currentTariffs);
-    showToast('Updated seasonal and meal plan tariffs for this room!');
+
+    // 2. Synchronize and update the room in rooms API
+    const targetRoom = rooms.find((r) => r.id === selectedTariffRoomId);
+    if (targetRoom) {
+      const baseRate = currentTariffs.regular.EP || currentTariffs.regular.CP || targetRoom.price_per_night;
+      const weekendRate = currentTariffs.weekendSurchargePercent
+        ? Math.round(baseRate * (1 + currentTariffs.weekendSurchargePercent / 100))
+        : targetRoom.weekend_price;
+
+      const updatedRoom: Room = {
+        ...targetRoom,
+        price_per_night: baseRate,
+        weekend_price: weekendRate,
+        extra_adult_charge: currentTariffs.extraAdultRate ?? targetRoom.extra_adult_charge,
+        extra_child_charge: currentTariffs.extraChildRate ?? targetRoom.extra_child_charge,
+        tariffs: currentTariffs,
+      };
+
+      try {
+        const res = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedRoom),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          showToast('Room seasonal tariffs and nightly rates saved successfully!');
+          onRefresh();
+        } else {
+          showToast(json.error || 'Failed to sync tariffs to server', 'error');
+        }
+      } catch {
+        showToast('Saved room tariffs locally', 'info');
+      }
+    } else {
+      showToast('Updated seasonal and meal plan tariffs for this room!');
+    }
   };
 
   const handleTariffRateChange = (
@@ -453,7 +590,7 @@ export default function AdminRooms({
       <div className="bg-white p-4 rounded-2xl border border-sand-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-1 sm:space-x-2 bg-sand-100 p-1 rounded-xl text-xs sm:text-sm overflow-x-auto no-scrollbar">
           <button
-            onClick={() => setActiveSubTab('inventory')}
+            onClick={() => handleSelectSubTab('inventory')}
             className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
               activeSubTab === 'inventory'
                 ? 'bg-white text-forest-900 shadow-sm'
@@ -464,7 +601,7 @@ export default function AdminRooms({
             <span>Room Inventory ({rooms.length})</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('seasons')}
+            onClick={() => handleSelectSubTab('seasons')}
             className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
               activeSubTab === 'seasons'
                 ? 'bg-white text-forest-900 shadow-sm'
@@ -475,7 +612,7 @@ export default function AdminRooms({
             <span>Seasonal Date Ranges ({seasonalDateRanges.length})</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('tariffs')}
+            onClick={() => handleSelectSubTab('tariffs')}
             className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
               activeSubTab === 'tariffs'
                 ? 'bg-white text-forest-900 shadow-sm'
@@ -486,7 +623,7 @@ export default function AdminRooms({
             <span>Tariffs & Meal Plans (EP/CP/MAP/AP)</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('simulator')}
+            onClick={() => handleSelectSubTab('simulator')}
             className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
               activeSubTab === 'simulator'
                 ? 'bg-white text-forest-900 shadow-sm'
@@ -855,7 +992,7 @@ export default function AdminRooms({
                 <span className="text-xs font-bold text-forest-900">Room:</span>
                 <select
                   value={selectedTariffRoomId}
-                  onChange={(e) => setSelectedTariffRoomId(e.target.value)}
+                  onChange={(e) => handleSelectTariffRoom(e.target.value)}
                   className="px-3.5 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950"
                 >
                   {rooms.map((r) => (
@@ -1458,33 +1595,77 @@ export default function AdminRooms({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-sand-50/70 rounded-xl border border-sand-200">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Nightly Base Rate (₹ INR) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={formData.price_per_night || ''}
-                    onChange={(e) => setFormData({ ...formData, price_per_night: Number(e.target.value) })}
-                    placeholder="5000"
-                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
-                  />
+              <div className="p-4 bg-sand-50/70 rounded-xl border border-sand-200 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-forest-900 mb-1">
+                      Nightly Base Rate (₹ INR) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={formData.price_per_night || ''}
+                      onChange={(e) => setFormData({ ...formData, price_per_night: Number(e.target.value) })}
+                      placeholder="5000"
+                      className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-forest-900 mb-1">
+                      Weekend Rate (₹ INR)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={formData.weekend_price || ''}
+                      onChange={(e) => setFormData({ ...formData, weekend_price: Number(e.target.value) })}
+                      placeholder="5800"
+                      className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Weekend Rate (₹ INR)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={formData.weekend_price || ''}
-                    onChange={(e) => setFormData({ ...formData, weekend_price: Number(e.target.value) })}
-                    placeholder="5800"
-                    className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-sand-200/70">
+                  <div>
+                    <label className="block text-xs font-semibold text-forest-900 mb-1">
+                      Base Adults Included
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={formData.base_adults ?? 2}
+                      onChange={(e) => setFormData({ ...formData, base_adults: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-forest-900 mb-1">
+                      Extra Adult Surcharge (₹ / night)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={formData.extra_adult_charge ?? 1200}
+                      onChange={(e) => setFormData({ ...formData, extra_adult_charge: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-forest-900 mb-1">
+                      Extra Child Surcharge (₹ / night)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={formData.extra_child_charge ?? 600}
+                      onChange={(e) => setFormData({ ...formData, extra_child_charge: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                    />
+                  </div>
                 </div>
               </div>
 

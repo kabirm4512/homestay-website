@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { supabase, isSupabaseConfigured } from './supabase';
 import {
   INITIAL_ROOMS,
@@ -8,36 +10,112 @@ import {
   INITIAL_INQUIRIES,
   INITIAL_BOOKINGS
 } from './mock-data';
+import {
+  INITIAL_ROOM_SEASONAL_TARIFFS,
+  INITIAL_SEASONAL_DATE_RANGES,
+  INITIAL_MENU_ITEMS,
+  INITIAL_TRANSFER_ROUTES,
+  INITIAL_RENTAL_VEHICLES
+} from './crm-data';
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
+import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle } from '@/types/crm';
 
-// In-memory fallback stores for server-side or non-localStorage environments
-let localRooms: Room[] = [...INITIAL_ROOMS];
-let localHeroSlides: HeroSlide[] = [...INITIAL_HERO_SLIDES];
-let localAboutData: AboutSectionData = { ...INITIAL_ABOUT_DATA };
-let localSiteInfo: SiteInfo = { ...INITIAL_SITE_INFO };
-let localInquiries: Inquiry[] = [...INITIAL_INQUIRIES];
-let localBookings: Booking[] = [...INITIAL_BOOKINGS];
-let localReviews: Review[] = [...INITIAL_REVIEWS];
+interface LocalStoreData {
+  rooms: Room[];
+  heroSlides: HeroSlide[];
+  aboutData: AboutSectionData;
+  siteInfo: SiteInfo;
+  reviews: Review[];
+  inquiries: Inquiry[];
+  bookings: Booking[];
+  roomTariffs: Record<string, RoomSeasonalTariffs>;
+  seasonalDateRanges: SeasonalDateRange[];
+  menuItems: MenuItem[];
+  transferRoutes: TransferRoute[];
+  rentalVehicles: RentalVehicle[];
+}
 
-// Helper to get browser storage if available
-const getStorageItem = <T>(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
-  } catch {
-    return fallback;
+const BUNDLED_STORE_PATH = path.join(process.cwd(), 'data', 'homestay-store.json');
+const TMP_STORE_PATH = path.join('/tmp', 'homestay-store.json');
+
+function getActiveStorePath(): string {
+  if (typeof process !== 'undefined' && process.env.VERCEL) {
+    return fs.existsSync(TMP_STORE_PATH) ? TMP_STORE_PATH : BUNDLED_STORE_PATH;
   }
-};
+  return BUNDLED_STORE_PATH;
+}
 
-const setStorageItem = <T>(key: string, value: T): void => {
-  if (typeof window === 'undefined') return;
+function getInitialStore(): LocalStoreData {
+  return {
+    rooms: [...INITIAL_ROOMS],
+    heroSlides: [...INITIAL_HERO_SLIDES],
+    aboutData: { ...INITIAL_ABOUT_DATA },
+    siteInfo: { ...INITIAL_SITE_INFO },
+    reviews: [...INITIAL_REVIEWS],
+    inquiries: [...INITIAL_INQUIRIES],
+    bookings: [...INITIAL_BOOKINGS],
+    roomTariffs: { ...INITIAL_ROOM_SEASONAL_TARIFFS },
+    seasonalDateRanges: [...INITIAL_SEASONAL_DATE_RANGES],
+    menuItems: [...INITIAL_MENU_ITEMS],
+    transferRoutes: [...INITIAL_TRANSFER_ROUTES],
+    rentalVehicles: [...INITIAL_RENTAL_VEHICLES],
+  };
+}
+
+function getStoreData(): LocalStoreData {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const storePath = getActiveStorePath();
+    if (fs.existsSync(storePath)) {
+      const raw = fs.readFileSync(storePath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return {
+        rooms: Array.isArray(parsed.rooms) && parsed.rooms.length > 0 ? parsed.rooms : [...INITIAL_ROOMS],
+        heroSlides: Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 ? parsed.heroSlides : [...INITIAL_HERO_SLIDES],
+        aboutData: parsed.aboutData?.headline ? parsed.aboutData : { ...INITIAL_ABOUT_DATA },
+        siteInfo: parsed.siteInfo?.name ? parsed.siteInfo : { ...INITIAL_SITE_INFO },
+        reviews: Array.isArray(parsed.reviews) && parsed.reviews.length > 0 ? parsed.reviews : [...INITIAL_REVIEWS],
+        inquiries: Array.isArray(parsed.inquiries) ? parsed.inquiries : [...INITIAL_INQUIRIES],
+        bookings: Array.isArray(parsed.bookings) ? parsed.bookings : [...INITIAL_BOOKINGS],
+        roomTariffs: parsed.roomTariffs && Object.keys(parsed.roomTariffs).length > 0 ? parsed.roomTariffs : { ...INITIAL_ROOM_SEASONAL_TARIFFS },
+        seasonalDateRanges: Array.isArray(parsed.seasonalDateRanges) && parsed.seasonalDateRanges.length > 0 ? parsed.seasonalDateRanges : [...INITIAL_SEASONAL_DATE_RANGES],
+        menuItems: Array.isArray(parsed.menuItems) && parsed.menuItems.length > 0 ? parsed.menuItems : [...INITIAL_MENU_ITEMS],
+        transferRoutes: Array.isArray(parsed.transferRoutes) && parsed.transferRoutes.length > 0 ? parsed.transferRoutes : [...INITIAL_TRANSFER_ROUTES],
+        rentalVehicles: Array.isArray(parsed.rentalVehicles) && parsed.rentalVehicles.length > 0 ? parsed.rentalVehicles : [...INITIAL_RENTAL_VEHICLES],
+      };
+    }
   } catch (err) {
-    console.warn('LocalStorage write failed:', err);
+    console.warn('Error reading homestay store from disk, initializing:', err);
   }
-};
+
+  const initial = getInitialStore();
+  saveStoreData(initial);
+  return initial;
+}
+
+function saveStoreData(data: LocalStoreData): void {
+  try {
+    const targetPath = (typeof process !== 'undefined' && process.env.VERCEL) ? TMP_STORE_PATH : BUNDLED_STORE_PATH;
+    const targetDir = path.dirname(targetPath);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err: any) {
+    if (err?.code === 'EROFS') {
+      try {
+        const tmpDir = path.dirname(TMP_STORE_PATH);
+        if (!fs.existsSync(tmpDir)) {
+          fs.mkdirSync(tmpDir, { recursive: true });
+        }
+        fs.writeFileSync(TMP_STORE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      } catch (tmpErr) {
+        console.error('Error writing homestay store to /tmp:', tmpErr);
+      }
+    } else {
+      console.error('Error writing homestay store to disk:', err);
+    }
+  }
+}
 
 // UUID validation helper to prevent PostgreSQL syntax errors when using mock string IDs
 const isUUID = (str?: string | null): boolean =>
@@ -60,7 +138,8 @@ export async function getRooms(): Promise<Room[]> {
       console.warn('Supabase rooms query fallback:', err);
     }
   }
-  return getStorageItem('homestay_rooms', localRooms);
+  const store = getStoreData();
+  return store.rooms;
 }
 
 export async function saveRoom(room: Partial<Room> & { name: string }): Promise<Room> {
@@ -89,37 +168,70 @@ export async function saveRoom(room: Partial<Room> & { name: string }): Promise<
     }
   }
 
-  // Fallback
-  const currentRooms = getStorageItem('homestay_rooms', localRooms);
-  let updatedRooms: Room[];
+  // Persistent File Store fallback
+  const store = getStoreData();
   let savedRoom: Room;
 
-  if (room.id && currentRooms.some(r => r.id === room.id)) {
-    updatedRooms = currentRooms.map(r => (r.id === room.id ? { ...r, ...room } as Room : r));
-    savedRoom = updatedRooms.find(r => r.id === room.id)!;
+  if (room.id && store.rooms.some(r => r.id === room.id)) {
+    store.rooms = store.rooms.map(r => {
+      if (r.id === room.id) {
+        savedRoom = {
+          ...r,
+          ...room,
+          id: r.id,
+          price_per_night: Number(room.price_per_night !== undefined ? room.price_per_night : r.price_per_night),
+          weekend_price: Number(room.weekend_price !== undefined ? room.weekend_price : r.weekend_price),
+          base_adults: Number(room.base_adults !== undefined ? room.base_adults : (r.base_adults || 2)),
+          extra_adult_charge: Number(room.extra_adult_charge !== undefined ? room.extra_adult_charge : (r.extra_adult_charge || 1200)),
+          extra_child_charge: Number(room.extra_child_charge !== undefined ? room.extra_child_charge : (r.extra_child_charge || 600)),
+          capacity_adults: Number(room.capacity_adults !== undefined ? room.capacity_adults : r.capacity_adults),
+          capacity_children: Number(room.capacity_children !== undefined ? room.capacity_children : r.capacity_children),
+          room_size_sqft: Number(room.room_size_sqft !== undefined ? room.room_size_sqft : r.room_size_sqft),
+          total_inventory: Number(room.total_inventory !== undefined ? room.total_inventory : r.total_inventory),
+          available_inventory: Number(room.available_inventory !== undefined ? room.available_inventory : r.available_inventory),
+          is_active: room.is_active !== undefined ? room.is_active : r.is_active,
+          tariffs: room.tariffs !== undefined ? room.tariffs : r.tariffs,
+          updated_at: new Date().toISOString()
+        } as Room;
+        return savedRoom;
+      }
+      return r;
+    });
+    savedRoom = store.rooms.find(r => r.id === room.id)!;
   } else {
     savedRoom = {
       ...room,
       id: room.id || ('room-' + Date.now()),
       slug: room.slug || room.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       room_type: room.room_type || 'Deluxe Suite',
-      price_per_night: room.price_per_night || 4000,
-      capacity_adults: room.capacity_adults || 2,
-      capacity_children: room.capacity_children || 0,
+      price_per_night: Number(room.price_per_night) || 4000,
+      weekend_price: room.weekend_price ? Number(room.weekend_price) : Number(room.price_per_night) || 4500,
+      base_adults: Number(room.base_adults) || 2,
+      extra_adult_charge: Number(room.extra_adult_charge) || 1200,
+      extra_child_charge: Number(room.extra_child_charge) || 600,
+      capacity_adults: Number(room.capacity_adults) || 2,
+      capacity_children: Number(room.capacity_children) || 0,
       bed_type: room.bed_type || 'King Bed',
-      room_size_sqft: room.room_size_sqft || 350,
+      room_size_sqft: Number(room.room_size_sqft) || 350,
       amenities: room.amenities || ['Mountain View', 'Wi-Fi', 'Breakfast'],
       images: room.images && room.images.length > 0 ? room.images : ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'],
-      total_inventory: room.total_inventory || 1,
-      available_inventory: room.available_inventory !== undefined ? room.available_inventory : 1,
+      total_inventory: Number(room.total_inventory) || 1,
+      available_inventory: room.available_inventory !== undefined ? Number(room.available_inventory) : 1,
       is_active: room.is_active !== undefined ? room.is_active : true,
-      description: room.description || ''
+      description: room.description || '',
+      tariffs: room.tariffs,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     } as Room;
-    updatedRooms = [savedRoom, ...currentRooms];
+    store.rooms = [savedRoom, ...store.rooms];
   }
 
-  localRooms = updatedRooms;
-  setStorageItem('homestay_rooms', updatedRooms);
+  // Also sync tariffs in store if provided
+  if (savedRoom.tariffs) {
+    store.roomTariffs[savedRoom.id] = savedRoom.tariffs;
+  }
+
+  saveStoreData(store);
   return savedRoom;
 }
 
@@ -132,10 +244,86 @@ export async function deleteRoom(id: string): Promise<boolean> {
       console.warn('Supabase deleteRoom fallback:', err);
     }
   }
-  const currentRooms = getStorageItem('homestay_rooms', localRooms);
-  const filtered = currentRooms.filter(r => r.id !== id);
-  localRooms = filtered;
-  setStorageItem('homestay_rooms', filtered);
+  const store = getStoreData();
+  store.rooms = store.rooms.filter(r => r.id !== id);
+  delete store.roomTariffs[id];
+  saveStoreData(store);
+  return true;
+}
+
+// ==========================================
+// TARIFFS API
+// ==========================================
+export async function getRoomTariffs(): Promise<Record<string, RoomSeasonalTariffs>> {
+  const store = getStoreData();
+  return store.roomTariffs;
+}
+
+export async function saveRoomTariff(roomId: string, tariffs: RoomSeasonalTariffs): Promise<boolean> {
+  const store = getStoreData();
+  store.roomTariffs[roomId] = tariffs;
+  // Also sync tariffs and prices to the room object if found
+  const roomIndex = store.rooms.findIndex(r => r.id === roomId);
+  if (roomIndex >= 0) {
+    const r = store.rooms[roomIndex];
+    const baseRate = tariffs.regular.EP || tariffs.regular.CP || r.price_per_night;
+    const weekendRate = tariffs.weekendSurchargePercent
+      ? Math.round(baseRate * (1 + tariffs.weekendSurchargePercent / 100))
+      : r.weekend_price;
+    store.rooms[roomIndex] = {
+      ...r,
+      price_per_night: baseRate,
+      weekend_price: weekendRate,
+      extra_adult_charge: tariffs.extraAdultRate ?? r.extra_adult_charge,
+      extra_child_charge: tariffs.extraChildRate ?? r.extra_child_charge,
+      tariffs,
+      updated_at: new Date().toISOString()
+    };
+  }
+  saveStoreData(store);
+  return true;
+}
+
+export async function getSeasonalDateRanges(): Promise<SeasonalDateRange[]> {
+  const store = getStoreData();
+  return store.seasonalDateRanges;
+}
+
+export async function saveSeasonalDateRanges(ranges: SeasonalDateRange[]): Promise<boolean> {
+  const store = getStoreData();
+  store.seasonalDateRanges = ranges;
+  saveStoreData(store);
+  return true;
+}
+
+// ==========================================
+// ADDONS API (Dining, Transfers, Rentals)
+// ==========================================
+export async function getAddonsData(): Promise<{
+  menuItems: MenuItem[];
+  transferRoutes: TransferRoute[];
+  rentalVehicles: RentalVehicle[];
+}> {
+  const store = getStoreData();
+  return {
+    menuItems: store.menuItems,
+    transferRoutes: store.transferRoutes,
+    rentalVehicles: store.rentalVehicles,
+  };
+}
+
+export async function saveAddonsData(type: string, payload: any): Promise<boolean> {
+  const store = getStoreData();
+  if (type === 'menu_items' && Array.isArray(payload)) {
+    store.menuItems = payload;
+  } else if (type === 'transfer_routes' && Array.isArray(payload)) {
+    store.transferRoutes = payload;
+  } else if (type === 'rental_vehicles' && Array.isArray(payload)) {
+    store.rentalVehicles = payload;
+  } else {
+    return false;
+  }
+  saveStoreData(store);
   return true;
 }
 
@@ -156,11 +344,12 @@ export async function getCMSContent(): Promise<{
         const about = data.find(d => d.id === 'about_section')?.data;
         const site = data.find(d => d.id === 'site_info')?.data;
         const revs = data.find(d => d.id === 'reviews')?.data?.reviews;
+        const store = getStoreData();
         return {
-          heroSlides: hero?.slides || getStorageItem('homestay_hero_slides', localHeroSlides),
-          aboutData: about || getStorageItem('homestay_about_data', localAboutData),
-          siteInfo: site || getStorageItem('homestay_site_info', localSiteInfo),
-          reviews: revs || getStorageItem('homestay_reviews', localReviews),
+          heroSlides: hero?.slides || store.heroSlides,
+          aboutData: about || store.aboutData,
+          siteInfo: site || store.siteInfo,
+          reviews: revs || store.reviews,
         };
       }
     } catch (err) {
@@ -168,11 +357,12 @@ export async function getCMSContent(): Promise<{
     }
   }
 
+  const store = getStoreData();
   return {
-    heroSlides: getStorageItem('homestay_hero_slides', localHeroSlides),
-    aboutData: getStorageItem('homestay_about_data', localAboutData),
-    siteInfo: getStorageItem('homestay_site_info', localSiteInfo),
-    reviews: getStorageItem('homestay_reviews', localReviews),
+    heroSlides: store.heroSlides,
+    aboutData: store.aboutData,
+    siteInfo: store.siteInfo,
+    reviews: store.reviews,
   };
 }
 
@@ -188,8 +378,9 @@ export async function updateHeroSlides(slides: HeroSlide[]): Promise<boolean> {
       console.warn('Supabase updateHeroSlides fallback:', err);
     }
   }
-  localHeroSlides = slides;
-  setStorageItem('homestay_hero_slides', slides);
+  const store = getStoreData();
+  store.heroSlides = slides;
+  saveStoreData(store);
   return true;
 }
 
@@ -205,8 +396,9 @@ export async function updateAboutSection(aboutData: AboutSectionData): Promise<b
       console.warn('Supabase updateAboutSection fallback:', err);
     }
   }
-  localAboutData = aboutData;
-  setStorageItem('homestay_about_data', aboutData);
+  const store = getStoreData();
+  store.aboutData = aboutData;
+  saveStoreData(store);
   return true;
 }
 
@@ -222,8 +414,9 @@ export async function updateSiteInfo(siteInfo: SiteInfo): Promise<boolean> {
       console.warn('Supabase updateSiteInfo fallback:', err);
     }
   }
-  localSiteInfo = siteInfo;
-  setStorageItem('homestay_site_info', siteInfo);
+  const store = getStoreData();
+  store.siteInfo = siteInfo;
+  saveStoreData(store);
   return true;
 }
 
@@ -239,8 +432,9 @@ export async function updateReviews(reviews: Review[]): Promise<boolean> {
       console.warn('Supabase updateReviews fallback:', err);
     }
   }
-  localReviews = reviews;
-  setStorageItem('homestay_reviews', reviews);
+  const store = getStoreData();
+  store.reviews = reviews;
+  saveStoreData(store);
   return true;
 }
 
@@ -259,7 +453,8 @@ export async function getInquiries(): Promise<Inquiry[]> {
       console.warn('Supabase getInquiries fallback:', err);
     }
   }
-  return getStorageItem('homestay_inquiries', localInquiries);
+  const store = getStoreData();
+  return store.inquiries;
 }
 
 export async function createInquiry(
@@ -301,11 +496,9 @@ export async function createInquiry(
     }
   }
 
-  // Local fallback
-  const current = getStorageItem('homestay_inquiries', localInquiries);
-  const updated = [newInquiry, ...current];
-  localInquiries = updated;
-  setStorageItem('homestay_inquiries', updated);
+  const store = getStoreData();
+  store.inquiries = [newInquiry, ...store.inquiries];
+  saveStoreData(store);
   return { success: true, data: newInquiry };
 }
 
@@ -324,12 +517,11 @@ export async function updateInquiryStatus(
       console.warn('Supabase updateInquiryStatus fallback:', err);
     }
   }
-  const current = getStorageItem('homestay_inquiries', localInquiries);
-  const updated = current.map(item =>
+  const store = getStoreData();
+  store.inquiries = store.inquiries.map(item =>
     item.id === id ? { ...item, status, internal_notes: internal_notes ?? item.internal_notes } : item
   );
-  localInquiries = updated;
-  setStorageItem('homestay_inquiries', updated);
+  saveStoreData(store);
   return true;
 }
 
@@ -348,7 +540,8 @@ export async function getBookings(): Promise<Booking[]> {
       console.warn('Supabase getBookings fallback:', err);
     }
   }
-  return getStorageItem('homestay_bookings', localBookings);
+  const store = getStoreData();
+  return store.bookings;
 }
 
 export async function createBooking(
@@ -395,10 +588,9 @@ export async function createBooking(
     }
   }
 
-  const current = getStorageItem('homestay_bookings', localBookings);
-  const updated = [newBooking, ...current];
-  localBookings = updated;
-  setStorageItem('homestay_bookings', updated);
+  const store = getStoreData();
+  store.bookings = [newBooking, ...store.bookings];
+  saveStoreData(store);
   return { success: true, data: newBooking };
 }
 
@@ -417,12 +609,11 @@ export async function updateBookingStatus(
       console.warn('Supabase updateBookingStatus fallback:', err);
     }
   }
-  const current = getStorageItem('homestay_bookings', localBookings);
-  const updated = current.map(item =>
+  const store = getStoreData();
+  store.bookings = store.bookings.map(item =>
     item.id === id ? { ...item, status, payment_status: payment_status || item.payment_status } : item
   );
-  localBookings = updated;
-  setStorageItem('homestay_bookings', updated);
+  saveStoreData(store);
   return true;
 }
 
@@ -442,5 +633,7 @@ export async function getReviews(): Promise<Review[]> {
       console.warn('Supabase getReviews fallback:', err);
     }
   }
-  return getStorageItem('homestay_reviews', localReviews);
+  const store = getStoreData();
+  return store.reviews;
 }
+

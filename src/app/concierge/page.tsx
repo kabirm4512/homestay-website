@@ -144,8 +144,31 @@ function ConciergeContent() {
 
   const isCheckedIn = currentRoom ? currentRoom.currentStatus === 'checked_in' : false;
 
-  // Navigation tab in concierge: 'dining' or 'travel'
-  const [activeTab, setActiveTab] = useState<'dining' | 'travel'>('dining');
+  // Navigation tab in concierge: 'dining' or 'travel' with persistence across reloads
+  const [activeTab, setActiveTabState] = useState<'dining' | 'travel'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam === 'dining' || tabParam === 'travel') return tabParam;
+        const saved = localStorage.getItem('savera_concierge_tab');
+        if (saved === 'dining' || saved === 'travel') return saved;
+      } catch {}
+    }
+    return 'dining';
+  });
+
+  const setActiveTab = (tab: 'dining' | 'travel') => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('savera_concierge_tab', tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  };
 
   // Time-based restriction logic simulation:
   // "Enforce time-based logic hiding Mains after 10:00 PM."

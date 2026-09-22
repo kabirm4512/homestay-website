@@ -105,8 +105,47 @@ export default function AdminPage() {
     }
   }, [setCurrentUser]);
 
-  // Active navigation tab
-  const [activeTab, setActiveTab] = useState<string>('tape_chart');
+  // Active navigation tab with persistence across reloads
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        if (tabParam) return tabParam;
+        const saved = localStorage.getItem('wp_admin_active_tab');
+        if (saved) return saved;
+      } catch {}
+    }
+    return 'tape_chart';
+  });
+
+  const handleSelectTab = useCallback((tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_active_tab', tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+
+        // Keep relevant subtab in URL if switching to a tab that has subtabs
+        let sub = '';
+        if (tab === 'rooms') {
+          sub = localStorage.getItem('wp_admin_rooms_subtab') || 'inventory';
+        } else if (tab === 'cms') {
+          sub = localStorage.getItem('wp_admin_cms_subtab') || 'hero';
+        } else if (tab === 'addons') {
+          sub = localStorage.getItem('wp_admin_addons_subtab') || 'dining';
+        }
+
+        if (sub) {
+          url.searchParams.set('subtab', sub);
+        } else {
+          url.searchParams.delete('subtab');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  }, []);
 
   // Website CMS states
   const [rooms, setRooms] = useState<Room[]>(INITIAL_ROOMS);
@@ -121,9 +160,9 @@ export default function AdminPage() {
   const [showQRHubModal, setShowQRHubModal] = useState(false);
 
   // Local toast fallback
-  const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setLocalToast({ message, type });
     setTimeout(() => {
       setLocalToast(null);
@@ -133,9 +172,9 @@ export default function AdminPage() {
   // Sync role changes to default tabs
   useEffect(() => {
     if (role === 'kitchen_staff') {
-      setActiveTab('kitchen');
+      handleSelectTab('kitchen');
     }
-  }, [role]);
+  }, [role, handleSelectTab]);
 
   // Fetch live homestay data
   const fetchData = useCallback(async () => {
@@ -320,7 +359,7 @@ export default function AdminPage() {
           <div className="max-w-7xl mx-auto flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar">
             {/* Module A: Tape Chart */}
             <button
-              onClick={() => setActiveTab('tape_chart')}
+              onClick={() => handleSelectTab('tape_chart')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'tape_chart'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -333,7 +372,7 @@ export default function AdminPage() {
 
             {/* Module B: Operations Hub */}
             <button
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => handleSelectTab('dashboard')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'dashboard'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -346,7 +385,7 @@ export default function AdminPage() {
 
             {/* Module B/C: Dispatch Hub */}
             <button
-              onClick={() => setActiveTab('dispatch')}
+              onClick={() => handleSelectTab('dispatch')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'dispatch'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -364,7 +403,7 @@ export default function AdminPage() {
 
             {/* Dedicated Kitchen View */}
             <button
-              onClick={() => setActiveTab('kitchen')}
+              onClick={() => handleSelectTab('kitchen')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'kitchen'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -382,7 +421,7 @@ export default function AdminPage() {
 
             {/* Module D: Financial Ledger (Admin Only) */}
             <button
-              onClick={() => setActiveTab('ledger')}
+              onClick={() => handleSelectTab('ledger')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'ledger'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -400,7 +439,7 @@ export default function AdminPage() {
 
             {/* Staff & User Management (Admin Only) */}
             <button
-              onClick={() => setActiveTab('staff')}
+              onClick={() => handleSelectTab('staff')}
               className={`min-h-[40px] flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === 'staff'
                   ? 'bg-amber-500 text-forest-950 shadow-sm'
@@ -420,7 +459,7 @@ export default function AdminPage() {
 
             {/* Website CMS Tabs */}
             <button
-              onClick={() => setActiveTab('overview')}
+              onClick={() => handleSelectTab('overview')}
               className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 activeTab === 'overview'
                   ? 'bg-forest-800 text-white'
@@ -431,7 +470,7 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('rooms')}
+              onClick={() => handleSelectTab('rooms')}
               className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 activeTab === 'rooms'
                   ? 'bg-forest-800 text-white'
@@ -443,7 +482,7 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('addons')}
+              onClick={() => handleSelectTab('addons')}
               className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 activeTab === 'addons'
                   ? 'bg-forest-800 text-white'
@@ -455,7 +494,7 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('inquiries')}
+              onClick={() => handleSelectTab('inquiries')}
               className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 activeTab === 'inquiries'
                   ? 'bg-forest-800 text-white'
@@ -467,7 +506,7 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('cms')}
+              onClick={() => handleSelectTab('cms')}
               className={`min-h-[40px] flex items-center space-x-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 activeTab === 'cms'
                   ? 'bg-forest-800 text-white'
@@ -509,7 +548,7 @@ export default function AdminPage() {
                 Financial Ledger, P&amp;L reports, expense records, and revenue analytics are strictly confidential and restricted to Administrator accounts.
               </p>
               <button
-                onClick={() => setActiveTab('tape_chart')}
+                onClick={() => handleSelectTab('tape_chart')}
                 className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors cursor-pointer"
               >
                 Return to Operations
@@ -532,7 +571,7 @@ export default function AdminPage() {
                 Only Estate Administrators have authority to create and manage individual employee accounts, access levels, and credentials.
               </p>
               <button
-                onClick={() => setActiveTab('tape_chart')}
+                onClick={() => handleSelectTab('tape_chart')}
                 className="px-4 py-2 bg-forest-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-forest-800 transition-colors"
               >
                 Return to Tape Chart
@@ -547,9 +586,9 @@ export default function AdminPage() {
             rooms={rooms}
             inquiries={inquiries}
             bookings={bookings}
-            onNavigateTab={(tab) => setActiveTab(tab)}
+            onNavigateTab={(tab) => handleSelectTab(tab)}
             onOpenAddRoom={() => {
-              setActiveTab('rooms');
+              handleSelectTab('rooms');
               setIsAddRoomOpen(true);
             }}
           />
@@ -598,7 +637,7 @@ export default function AdminPage() {
       {/* 3. Mobile Fixed Bottom Navigation Bar */}
       <BottomNav
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={(tab) => handleSelectTab(tab)}
         role={role}
         pendingDispatchCount={pendingDispatchCount}
         pendingKitchenOrdersCount={pendingKitchenCount}

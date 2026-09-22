@@ -187,7 +187,7 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                           <span className="text-xs text-gray-500">/ night</span>
                         </div>
                         <span className="text-[11px] text-forest-700 block mt-0.5 font-medium">
-                          Base 2 Adults {room.extra_adult_charge ? `· Extra Adult: +₹${room.extra_adult_charge}` : ''} {room.extra_child_charge ? `· Child: +₹${room.extra_child_charge}` : ''}
+                          Base {room.base_adults || 2} Adults {room.extra_adult_charge ? `· Extra Adult: +₹${room.extra_adult_charge}` : ''} {room.extra_child_charge ? `· Child: +₹${room.extra_child_charge}` : ''}
                         </span>
                       </div>
                       {room.weekend_price && (

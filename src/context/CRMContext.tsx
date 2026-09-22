@@ -338,6 +338,49 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const savedTariffs = localStorage.getItem('wp_crm_room_tariffs');
       if (savedTariffs) setRoomTariffs(JSON.parse(savedTariffs));
 
+      // Hydrate from server disk store if available
+      try {
+        fetch('/api/tariffs')
+          .then((r) => r.json())
+          .then((json) => {
+            if (json?.success && json.data) {
+              if (json.data.tariffs && Object.keys(json.data.tariffs).length > 0) {
+                setRoomTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
+              }
+              if (Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
+                setSeasonalDateRanges(json.data.seasonalDateRanges);
+              }
+            }
+          })
+          .catch(() => null);
+
+        fetch('/api/addons')
+          .then((r) => r.json())
+          .then((json) => {
+            if (json?.success && json.data) {
+              if (Array.isArray(json.data.menuItems) && json.data.menuItems.length > 0) {
+                setMenuItems(json.data.menuItems);
+                try {
+                  localStorage.setItem('wp_crm_menu_items', JSON.stringify(json.data.menuItems));
+                } catch {}
+              }
+              if (Array.isArray(json.data.transferRoutes) && json.data.transferRoutes.length > 0) {
+                setTransferRoutes(json.data.transferRoutes);
+                try {
+                  localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(json.data.transferRoutes));
+                } catch {}
+              }
+              if (Array.isArray(json.data.rentalVehicles) && json.data.rentalVehicles.length > 0) {
+                setRentalVehicles(json.data.rentalVehicles);
+                try {
+                  localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(json.data.rentalVehicles));
+                } catch {}
+              }
+            }
+          })
+          .catch(() => null);
+      } catch {}
+
       const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
       if (savedStaff) {
         const parsed = JSON.parse(savedStaff);
@@ -1325,6 +1368,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // =========================================================================
   // Menu Management CRUD (In-Room Dining)
   // =========================================================================
+  const syncAddonsToServer = (type: 'menu_items' | 'transfer_routes' | 'rental_vehicles', payload: any) => {
+    try {
+      fetch('/api/addons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, payload }),
+      }).catch(() => null);
+    } catch {}
+  };
+
   const addMenuItem = (item: Omit<MenuItem, 'id'>): MenuItem => {
     const newItem: MenuItem = { ...item, id: `menu-${Date.now()}` };
     setMenuItems((prev) => {
@@ -1332,6 +1385,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast(`Added "${newItem.name}" to dining menu`);
@@ -1344,6 +1398,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast('Menu item updated');
@@ -1355,6 +1410,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast('Dish removed from menu');
@@ -1370,6 +1426,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast(`Added transfer route "${newRoute.title}"`);
@@ -1382,6 +1439,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast('Transfer route updated');
@@ -1393,6 +1451,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast('Transfer route removed');
@@ -1405,6 +1464,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast(`Added vehicle "${newVehicle.vehicleName}"`);
@@ -1417,6 +1477,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast('Rental vehicle updated');
@@ -1428,6 +1489,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
       } catch {}
+      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast('Rental vehicle removed');
@@ -1442,6 +1504,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const updated = [...prev, newRange];
       try {
         localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+        fetch('/api/tariffs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
+        }).catch(() => null);
       } catch {}
       return updated;
     });
@@ -1454,6 +1521,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
       try {
         localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+        fetch('/api/tariffs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
+        }).catch(() => null);
       } catch {}
       return updated;
     });
@@ -1465,6 +1537,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.filter((r) => r.id !== id);
       try {
         localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
+        fetch('/api/tariffs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
+        }).catch(() => null);
       } catch {}
       return updated;
     });
@@ -1474,9 +1551,39 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const updateRoomTariffs = (roomId: string, tariffs: RoomSeasonalTariffs) => {
     setRoomTariffs((prev) => {
       const updated = { ...prev, [roomId]: tariffs };
+
+      // Synchronize category IDs and physical room IDs
+      if (roomId === 'room-cat-1') {
+        updated['room-101'] = tariffs;
+        updated['room-102'] = tariffs;
+        updated['room-103'] = tariffs;
+      } else if (roomId === 'room-cat-2') {
+        updated['room-104'] = tariffs;
+      } else if (roomId === 'room-cat-3') {
+        updated['room-201'] = tariffs;
+        updated['room-202'] = tariffs;
+        updated['room-203'] = tariffs;
+      } else if (['room-101', 'room-102', 'room-103'].includes(roomId)) {
+        updated['room-cat-1'] = tariffs;
+      } else if (roomId === 'room-104') {
+        updated['room-cat-2'] = tariffs;
+      } else if (['room-201', 'room-202', 'room-203'].includes(roomId)) {
+        updated['room-cat-3'] = tariffs;
+      }
+
       try {
         localStorage.setItem('wp_crm_room_tariffs', JSON.stringify(updated));
       } catch {}
+
+      // Asynchronously sync to /api/tariffs
+      try {
+        fetch('/api/tariffs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, tariffs }),
+        }).catch(() => null);
+      } catch {}
+
       return updated;
     });
     showToast('Room seasonal tariffs saved successfully');
@@ -1490,14 +1597,28 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     adultsCount: number = 2,
     childrenCount: number = 0
   ) => {
-    const tariffs = roomTariffs[roomId] || INITIAL_ROOM_SEASONAL_TARIFFS[roomId] || {
-      regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
-      season: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
-      offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
-      weekendSurchargePercent: 10,
-      extraAdultRate: 1200,
-      extraChildRate: 600,
+    const categoryFallbackMap: Record<string, string> = {
+      'room-101': 'room-cat-1',
+      'room-102': 'room-cat-1',
+      'room-103': 'room-cat-1',
+      'room-104': 'room-cat-2',
+      'room-201': 'room-cat-3',
+      'room-202': 'room-cat-3',
+      'room-203': 'room-cat-3',
     };
+    const catKey = categoryFallbackMap[roomId] || roomId;
+    const tariffs =
+      roomTariffs[roomId] ||
+      roomTariffs[catKey] ||
+      INITIAL_ROOM_SEASONAL_TARIFFS[roomId] ||
+      INITIAL_ROOM_SEASONAL_TARIFFS[catKey] || {
+        regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
+        season: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
+        offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
+        weekendSurchargePercent: 10,
+        extraAdultRate: 1200,
+        extraChildRate: 600,
+      };
 
     const start = new Date(checkIn);
     const end = new Date(checkOut);

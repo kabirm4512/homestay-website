@@ -63,7 +63,35 @@ export default function AdminAddonsCMS() {
     showToast,
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState<'dining' | 'transfers' | 'rentals' | 'seasons' | 'qr_cards'>('dining');
+  const [activeTab, setActiveTabState] = useState<'dining' | 'transfers' | 'rentals' | 'seasons' | 'qr_cards'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sub = urlParams.get('subtab');
+        if (sub && ['dining', 'transfers', 'rentals', 'seasons', 'qr_cards'].includes(sub)) {
+          return sub as any;
+        }
+        const saved = localStorage.getItem('wp_admin_addons_subtab');
+        if (saved && ['dining', 'transfers', 'rentals', 'seasons', 'qr_cards'].includes(saved)) {
+          return saved as any;
+        }
+      } catch {}
+    }
+    return 'dining';
+  });
+
+  const setActiveTab = (tab: 'dining' | 'transfers' | 'rentals' | 'seasons' | 'qr_cards') => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_addons_subtab', tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'addons');
+        url.searchParams.set('subtab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  };
 
   // ==========================================
   // 1. DINING / MENU ITEM STATES

@@ -44,7 +44,35 @@ export default function AdminCMS({
   onRefresh,
   showToast,
 }: AdminCMSProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'hero' | 'about' | 'site' | 'reviews' | 'policies'>('hero');
+  const [activeSubTab, setActiveSubTabState] = useState<'hero' | 'about' | 'site' | 'reviews' | 'policies'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sub = urlParams.get('subtab');
+        if (sub && ['hero', 'about', 'site', 'reviews', 'policies'].includes(sub)) {
+          return sub as any;
+        }
+        const saved = localStorage.getItem('wp_admin_cms_subtab');
+        if (saved && ['hero', 'about', 'site', 'reviews', 'policies'].includes(saved)) {
+          return saved as any;
+        }
+      } catch {}
+    }
+    return 'hero';
+  });
+
+  const setActiveSubTab = (tab: 'hero' | 'about' | 'site' | 'reviews' | 'policies') => {
+    setActiveSubTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wp_admin_cms_subtab', tab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'cms');
+        url.searchParams.set('subtab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  };
 
   // Hero state
   const [slides, setSlides] = useState<HeroSlide[]>(initialSlides);

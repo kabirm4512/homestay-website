@@ -93,13 +93,16 @@ export default function BookingModal({
   };
 
   const baseAdults = room.base_adults || 2;
-  const extraAdultRate = room.extra_adult_charge || 1200;
-  const extraChildRate = room.extra_child_charge || 600;
+  const extraAdultRate = room.extra_adult_charge ?? room.tariffs?.extraAdultRate ?? 1200;
+  const extraChildRate = room.extra_child_charge ?? room.tariffs?.extraChildRate ?? 600;
 
   const extraAdultsCount = Math.max(0, adults - baseAdults);
   const extraChildrenCount = Math.max(0, children);
 
-  const effectiveNightlyRate = Math.max(1000, room.price_per_night + mealPlanOffsets[mealPlan]);
+  const tariffPlanRate = room.tariffs?.regular?.[mealPlan];
+  const effectiveNightlyRate = (tariffPlanRate && tariffPlanRate > 0)
+    ? tariffPlanRate
+    : Math.max(1000, room.price_per_night + mealPlanOffsets[mealPlan]);
   const baseStayPrice = nights * effectiveNightlyRate;
   const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
   const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
@@ -287,7 +290,7 @@ export default function BookingModal({
                     <span>Guests &amp; Occupancy</span>
                   </span>
                   <span className="text-[10px] font-semibold text-forest-600">
-                    Base tariff includes 2 Adults
+                    Base tariff includes {baseAdults} Adults
                   </span>
                 </div>
 
