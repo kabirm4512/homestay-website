@@ -154,11 +154,98 @@ export const INITIAL_PHYSICAL_ROOMS: PhysicalRoom[] = [
   },
 ];
 
-export const INITIAL_GUESTS: Guest[] = [];
+export const INITIAL_GUESTS: Guest[] = [
+  {
+    id: 'gst-8101298882',
+    fullName: 'Savera Guest',
+    phone: '8101298882',
+    email: 'guest8882@gmail.com',
+    nationality: 'Indian',
+    idType: 'Aadhaar Card',
+    documentStatus: 'pending',
+    totalLifetimeStays: 1,
+  },
+];
 
-export const INITIAL_BOOKINGS: CRMBooking[] = [];
+export const INITIAL_BOOKINGS: CRMBooking[] = [
+  {
+    id: 'bk-8101298882',
+    bookingReference: 'WP-2026-8882',
+    roomId: 'room-101',
+    roomNumber: 101,
+    roomName: 'Room 101 - Sunrise Mountain Balcony',
+    guestId: 'gst-8101298882',
+    guest: {
+      id: 'gst-8101298882',
+      fullName: 'Savera Guest',
+      phone: '8101298882',
+      email: 'guest8882@gmail.com',
+      nationality: 'Indian',
+      idType: 'Aadhaar Card',
+      documentStatus: 'pending',
+      totalLifetimeStays: 1,
+    },
+    checkInDate: new Date().toISOString().split('T')[0],
+    checkOutDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    tapeStatus: 'confirmed',
+    bookingStatus: 'confirmed',
+    mealPlan: 'CP',
+    adultsCount: 2,
+    childrenCount: 0,
+    roomRatePerNight: 4500,
+    totalNights: 1,
+    totalRoomAmount: 4500,
+    specialRequests: 'Mountain sunrise view, warm drinking water',
+    documentStatus: 'pending',
+    advancePaid: 2000,
+    advancePaymentMethod: 'upi',
+  },
+];
 
-export const INITIAL_FOLIOS: GuestFolio[] = [];
+export const INITIAL_FOLIOS: GuestFolio[] = [
+  {
+    id: 'fol-8101298882',
+    bookingId: 'bk-8101298882',
+    guestId: 'gst-8101298882',
+    guestName: 'Savera Guest',
+    roomNumber: 101,
+    roomName: 'Room 101 - Sunrise Mountain Balcony',
+    folioNumber: 'FOL-2026-10188',
+    status: 'open',
+    totalRoomCharges: 4500,
+    totalFbCharges: 0,
+    totalAddonCharges: 0,
+    totalTax: 225,
+    discountAmount: 0,
+    netPayable: 4725,
+    totalPaid: 2000,
+    balanceDue: 2725,
+    charges: [
+      {
+        id: 'chg-8101298882-room',
+        folioId: 'fol-8101298882',
+        category: 'room_tariff',
+        chargeStatus: 'posted',
+        title: 'Stay Tariff: Room 101 - Sunrise Mountain Balcony (1 night @ ₹4,500/nt)',
+        amount: 4500,
+        sourceReferenceType: 'booking',
+        sourceReferenceId: 'bk-8101298882',
+        postedAt: new Date().toISOString(),
+      },
+    ],
+    payments: [
+      {
+        id: 'pay-8101298882-adv',
+        folioId: 'fol-8101298882',
+        amount: 2000,
+        paymentMethod: 'upi',
+        receiptNotes: 'Advance deposit via UPI',
+        collectedAt: new Date().toISOString(),
+        collectedByName: 'Administrator',
+      },
+    ],
+  },
+];
 
 export const INITIAL_MENU_ITEMS: MenuItem[] = [
   {

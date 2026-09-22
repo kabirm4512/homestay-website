@@ -393,6 +393,24 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             }
           })
           .catch(() => null);
+
+        fetch('/api/checkin')
+          .then((r) => r.json())
+          .then((json) => {
+            if (json?.success && Array.isArray(json.bookings) && json.bookings.length > 0) {
+              setBookings((prev) => {
+                const existingIds = new Set(prev.map((b) => b.id));
+                const newFromServer = json.bookings.filter((b: CRMBooking) => !existingIds.has(b.id));
+                if (newFromServer.length === 0) return prev;
+                const merged = [...prev, ...newFromServer];
+                try {
+                  localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
+                } catch {}
+                return merged;
+              });
+            }
+          })
+          .catch(() => null);
       } catch {}
 
       const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
