@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { Trees, Phone, Mail, MapPin, ShieldCheck, Heart, ExternalLink } from 'lucide-react';
+import { Trees, Phone, Mail, MapPin, Heart, ExternalLink } from 'lucide-react';
 import { SiteInfo } from '@/types';
 
 interface FooterProps {
@@ -59,15 +58,6 @@ export default function Footer({ siteInfo }: FooterProps) {
                 <a href="#location" className="hover:text-sand-300 transition-colors">
                   Location & Directions
                 </a>
-              </li>
-              <li>
-                <Link
-                  href="/admin"
-                  className="hover:text-sand-300 transition-colors inline-flex items-center space-x-1 text-forest-300"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Owner & Admin Portal</span>
-                </Link>
               </li>
             </ul>
           </div>

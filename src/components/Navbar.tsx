@@ -8,7 +8,6 @@ import {
   Calendar,
   Menu,
   X,
-  ShieldCheck,
   Bed,
   UtensilsCrossed,
   Compass,
@@ -171,18 +170,6 @@ export default function Navbar({
             >
               Location
             </a>
-            <Link
-              href="/admin"
-              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors flex items-center space-x-1 ${
-                scrolled
-                  ? 'border-forest-200 bg-forest-50/50 text-forest-800 hover:bg-forest-100 hover:border-forest-300'
-                  : 'border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20'
-              }`}
-              title="Admin & Staff Portal"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Staff Login</span>
-            </Link>
           </nav>
 
           {/* Right CTA / Phone & Booking Button (Desktop) */}
@@ -413,31 +400,6 @@ export default function Navbar({
                 </div>
                 <ChevronRight className="w-5 h-5 text-sand-400/60 group-hover:text-sand-200 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
               </a>
-
-              {/* 7. Staff & Admin Management Portal */}
-              <Link
-                href="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] transition-all group"
-              >
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-forest-900 flex items-center justify-center text-emerald-400 border border-forest-700/40 shrink-0 shadow-sm">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-serif font-bold text-sm text-sand-200 group-hover:text-white transition-colors flex items-center space-x-2">
-                      <span className="truncate">Staff & Admin Portal</span>
-                      <span className="text-[10px] font-sans font-bold bg-white/10 text-sand-300 px-2 py-0.5 rounded shrink-0">
-                        Secure
-                      </span>
-                    </div>
-                    <p className="text-xs text-sand-400/70 font-light mt-0.5 truncate">
-                      Manage bookings, folios, room tariffs & kitchen
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-sand-400/40 group-hover:text-sand-200 transition-all shrink-0 ml-2" />
-              </Link>
             </nav>
           </div>
 

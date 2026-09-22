@@ -765,6 +765,133 @@ export default function AdminCMS({
             </div>
           </div>
 
+          {/* About Section Gallery Photos */}
+          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-serif text-base font-bold text-forest-950">
+                Showcase Gallery Photos (4 Photos)
+              </h3>
+              <p className="text-xs text-gray-500">
+                These 4 photos are arranged in an elegant asymmetric collage beside the story narrative on the homepage.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(about.images && about.images.length === 4
+                ? about.images
+                : [
+                    {
+                      src: '/images/about/balcony-view.jpg',
+                      alt: 'Private mountain view balcony overlooking Himalayan valley',
+                      caption: 'Private Mountain Balcony',
+                      subtitle: 'Panoramic valley & sunrise vistas'
+                    },
+                    {
+                      src: '/images/about/bedroom-suite.jpg',
+                      alt: 'Handcrafted timber bedroom suite with balcony access',
+                      caption: 'Cedar Wood Suite',
+                      subtitle: 'Warm Himalayan comforts & privacy'
+                    },
+                    {
+                      src: '/images/about/traditional-lounge.jpg',
+                      alt: 'Artisanal Himalayan lounge with traditional Buddhist mural',
+                      caption: 'Artisanal Heritage Lounge',
+                      subtitle: 'Hand-painted Buddhist wall art'
+                    },
+                    {
+                      src: '/images/about/mountain-window.jpg',
+                      alt: 'Living room window framing snow-capped Kanchenjunga peaks',
+                      caption: 'Kanchenjunga Window View',
+                      subtitle: 'Morning Darjeeling tea by the peaks'
+                    }
+                  ]
+              ).map((item, idx) => {
+                const imgObj = typeof item === 'string' ? { src: item, alt: '', caption: '', subtitle: '' } : item;
+                return (
+                  <div key={idx} className="p-3.5 bg-sand-50 rounded-xl border border-sand-200 flex gap-3.5 items-start">
+                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-sand-200 shrink-0 border border-sand-300">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imgObj.src}
+                        alt={imgObj.caption || `Photo ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-forest-700 block">
+                        Photo #{idx + 1} {idx === 0 ? '(Top Left • Portrait Balcony)' : idx === 1 ? '(Bottom Left • Bedroom)' : idx === 2 ? '(Top Right • Lounge)' : '(Bottom Right • Mountain Window)'}
+                      </span>
+                      <div>
+                        <input
+                          type="text"
+                          value={imgObj.src}
+                          onChange={(e) => {
+                            const currentImages = about.images && about.images.length === 4
+                              ? [...about.images]
+                              : [
+                                  { src: '/images/about/balcony-view.jpg', alt: '', caption: 'Private Mountain Balcony', subtitle: 'Panoramic valley & sunrise vistas' },
+                                  { src: '/images/about/bedroom-suite.jpg', alt: '', caption: 'Cedar Wood Suite', subtitle: 'Warm Himalayan comforts & privacy' },
+                                  { src: '/images/about/traditional-lounge.jpg', alt: '', caption: 'Artisanal Heritage Lounge', subtitle: 'Hand-painted Buddhist wall art' },
+                                  { src: '/images/about/mountain-window.jpg', alt: '', caption: 'Kanchenjunga Window View', subtitle: 'Morning Darjeeling tea by the peaks' }
+                                ];
+                            const cur = typeof currentImages[idx] === 'string' ? { src: currentImages[idx] as string, alt: '', caption: '', subtitle: '' } : { ...(currentImages[idx] as any) };
+                            cur.src = e.target.value;
+                            currentImages[idx] = cur;
+                            setAbout({ ...about, images: currentImages });
+                          }}
+                          placeholder="Image URL"
+                          className="w-full px-2 py-1 bg-white border border-sand-300 rounded text-xs font-mono"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={imgObj.caption || ''}
+                          onChange={(e) => {
+                            const currentImages = about.images && about.images.length === 4
+                              ? [...about.images]
+                              : [
+                                  { src: '/images/about/balcony-view.jpg', alt: '', caption: 'Private Mountain Balcony', subtitle: 'Panoramic valley & sunrise vistas' },
+                                  { src: '/images/about/bedroom-suite.jpg', alt: '', caption: 'Cedar Wood Suite', subtitle: 'Warm Himalayan comforts & privacy' },
+                                  { src: '/images/about/traditional-lounge.jpg', alt: '', caption: 'Artisanal Heritage Lounge', subtitle: 'Hand-painted Buddhist wall art' },
+                                  { src: '/images/about/mountain-window.jpg', alt: '', caption: 'Kanchenjunga Window View', subtitle: 'Morning Darjeeling tea by the peaks' }
+                                ];
+                            const cur = typeof currentImages[idx] === 'string' ? { src: currentImages[idx] as string, alt: '', caption: '', subtitle: '' } : { ...(currentImages[idx] as any) };
+                            cur.caption = e.target.value;
+                            currentImages[idx] = cur;
+                            setAbout({ ...about, images: currentImages });
+                          }}
+                          placeholder="Caption title"
+                          className="w-full px-2 py-1 bg-white border border-sand-300 rounded text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={imgObj.subtitle || ''}
+                          onChange={(e) => {
+                            const currentImages = about.images && about.images.length === 4
+                              ? [...about.images]
+                              : [
+                                  { src: '/images/about/balcony-view.jpg', alt: '', caption: 'Private Mountain Balcony', subtitle: 'Panoramic valley & sunrise vistas' },
+                                  { src: '/images/about/bedroom-suite.jpg', alt: '', caption: 'Cedar Wood Suite', subtitle: 'Warm Himalayan comforts & privacy' },
+                                  { src: '/images/about/traditional-lounge.jpg', alt: '', caption: 'Artisanal Heritage Lounge', subtitle: 'Hand-painted Buddhist wall art' },
+                                  { src: '/images/about/mountain-window.jpg', alt: '', caption: 'Kanchenjunga Window View', subtitle: 'Morning Darjeeling tea by the peaks' }
+                                ];
+                            const cur = typeof currentImages[idx] === 'string' ? { src: currentImages[idx] as string, alt: '', caption: '', subtitle: '' } : { ...(currentImages[idx] as any) };
+                            cur.subtitle = e.target.value;
+                            currentImages[idx] = cur;
+                            setAbout({ ...about, images: currentImages });
+                          }}
+                          placeholder="Subtitle"
+                          className="w-full px-2 py-1 bg-white border border-sand-300 rounded text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Key Statistics */}
           <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
             <h3 className="font-serif text-base font-bold text-forest-950">
