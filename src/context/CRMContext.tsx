@@ -24,6 +24,7 @@ import {
   SeasonalDateRange,
   RoomSeasonalTariffs,
   Guest,
+  ManagerActivityLog,
 } from '@/types/crm';
 import {
   INITIAL_PHYSICAL_ROOMS,
@@ -90,7 +91,22 @@ interface CRMContextType {
   addFolioCharge: (folioId: string, charge: Omit<FolioCharge, 'id' | 'postedAt'>) => void;
   addFolioPayment: (folioId: string, payment: Omit<FolioPayment, 'id' | 'collectedAt'>) => void;
   settleFolio: (folioId: string, paymentMethod: PaymentMethod, notes?: string) => void;
-  checkInRoom: (bookingId: string) => void;
+  managerActivityLogs: ManagerActivityLog[];
+  logManagerActivity: (activity: Omit<ManagerActivityLog, 'id' | 'timestamp'>) => ManagerActivityLog;
+  approveFoodOrder: (orderId: string, managerInfo: { id: string; name: string }) => void;
+  rejectFoodOrder: (orderId: string, reason: string, managerInfo: { id: string; name: string }) => void;
+  completeCheckoutWithSettlement: (
+    bookingId: string,
+    checkoutData: {
+      paymentMethod: PaymentMethod;
+      amountCollected: number;
+      transactionReference?: string;
+      notes?: string;
+      managerId: string;
+      managerName: string;
+    }
+  ) => void;
+  checkInRoom: (bookingId: string, managerInfo?: { id: string; name: string }) => void;
   checkOutRoom: (bookingId: string) => void;
 
   // Manual Room Assignment & Guest Document Management
@@ -270,6 +286,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [roomTariffs, setRoomTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
   const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(INITIAL_STAFF_ACCOUNTS);
   const [currentUser, setCurrentUserState] = useState<StaffAccount | null>(null);
+  const [managerActivityLogs, setManagerActivityLogs] = useState<ManagerActivityLog[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -353,6 +370,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const savedTariffs = localStorage.getItem('wp_crm_room_tariffs');
       if (savedTariffs) setRoomTariffs(JSON.parse(savedTariffs));
 
+      const savedLogs = localStorage.getItem('wp_crm_activity_logs');
+      if (savedLogs) {
+        try {
+          setManagerActivityLogs(JSON.parse(savedLogs));
+        } catch {}
+      }
+
       // Hydrate from server disk store if available without stomping local changes
       try {
         fetch('/api/tariffs')
@@ -406,6 +430,27 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
                 const merged = [...prev, ...newFromServer];
                 try {
                   localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
+                } catch {}
+                return merged;
+              });
+            }
+          })
+          .catch(() => null);
+
+        fetch('/api/orders?orders=true')
+          .then((r) => r.json())
+          .then((json) => {
+            if (json?.success && Array.isArray(json.orders)) {
+              setFoodOrders((prev) => {
+                const existingMap = new Map(prev.map((o) => [o.id, o]));
+                json.orders.forEach((serverOrd: FoodOrder) => {
+                  existingMap.set(serverOrd.id, serverOrd);
+                });
+                const merged = Array.from(existingMap.values()).sort(
+                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                try {
+                  localStorage.setItem('wp_crm_food_orders', JSON.stringify(merged));
                 } catch {}
                 return merged;
               });
@@ -472,12 +517,55 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         if (e.key === 'wp_crm_rooms' && e.newValue) {
           setRooms(JSON.parse(e.newValue));
         }
+        if (e.key === 'wp_crm_food_orders' && e.newValue) {
+          setFoodOrders(JSON.parse(e.newValue));
+        }
+        if (e.key === 'wp_crm_activity_logs' && e.newValue) {
+          setManagerActivityLogs(JSON.parse(e.newValue));
+        }
       } catch {
         // ignore
       }
     };
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+
+    // 5-second polling interval for live server orders (cross-device kitchen sync)
+    const pollInterval = setInterval(() => {
+      fetch('/api/orders?orders=true')
+        .then((r) => r.json())
+        .then((json) => {
+          if (json?.success && Array.isArray(json.orders)) {
+            setFoodOrders((prev) => {
+              const existingMap = new Map(prev.map((o) => [o.id, o]));
+              let hasChanges = false;
+              json.orders.forEach((serverOrd: FoodOrder) => {
+                const existing = existingMap.get(serverOrd.id);
+                if (!existing) {
+                  hasChanges = true;
+                  existingMap.set(serverOrd.id, serverOrd);
+                } else if (existing.status !== serverOrd.status) {
+                  hasChanges = true;
+                  existingMap.set(serverOrd.id, { ...existing, status: serverOrd.status });
+                }
+              });
+              if (!hasChanges) return prev;
+              const merged = Array.from(existingMap.values()).sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+              try {
+                localStorage.setItem('wp_crm_food_orders', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
+        })
+        .catch(() => null);
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const setRole = useCallback((newRole: StaffRole) => {
@@ -657,6 +745,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       ...orderData,
       id: `ord-${Date.now()}`,
       orderNumber,
+      status: orderData.status || 'pending_manager_approval',
       createdAt: new Date().toISOString(),
     };
 
@@ -683,8 +772,151 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    showToast(`Food Order ${orderNumber} placed and charged to Folio as Pending!`);
+    // Sync to backend server so other staff devices and kitchen immediately receive it
+    try {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'food_order',
+          orderNumber,
+          bookingId: orderData.bookingId,
+          roomNumber: orderData.roomNumber,
+          guestName: orderData.guestName || 'Guest',
+          items: orderData.items.map((i) => ({
+            name: i.itemName,
+            price: i.unitPrice,
+            quantity: i.quantity,
+          })),
+          totalAmount: orderData.totalAmount,
+          notes: orderData.specialInstructions,
+          chargeCategory: 'food_beverage',
+        }),
+      }).catch(() => null);
+    } catch {}
+
+    showToast(`Food Order ${orderNumber} placed & sent to Manager Approval Gate!`);
     return newOrder;
+  };
+
+  const logManagerActivity = (activity: Omit<ManagerActivityLog, 'id' | 'timestamp'>): ManagerActivityLog => {
+    const newEntry: ManagerActivityLog = {
+      ...activity,
+      id: `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: new Date().toISOString(),
+    };
+    setManagerActivityLogs((prev) => {
+      const updated = [newEntry, ...prev].slice(0, 200);
+      try {
+        localStorage.setItem('wp_crm_activity_logs', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    return newEntry;
+  };
+
+  const approveFoodOrder = (orderId: string, managerInfo: { id: string; name: string }) => {
+    setFoodOrders((prev) => {
+      const updated = prev.map((ord) => {
+        if (ord.id === orderId) {
+          return {
+            ...ord,
+            status: 'accepted_kitchen' as FoodOrderStatus,
+            approvedByManagerId: managerInfo.id,
+            approvedByManagerName: managerInfo.name,
+            approvedAt: new Date().toISOString(),
+          };
+        }
+        return ord;
+      });
+      try {
+        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    const targetOrder = foodOrders.find((o) => o.id === orderId);
+    logManagerActivity({
+      managerId: managerInfo.id,
+      managerName: managerInfo.name,
+      action: 'order_approval',
+      bookingId: targetOrder?.bookingId,
+      roomNumber: targetOrder?.roomNumber,
+      guestName: targetOrder?.guestName,
+      amount: targetOrder?.totalAmount,
+      notes: `Approved order #${targetOrder?.orderNumber} after inventory stock verification. Released to kitchen.`,
+    });
+
+    fetch('/api/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        status: 'accepted_kitchen',
+        managerInfo: { id: managerInfo.id, name: managerInfo.name },
+      }),
+    }).catch(() => null);
+
+    showToast(`Order approved by ${managerInfo.name} & released to live kitchen orders!`);
+  };
+
+  const rejectFoodOrder = (orderId: string, reason: string, managerInfo: { id: string; name: string }) => {
+    setFoodOrders((prev) => {
+      const updated = prev.map((ord) => {
+        if (ord.id === orderId) {
+          return {
+            ...ord,
+            status: 'cancelled' as FoodOrderStatus,
+            rejectionReason: reason,
+          };
+        }
+        return ord;
+      });
+      try {
+        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // Void the pending charge on the folio
+    setFolios((prev) => {
+      const updated = prev.map((fol) => {
+        const hasCharge = fol.charges.some((c) => c.sourceReferenceId === orderId);
+        if (!hasCharge) return fol;
+        const newCharges = fol.charges.map((c) =>
+          c.sourceReferenceId === orderId ? { ...c, chargeStatus: 'void' as const } : c
+        );
+        return recalculateFolioTotals(fol, newCharges);
+      });
+      try {
+        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    const targetOrder = foodOrders.find((o) => o.id === orderId);
+    logManagerActivity({
+      managerId: managerInfo.id,
+      managerName: managerInfo.name,
+      action: 'order_rejection',
+      bookingId: targetOrder?.bookingId,
+      roomNumber: targetOrder?.roomNumber,
+      guestName: targetOrder?.guestName,
+      amount: targetOrder?.totalAmount,
+      notes: `Rejected order #${targetOrder?.orderNumber}. Reason: ${reason}`,
+    });
+
+    fetch('/api/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        status: 'cancelled',
+        managerInfo: { id: managerInfo.id, name: managerInfo.name, notes: reason },
+      }),
+    }).catch(() => null);
+
+    showToast(`Order rejected and folio charge voided.`);
   };
 
   const updateFoodOrderStatus = (orderId: string, status: FoodOrderStatus) => {
@@ -702,6 +934,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       }
       return updated;
     });
+
+    // Notify backend server for real-time sync across all staff tablets
+    try {
+      fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status }),
+      }).catch(() => null);
+    } catch {}
 
     // If order delivered or accepted, confirm the folio charge to posted; if cancelled, void and recalculate!
     if (['accepted_kitchen', 'preparing', 'delivered'].includes(status)) {
@@ -908,12 +1149,26 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Check-In and Check-Out actions
-  const checkInRoom = (bookingId: string) => {
+  const checkInRoom = (bookingId: string, managerInfo?: { id: string; name: string }) => {
     const bk = bookings.find((b) => b.id === bookingId);
     if (!bk) return;
 
+    const mgrId = managerInfo?.id || currentUser?.id || 'staff-1';
+    const mgrName = managerInfo?.name || currentUser?.fullName || 'Duty Manager';
+
     setBookings((prev) => {
-      const updated = prev.map((b) => (b.id === bookingId ? { ...b, tapeStatus: 'checked_in' as const, bookingStatus: 'checked_in' as const, checkedInAt: new Date().toISOString() } : b));
+      const updated = prev.map((b) =>
+        b.id === bookingId
+          ? {
+              ...b,
+              tapeStatus: 'checked_in' as const,
+              bookingStatus: 'checked_in' as const,
+              checkedInAt: new Date().toISOString(),
+              checkedInByManagerId: mgrId,
+              checkedInByManagerName: mgrName,
+            }
+          : b
+      );
       try {
         localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
       } catch {}
@@ -928,36 +1183,112 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
-    showToast(`Room ${bk.roomNumber} (${bk.guest.fullName}) is now Checked-In! In-Room QR is now active.`);
+    logManagerActivity({
+      managerId: mgrId,
+      managerName: mgrName,
+      action: 'check_in',
+      bookingId: bk.id,
+      bookingReference: bk.bookingReference,
+      roomNumber: bk.roomNumber,
+      guestName: bk.guest.fullName,
+      notes: `Guest checked into Room ${bk.roomNumber}. In-room QR activated.`,
+    });
+
+    showToast(`Room ${bk.roomNumber} (${bk.guest.fullName}) checked in by ${mgrName}!`);
   };
 
-  const checkOutRoom = (bookingId: string) => {
+  const completeCheckoutWithSettlement = (
+    bookingId: string,
+    checkoutData: {
+      paymentMethod: PaymentMethod;
+      amountCollected: number;
+      transactionReference?: string;
+      notes?: string;
+      managerId: string;
+      managerName: string;
+    }
+  ) => {
     const bk = bookings.find((b) => b.id === bookingId);
     if (!bk) return;
 
+    const targetFolio = folios.find((f) => f.bookingId === bookingId || f.roomNumber === bk.roomNumber);
+
+    // 1. If payment collected, add folio payment
+    if (targetFolio && checkoutData.amountCollected > 0) {
+      addFolioPayment(targetFolio.id, {
+        folioId: targetFolio.id,
+        amount: checkoutData.amountCollected,
+        paymentMethod: checkoutData.paymentMethod,
+        transactionReference: checkoutData.transactionReference,
+        receiptNotes: checkoutData.notes || `Collected on checkout by ${checkoutData.managerName}`,
+        collectedByName: checkoutData.managerName,
+        collectedById: checkoutData.managerId,
+      });
+    }
+
+    // 2. Mark folio as settled
+    if (targetFolio) {
+      setFolios((prev) => {
+        const updated = prev.map((f) =>
+          f.id === targetFolio.id
+            ? {
+                ...f,
+                status: 'settled' as const,
+                settledAt: new Date().toISOString(),
+                settledByName: checkoutData.managerName,
+                balanceDue: Math.max(0, f.balanceDue - checkoutData.amountCollected),
+                totalPaid: f.totalPaid + checkoutData.amountCollected,
+              }
+            : f
+        );
+        try {
+          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
+    // 3. Mark booking as checked out
+    const now = new Date().toISOString();
     setBookings((prev) => {
-      const updated = prev.map((b) => (b.id === bookingId ? { ...b, tapeStatus: 'available' as const, bookingStatus: 'checked_out' as const, checkedOutAt: new Date().toISOString() } : b));
+      const updated = prev.map((b) =>
+        b.id === bookingId
+          ? {
+              ...b,
+              tapeStatus: 'available' as const,
+              bookingStatus: 'checked_out' as const,
+              checkedOutAt: now,
+              checkedOutByManagerId: checkoutData.managerId,
+              checkedOutByManagerName: checkoutData.managerName,
+            }
+          : b
+      );
       try {
         localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
       } catch {}
       return updated;
     });
 
+    // 4. Update room status to available, housekeeping to deep_clean_turnover
     setRooms((prev) => {
-      const updated = prev.map((r) => (r.id === bk.roomId ? { ...r, currentStatus: 'available' as const, housekeeping: 'deep_clean_turnover' as const } : r));
+      const updated = prev.map((r) =>
+        r.id === bk.roomId
+          ? { ...r, currentStatus: 'available' as const, housekeeping: 'deep_clean_turnover' as const }
+          : r
+      );
       try {
         localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
       } catch {}
       return updated;
     });
 
-    // Auto-create a turnover housekeeping task
+    // 5. Create housekeeping turnover task
     const newTask: HousekeepingTask = {
       id: `hk-${Date.now()}`,
       roomId: bk.roomId,
       roomNumber: bk.roomNumber,
       roomName: bk.roomName,
-      scheduleDate: new Date().toISOString().split('T')[0],
+      scheduleDate: now.split('T')[0],
       taskType: 'deep_clean_turnover',
       status: 'pending',
       assignedToName: 'Dawa Lepcha',
@@ -968,8 +1299,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         fireplace_prepped: false,
         balcony_cleaned: false,
       },
-      notes: `Turnover clean following check-out of ${bk.guest.fullName}.`,
+      notes: `Checkout turnover completed by Manager ${checkoutData.managerName}`,
     };
+
     setHousekeepingTasks((prev) => {
       const updated = [newTask, ...prev];
       try {
@@ -978,7 +1310,37 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
-    showToast(`Room ${bk.roomNumber} checked out. Turnover deep cleaning scheduled.`);
+    // 6. Log manager activity
+    logManagerActivity({
+      managerId: checkoutData.managerId,
+      managerName: checkoutData.managerName,
+      action: 'check_out',
+      bookingId: bk.id,
+      bookingReference: bk.bookingReference,
+      roomNumber: bk.roomNumber,
+      guestName: bk.guest.fullName,
+      amount: checkoutData.amountCollected,
+      paymentMethod: checkoutData.paymentMethod,
+      notes: `Guest checkout completed. Folio settled. Collected ₹${checkoutData.amountCollected} via ${checkoutData.paymentMethod}. ${checkoutData.notes || ''}`.trim(),
+    });
+
+    showToast(`Room ${bk.roomNumber} (${bk.guest.fullName}) successfully checked out by ${checkoutData.managerName}!`);
+  };
+
+  const checkOutRoom = (bookingId: string) => {
+    const bk = bookings.find((b) => b.id === bookingId);
+    if (!bk) return;
+
+    const mgrId = currentUser?.id || 'staff-1';
+    const mgrName = currentUser?.fullName || 'Duty Manager';
+
+    completeCheckoutWithSettlement(bookingId, {
+      paymentMethod: 'cash',
+      amountCollected: 0,
+      managerId: mgrId,
+      managerName: mgrName,
+      notes: 'Direct checkout without extra balance collection',
+    });
   };
 
   // Manual Booking & Room Assignment with Manual Tariff Overrides
@@ -1948,6 +2310,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         addFolioCharge,
         addFolioPayment,
         settleFolio,
+        managerActivityLogs,
+        logManagerActivity,
+        approveFoodOrder,
+        rejectFoodOrder,
+        completeCheckoutWithSettlement,
         checkInRoom,
         checkOutRoom,
         createManualBooking,

@@ -19,7 +19,7 @@ import {
   INITIAL_BOOKINGS as INITIAL_CRM_BOOKINGS,
 } from './crm-data';
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
-import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, Expense } from '@/types/crm';
+import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, FoodOrderStatus, Expense } from '@/types/crm';
 
 export interface StaffAlert {
   id: string;
@@ -1018,6 +1018,20 @@ export async function updateCheckinSubmission(data: CheckinSubmissionData): Prom
     };
   }
 
+  // Create staff notification alert for front desk chime
+  const alert: StaffAlert = {
+    id: 'alt-ci-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    type: 'special_request',
+    roomNumber: booking.roomNumber,
+    guestName: booking.guest.fullName,
+    orderDetails: `📋 Digital Check-In: Room ${booking.roomNumber} (${booking.guest.fullName}) submitted ID & address documents`,
+    totalAmount: 0,
+    createdAt: now,
+    acknowledged: false,
+  };
+  store.staffAlerts = [alert, ...(store.staffAlerts || [])].slice(0, 50);
+  saveStoreData(store);
+
   await saveCRMBooking(booking);
   return booking;
 }
@@ -1095,7 +1109,7 @@ export async function recordOrderOrSpecialRequest(params: RecordOrderParams): Pr
 
   // 1. Format order details string
   const itemsSummary = (params.items || [])
-    .map(i => `${i.quantity ? i.quantity + 'x ' : ''}${i.name}`)
+    .map(i => `${i.quantity ? i.quantity + 'x ' : ''}${i.name || (i as any).itemName || 'Item'}`)
     .join(', ');
   const detailsStr = params.type === 'special_request'
     ? `🎉 ${itemsSummary || 'Special Request'}${params.notes ? ' — ' + params.notes : ''}`
@@ -1115,25 +1129,79 @@ export async function recordOrderOrSpecialRequest(params: RecordOrderParams): Pr
 
   store.staffAlerts = [alert, ...(store.staffAlerts || [])].slice(0, 50);
 
-  // 3. If food order, add to foodOrders
+  // 3. Add to foodOrders (for both food orders and special celebrations)
   let orderRecord: any = null;
   if (params.type === 'food_order') {
+    const ordNum = 'ORD-' + Math.floor(1000 + Math.random() * 9000);
     orderRecord = {
-      id: 'ord-' + Date.now(),
-      orderNumber: 2000 + Math.floor(Math.random() * 8000),
-      bookingId: params.bookingId || `bk-room-${params.roomNumber}`,
+      id: 'ord-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      orderNumber: ordNum,
+      roomId: `room-${params.roomNumber}`,
       roomNumber: params.roomNumber,
+      roomName: `Room ${params.roomNumber}`,
+      bookingId: params.bookingId || `bk-room-${params.roomNumber}`,
+      folioId: `fol-${params.roomNumber}`,
       guestName: params.guestName,
-      items: params.items.map(i => ({
-        itemId: 'item-' + Math.random().toString(36).slice(2, 6),
-        name: i.name,
-        price: i.price,
-        quantity: i.quantity || 1,
-      })),
-      totalAmount: params.totalAmount,
-      status: 'pending',
-      specialInstructions: params.notes,
+      status: 'pending_manager_approval',
+      specialInstructions: params.notes || undefined,
+      subtotal: Number(params.totalAmount),
+      deliveryCharge: 0,
+      totalAmount: Number(params.totalAmount),
       chargePostedToFolio: true,
+      whatsappNotificationSent: true,
+      items: (params.items || []).map((i, idx) => {
+        const itemName = i.name || (i as any).itemName || 'Dish';
+        const unitPrice = Number(i.price ?? (i as any).unitPrice ?? 0);
+        const qty = i.quantity || 1;
+        const lineTotal = Number((i as any).lineTotal ?? (unitPrice * qty));
+        return {
+          id: `oi-${Date.now()}-${idx}`,
+          menuItemId: (i as any).menuItemId || `menu-${idx}`,
+          itemName,
+          unitPrice,
+          quantity: qty,
+          lineTotal,
+          itemNotes: (i as any).itemNotes || params.notes,
+        };
+      }),
+      createdAt: now,
+    };
+    store.foodOrders = [orderRecord, ...(store.foodOrders || [])];
+  } else if (params.type === 'special_request') {
+    const celNum = 'CEL-' + Math.floor(1000 + Math.random() * 9000);
+    const mainItemName = params.items?.[0]?.name || (params.items?.[0] as any)?.itemName || 'Celebration';
+    orderRecord = {
+      id: 'ord-cel-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      orderNumber: celNum,
+      roomId: `room-${params.roomNumber}`,
+      roomNumber: params.roomNumber,
+      roomName: `Room ${params.roomNumber}`,
+      bookingId: params.bookingId || `bk-room-${params.roomNumber}`,
+      folioId: `fol-${params.roomNumber}`,
+      guestName: params.guestName,
+      status: 'pending_manager_approval',
+      specialInstructions: `🎉 Special Celebration: ${mainItemName}${params.notes ? ' — ' + params.notes : ''}`,
+      subtotal: Number(params.totalAmount),
+      deliveryCharge: 0,
+      totalAmount: Number(params.totalAmount),
+      chargePostedToFolio: true,
+      whatsappNotificationSent: true,
+      items: (params.items || []).map((i, idx) => {
+        const rawName = i.name || (i as any).itemName || 'Celebration Request';
+        const formattedName = rawName.startsWith('🎉') ? rawName : `🎉 ${rawName}`;
+        const unitPrice = Number(i.price ?? (i as any).unitPrice ?? 0);
+        const qty = i.quantity || 1;
+        const lineTotal = Number((i as any).lineTotal ?? (unitPrice * qty));
+        return {
+          id: `oi-cel-${Date.now()}-${idx}`,
+          menuItemId: (i as any).menuItemId || 'celebration-item',
+          itemName: formattedName,
+          unitPrice,
+          quantity: qty,
+          lineTotal,
+          itemNotes: (i as any).itemNotes || params.notes,
+        };
+      }),
       createdAt: now,
     };
     store.foodOrders = [orderRecord, ...(store.foodOrders || [])];
@@ -1266,5 +1334,48 @@ export async function getStoreExpenses(): Promise<Expense[]> {
   const store = getStoreData();
   return store.expenses || [];
 }
+
+// ==========================================
+// STORE FOOD ORDERS ACCESSORS
+// ==========================================
+
+export async function getStoreFoodOrders(): Promise<any[]> {
+  const store = getStoreData();
+  return store.foodOrders || [];
+}
+
+export async function updateStoreFoodOrderStatus(
+  orderId: string,
+  status: FoodOrderStatus | string,
+  managerInfo?: { id?: string; name?: string; notes?: string }
+): Promise<boolean> {
+  const store = getStoreData();
+  let found = false;
+  store.foodOrders = (store.foodOrders || []).map((o) => {
+    if (o.id === orderId) {
+      found = true;
+      const updated: FoodOrder = {
+        ...o,
+        status: status as FoodOrderStatus,
+      };
+      if (managerInfo?.name) {
+        if (status === 'accepted_kitchen') {
+          updated.approvedByManagerId = managerInfo.id;
+          updated.approvedByManagerName = managerInfo.name;
+          updated.approvedAt = new Date().toISOString();
+        } else if (status === 'cancelled') {
+          updated.rejectionReason = managerInfo.notes || 'Cancelled by manager';
+        }
+      }
+      return updated;
+    }
+    return o;
+  });
+  if (found) {
+    saveStoreData(store);
+  }
+  return found;
+}
+
 
 

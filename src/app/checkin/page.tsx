@@ -293,18 +293,45 @@ function CheckinContent() {
     e.preventDefault();
     if (!activeBooking) return;
 
-    if (!fullName.trim()) {
-      alert('Please enter your full legal name');
+    if (!fullName.trim() || fullName.trim().length < 3) {
+      alert('Please enter your full legal name (minimum 3 characters as per government ID).');
       return;
     }
 
-    if (!phone.trim()) {
-      alert('Please enter your mobile phone number');
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      alert('Please enter a valid 10-digit mobile phone number.');
       return;
     }
 
-    if (!idNumber.trim() && !idDocumentUrl) {
-      alert('Please enter your ID document number and upload a photo of your ID.');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      alert('Please enter a valid email address for receiving your stay confirmation & GST invoice.');
+      return;
+    }
+
+    if (!city.trim()) {
+      alert('Please enter your City & State.');
+      return;
+    }
+
+    if (!address.trim() || address.trim().length < 5) {
+      alert('Please enter your complete residential address (as printed in your Government ID).');
+      return;
+    }
+
+    if (!idNumber.trim()) {
+      alert('Please enter your Government ID document number.');
+      return;
+    }
+
+    if (!idDocumentUrl) {
+      alert('Please upload or capture a photo of the FRONT side of your Government ID.');
+      return;
+    }
+
+    if (idType === 'Aadhaar Card' && !idDocumentBackUrl) {
+      alert('Please upload or capture the BACK side of your Aadhaar Card (containing your residential address).');
       return;
     }
 
@@ -313,12 +340,12 @@ function CheckinContent() {
     const guestUpdates: Partial<Guest> & { fullName: string; phone: string } = {
       fullName: fullName.trim(),
       phone: phone.trim(),
-      email: email.trim() || undefined,
-      city: city.trim() || undefined,
-      address: address.trim() || undefined,
+      email: email.trim(),
+      city: city.trim(),
+      address: address.trim(),
       nationality: nationality || 'Indian',
       idType,
-      idNumber: idNumber.trim() || undefined,
+      idNumber: idNumber.trim(),
       idDocumentUrl: idDocumentUrl || undefined,
       idDocumentBackUrl: idDocumentBackUrl || undefined,
       dietaryPreferences: dietaryPreferences.trim() || undefined,
@@ -351,7 +378,13 @@ function CheckinContent() {
 
       const resData = await res.json();
 
-      if (res.ok && resData.success && resData.booking) {
+      if (!res.ok) {
+        alert(resData.error || 'Check-in submission failed. Please verify required fields.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (resData.success && resData.booking) {
         savedBooking = resData.booking;
         setActiveBooking(resData.booking);
         updateBookingGuestDetails(resData.booking.id, guestUpdates, {
@@ -748,13 +781,14 @@ function CheckinContent() {
 
                   <div>
                     <label className="font-bold text-forest-800 block mb-1">
-                      Email Address
+                      Email Address *
                     </label>
                     <input
                       type="email"
+                      required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your.email@example.com"
+                      placeholder="your.email@example.com (for stay invoice)"
                       className="w-full p-3 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:bg-white focus:ring-2 focus:ring-forest-800 focus:outline-none"
                     />
                   </div>
@@ -788,13 +822,14 @@ function CheckinContent() {
 
                   <div>
                     <label className="font-bold text-forest-800 block mb-1">
-                      Residential Address
+                      Residential Address (as in Document ID) *
                     </label>
                     <input
                       type="text"
+                      required
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Street, area, postal code"
+                      placeholder="House/Flat No., Street, Locality, Pincode"
                       className="w-full p-3 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:bg-white focus:ring-2 focus:ring-forest-800 focus:outline-none"
                     />
                   </div>
@@ -900,10 +935,10 @@ function CheckinContent() {
                   {/* Back Side */}
                   <div className="border-2 border-dashed border-sand-300 hover:border-forest-600 rounded-3xl p-5 text-center bg-sand-50/60 transition-colors">
                     <span className="text-xs font-bold text-forest-900 block mb-1">
-                      ID Photo (Back Page / Address)
+                      ID Photo (Back Page / Address) {idType === 'Aadhaar Card' ? '*' : '(Optional)'}
                     </span>
                     <span className="text-[11px] text-forest-600 block mb-3">
-                      Recommended for Aadhaar &amp; Voter ID
+                      {idType === 'Aadhaar Card' ? 'Mandatory for Aadhaar Card verification' : 'Recommended for address verification'}
                     </span>
 
                     {idDocumentBackUrl ? (

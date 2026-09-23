@@ -31,9 +31,45 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    if (!body?.guest?.fullName || !body?.guest?.phone) {
+    const guest = body?.guest;
+    if (!guest?.fullName || !guest?.phone) {
       return NextResponse.json(
         { success: false, error: 'Guest full name and phone number are required.' },
+        { status: 400 }
+      );
+    }
+
+    if (!guest?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.email)) {
+      return NextResponse.json(
+        { success: false, error: 'A valid email address is required for check-in confirmation & invoice delivery.' },
+        { status: 400 }
+      );
+    }
+
+    if (!guest?.address || guest.address.trim().length < 5) {
+      return NextResponse.json(
+        { success: false, error: 'Residential address (as printed in Government ID) is required.' },
+        { status: 400 }
+      );
+    }
+
+    if (!guest?.idNumber || !guest.idNumber.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'Government ID document number is required.' },
+        { status: 400 }
+      );
+    }
+
+    if (!guest?.idDocumentUrl) {
+      return NextResponse.json(
+        { success: false, error: 'Government ID front photo upload is required.' },
+        { status: 400 }
+      );
+    }
+
+    if (guest?.idType === 'Aadhaar Card' && !guest?.idDocumentBackUrl) {
+      return NextResponse.json(
+        { success: false, error: 'Aadhaar Card back photo (with residential address) is required.' },
         { status: 400 }
       );
     }

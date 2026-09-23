@@ -6,6 +6,8 @@ import {
   getFolioForBooking,
   saveExpenseItem,
   getStoreExpenses,
+  getStoreFoodOrders,
+  updateStoreFoodOrderStatus,
 } from '@/lib/data-service';
 
 export async function GET(request: Request) {
@@ -33,9 +35,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, folio });
     }
 
-    // Default: return all staff alerts
+    // 4. Return food orders (and celebration orders)
+    const orders = await getStoreFoodOrders();
     const alerts = await getStaffAlerts(false);
-    return NextResponse.json({ success: true, alerts });
+    return NextResponse.json({ success: true, orders, alerts });
   } catch (error: any) {
     console.error('API Orders GET error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -101,13 +104,19 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
 
-    // Acknowledge alert
+    // 1. Update Food Order status (Kitchen advancement & Manager approval)
+    if (body.orderId && body.status) {
+      const updated = await updateStoreFoodOrderStatus(body.orderId, body.status, body.managerInfo);
+      return NextResponse.json({ success: updated, orderId: body.orderId, status: body.status });
+    }
+
+    // 2. Acknowledge alert
     if (body.alertId) {
       const acknowledged = await acknowledgeStaffAlert(body.alertId);
       return NextResponse.json({ success: acknowledged });
     }
 
-    return NextResponse.json({ success: false, error: 'Missing alertId' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Missing orderId/status or alertId' }, { status: 400 });
   } catch (error: any) {
     console.error('API Orders PATCH error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

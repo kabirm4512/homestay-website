@@ -33,6 +33,7 @@ import {
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm';
 import ManualBookingModal from './ManualBookingModal';
+import GuestCheckoutModal from './GuestCheckoutModal';
 
 export default function TapeChart() {
   const {
@@ -43,9 +44,11 @@ export default function TapeChart() {
     updateBookingGuestDetails,
     updateBookingDocumentStatus,
     checkInRoom,
-    checkOutRoom,
+    currentUser,
     showToast,
   } = useCRM();
+
+  const [checkoutBooking, setCheckoutBooking] = useState<CRMBooking | null>(null);
 
   // Date range state: start date for the 10-day viewing window
   const [baseDate, setBaseDate] = useState<Date>(() => {
@@ -640,14 +643,17 @@ export default function TapeChart() {
                   {selectedBooking.tapeStatus !== 'checked_in' ? (
                     <button
                       onClick={() => {
-                        checkInRoom(selectedBooking.id);
+                        checkInRoom(selectedBooking.id, {
+                          id: currentUser?.id || 'staff-1',
+                          name: currentUser?.fullName || 'Duty Manager',
+                        });
                         setSelectedBooking({
                           ...selectedBooking,
                           tapeStatus: 'checked_in',
                           bookingStatus: 'checked_in',
                         });
                       }}
-                      className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5"
+                      className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
                     >
                       <LogIn className="w-4 h-4" />
                       <span>Check-In Guest</span>
@@ -655,13 +661,12 @@ export default function TapeChart() {
                   ) : (
                     <button
                       onClick={() => {
-                        checkOutRoom(selectedBooking.id);
-                        setSelectedBooking(null);
+                        setCheckoutBooking(selectedBooking);
                       }}
-                      className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5"
+                      className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
-                      <span>Check-Out Room</span>
+                      <span>Review Bills &amp; Checkout</span>
                     </button>
                   )}
                 </div>
@@ -1234,6 +1239,18 @@ export default function TapeChart() {
           openGuestDrawer(newBk);
         }}
       />
+
+      {/* Guest Checkout Modal */}
+      {checkoutBooking && (
+        <GuestCheckoutModal
+          isOpen={Boolean(checkoutBooking)}
+          booking={checkoutBooking}
+          onClose={() => {
+            setCheckoutBooking(null);
+            setSelectedBooking(null);
+          }}
+        />
+      )}
     </div>
   );
 }

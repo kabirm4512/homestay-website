@@ -17,6 +17,7 @@ export type MealPlan = 'EP' | 'CP' | 'MAP' | 'AP';
 export type BookingStatus = 'hold' | 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled';
 
 export type FoodOrderStatus =
+  | 'pending_manager_approval'
   | 'pending'
   | 'accepted_kitchen'
   | 'preparing'
@@ -135,6 +136,10 @@ export interface CRMBooking {
   documentStatus?: 'pending' | 'submitted' | 'verified';
   advancePaid?: number;
   advancePaymentMethod?: PaymentMethod;
+  checkedInByManagerId?: string;
+  checkedInByManagerName?: string;
+  checkedOutByManagerId?: string;
+  checkedOutByManagerName?: string;
 }
 
 export interface FolioCharge {
@@ -159,6 +164,7 @@ export interface FolioPayment {
   receiptNotes?: string;
   collectedAt: string;
   collectedByName?: string;
+  collectedById?: string;
 }
 
 export interface GuestFolio {
@@ -227,6 +233,10 @@ export interface FoodOrder {
   whatsappNotificationSent: boolean;
   items: FoodOrderItem[];
   createdAt: string;
+  approvedByManagerId?: string;
+  approvedByManagerName?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface RouteModifier {
@@ -381,4 +391,20 @@ export interface RoomSeasonalTariffs {
   extraAdultRate?: number;
   extraChildRate?: number;
 }
+
+export interface ManagerActivityLog {
+  id: string;
+  managerId: string;
+  managerName: string;
+  action: 'check_in' | 'check_out' | 'payment_collection' | 'order_approval' | 'order_rejection' | 'advance_received';
+  bookingId?: string;
+  bookingReference?: string;
+  roomNumber?: number;
+  guestName?: string;
+  amount?: number;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+  timestamp: string;
+}
+
 

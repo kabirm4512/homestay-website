@@ -39,6 +39,7 @@ import AdminStaffManagement from '@/components/admin/AdminStaffManagement';
 
 // Boutique CRM & Concierge Modules
 import TapeChart from '@/components/crm/TapeChart';
+import MasterBookingsList from '@/components/crm/MasterBookingsList';
 import OperationsHub from '@/components/crm/OperationsHub';
 import KitchenPortal from '@/components/crm/KitchenPortal';
 import FinancialLedger from '@/components/crm/FinancialLedger';
@@ -613,6 +614,46 @@ export default function AdminPage() {
         </div>
 
         {/* Secondary Subtab Bar for Active Workspace */}
+        {workspace === 'front_desk' && (
+          <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2">
+            <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
+              <span className="text-gray-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">View:</span>
+              <button
+                onClick={() => {
+                  setActiveSubtab('tape_chart');
+                  if (typeof window !== 'undefined') {
+                    try {
+                      localStorage.setItem('wp_admin_subtab', 'tape_chart');
+                    } catch {}
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab !== 'bookings_list' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>Tape Chart (Grid View)</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSubtab('bookings_list');
+                  if (typeof window !== 'undefined') {
+                    try {
+                      localStorage.setItem('wp_admin_subtab', 'bookings_list');
+                    } catch {}
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'bookings_list' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
+                }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5 text-amber-300" />
+                <span>Master Bookings &amp; Folios List</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {workspace === 'orders_concierge' && (
           <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2">
             <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
@@ -766,15 +807,23 @@ export default function AdminPage() {
 
       {/* ================= 3. MAIN WORKSPACE VIEW ================= */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Workspace 1: Front Desk (Tape Chart) */}
-        {workspace === 'front_desk' && <TapeChart />}
+        {/* Workspace 1: Front Desk (Tape Chart or Master Bookings List) */}
+        {workspace === 'front_desk' && (
+          <>
+            {activeSubtab === 'bookings_list' ? (
+              <MasterBookingsList onOpenManualBooking={() => setIsManualCheckInOpen(true)} />
+            ) : (
+              <TapeChart />
+            )}
+          </>
+        )}
 
         {/* Workspace 2: Orders & Concierge */}
         {workspace === 'orders_concierge' && (
           <>
-            {activeSubtab === 'kitchen' && <KitchenPortal />}
+            {activeSubtab === 'kitchen' && <KitchenPortal initialTab="orders" />}
             {activeSubtab === 'dispatch' && <OperationsHub />}
-            {activeSubtab === 'orders' && <OperationsHub />}
+            {activeSubtab === 'orders' && <KitchenPortal initialTab="orders" />}
           </>
         )}
 
