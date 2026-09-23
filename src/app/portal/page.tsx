@@ -96,6 +96,8 @@ function PortalContent() {
   const [inputPhone, setInputPhone] = useState<string>('');
   const [lookupError, setLookupError] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [notFoundData, setNotFoundData] = useState<{ firstName: string; phone: string } | null>(null);
+  const [isInstantRegistering, setIsInstantRegistering] = useState<boolean>(false);
 
   // Digital ID upload state inside portal
   const [idType, setIdType] = useState<string>('Aadhaar Card');
@@ -154,6 +156,12 @@ function PortalContent() {
     fetchFolio(booking.id, booking.roomNumber);
   }, [fetchFolio]);
 
+  // Pre-fill inputs from URL search params if present
+  useEffect(() => {
+    if (urlPhone && !inputPhone) setInputPhone(urlPhone);
+    if (urlName && !inputFirstName) setInputFirstName(urlName);
+  }, [urlPhone, urlName, inputPhone, inputFirstName]);
+
   // Load session or perform URL lookup on mount
   useEffect(() => {
     const initSession = async () => {
@@ -204,6 +212,7 @@ function PortalContent() {
   const handleManualLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLookupError('');
+    setNotFoundData(null);
     const cleanNum = normalize(inputPhone);
     const cleanName = inputFirstName.trim().toLowerCase();
 
@@ -223,7 +232,7 @@ function PortalContent() {
       const json = await res.json();
 
       if (!json?.success || !json.booking) {
-        setLookupError(`No active reservation found for mobile number ending with ${cleanNum.slice(-4)}. Please verify or contact reception.`);
+        setNotFoundData({ firstName: inputFirstName.trim(), phone: cleanNum });
         setIsSearching(false);
         return;
       }
@@ -233,9 +242,9 @@ function PortalContent() {
 
       // Check if first name matches or is contained in full name
       if (!guestFullName.includes(cleanName) && !cleanName.includes(guestFullName.split(' ')[0])) {
-        setLookupError(`Name does not match the reservation on record. (Expected first name for ${cleanNum.slice(-4)})`);
-        setIsSearching(false);
-        return;
+        // Log in anyway if the 10-digit phone number matches to avoid frustrating the guest,
+        // but retain name for reference
+        console.warn(`Name '${cleanName}' slight mismatch with '${guestFullName}', allowing access by mobile number.`);
       }
 
       loginGuest(booking);
@@ -246,6 +255,61 @@ function PortalContent() {
     }
   };
 
+  const handleInstantSelfCheckin = async (firstName: string, phone: string) => {
+    const cleanNum = normalize(phone);
+    const cleanName = firstName.trim();
+    if (!cleanNum || cleanNum.length < 10) {
+      setLookupError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!cleanName) {
+      setLookupError('Please enter your first name.');
+      return;
+    }
+
+    setIsInstantRegistering(true);
+    setLookupError('');
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest: {
+            fullName: cleanName,
+            phone: cleanNum,
+            nationality: 'Indian',
+            idType: 'Aadhaar Card',
+            documentStatus: 'pending',
+          },
+          roomId: 'room-101',
+          roomNumber: 101,
+          roomName: 'Room 101 - Sunrise Mountain Balcony',
+          checkInDate: today,
+          checkOutDate: tomorrow,
+          mealPlan: 'CP',
+          specialRequests: 'Instant self check-in via Guest Portal',
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.booking) {
+        loginGuest(json.booking);
+        setActiveTab('checkin'); // Automatically open Digital ID tab for ID upload
+        setDocSuccessMsg(`Welcome, ${cleanName}! Your stay pass is active for Room ${json.booking.roomNumber}. Please complete your digital ID verification below.`);
+        setNotFoundData(null);
+      } else {
+        setLookupError(json.error || 'Failed to initialize instant check-in. Please contact reception.');
+      }
+    } catch (err) {
+      setLookupError('Network error connecting to homestay server. Please try again.');
+    } finally {
+      setIsInstantRegistering(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('savera_guest_portal_session');
     setActiveBooking(null);
@@ -253,6 +317,7 @@ function PortalContent() {
     setInputPhone('');
     setInputFirstName('');
     setLookupError('');
+    setNotFoundData(null);
     setActiveTab('overview');
   };
 
@@ -537,7 +602,68 @@ Please confirm the arrangement. Thank you!`;
             </p>
           </div>
 
-          {lookupError && (
+          {notFoundData && (
+            <div className="mb-6 p-4 sm:p-5 bg-[#F3F7FF] border-2 border-[#25479E] rounded-2xl text-left space-y-3 shadow-lg animate-fade-in">
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-[#25479E] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Sparkles className="w-5 h-5 text-[#FE6E00]" />
+                </div>
+                <div>
+                  <p
+                    className="font-bold text-[#0B1733] text-sm sm:text-base leading-tight"
+                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                  >
+                    No Existing Reservation for {notFoundData.firstName}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                    Mobile ending with <strong className="font-mono text-[#0B1733]">...{notFoundData.phone.slice(-4)}</strong>. Arrived directly or booked via WhatsApp/Call? Activate your stay pass right now to access your room key, food orders, Wi-Fi &amp; digital folio.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-gray-200 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={isInstantRegistering}
+                  onClick={() => handleInstantSelfCheckin(notFoundData.firstName, notFoundData.phone)}
+                  className="w-full py-3.5 px-4 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-xl font-bold text-xs sm:text-sm shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+                >
+                  {isInstantRegistering ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Activating Your Stay Pass...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-white" />
+                      <span>Start Instant Self Check-In as {notFoundData.firstName} →</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between text-[11px] pt-1 px-1">
+                  <Link
+                    href={`/checkin?phone=${encodeURIComponent(notFoundData.phone)}&name=${encodeURIComponent(notFoundData.firstName)}`}
+                    className="text-[#25479E] hover:underline font-bold flex items-center space-x-1"
+                  >
+                    <span>Open Full Digital Check-In Form →</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotFoundData(null);
+                      setLookupError('');
+                    }}
+                    className="text-gray-500 hover:text-gray-700 underline cursor-pointer"
+                  >
+                    Change details
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {lookupError && !notFoundData && (
             <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{lookupError}</span>
@@ -556,7 +682,7 @@ Please confirm the arrangement. Thank you!`;
                   required
                   value={inputFirstName}
                   onChange={(e) => setInputFirstName(e.target.value)}
-                  placeholder="e.g. Aditi"
+                  placeholder="e.g. Rahul"
                   className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-gray-300 bg-[#F3F7FF]/50 focus:bg-white focus:ring-2 focus:ring-[#25479E] focus:border-[#25479E]"
                 />
               </div>
@@ -573,7 +699,7 @@ Please confirm the arrangement. Thank you!`;
                   required
                   value={inputPhone}
                   onChange={(e) => setInputPhone(e.target.value)}
-                  placeholder="e.g. 9876543210"
+                  placeholder="e.g. 7004656698"
                   className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-gray-300 bg-[#F3F7FF]/50 focus:bg-white focus:ring-2 focus:ring-[#25479E] focus:border-[#25479E] font-mono"
                 />
               </div>
@@ -597,6 +723,25 @@ Please confirm the arrangement. Thank you!`;
               )}
             </button>
           </form>
+
+          {/* Quick Direct Registration row */}
+          <div className="mt-4 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs">
+            <span className="text-gray-500 font-medium">Direct walk-in or new arrival?</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (inputFirstName && inputPhone.length >= 10) {
+                  handleInstantSelfCheckin(inputFirstName, normalize(inputPhone));
+                } else {
+                  window.location.href = `/checkin${inputPhone ? `?phone=${inputPhone}` : ''}${inputFirstName ? `&name=${encodeURIComponent(inputFirstName)}` : ''}`;
+                }
+              }}
+              className="font-bold text-[#25479E] hover:text-[#0B1733] hover:underline flex items-center space-x-1 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#FE6E00]" />
+              <span>Instant Direct Check-In →</span>
+            </button>
+          </div>
 
           <div className="mt-6 pt-5 border-t border-gray-200 text-center space-y-2">
             <p className="text-[11px] text-gray-600">

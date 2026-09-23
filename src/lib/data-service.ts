@@ -825,7 +825,64 @@ export async function findBookingByQuery(query: string): Promise<CRMBooking | nu
     return bookingToCRMBooking(foundBk);
   }
 
-  // 3. Fallback: Check if cleanDigits matches 8101298882 specifically
+  // 3. Search inquiries (convert to CRMBooking if matched)
+  const inqList = store.inquiries || [];
+  const foundInq = inqList.find((inq) => {
+    if (inq.id.toLowerCase() === trimmed) return true;
+    if (inq.phone) {
+      const iPhoneNorm = normalizePhone(inq.phone);
+      if (cleanQueryPhone && cleanQueryPhone.length >= 6) {
+        if (iPhoneNorm === cleanQueryPhone || iPhoneNorm.endsWith(cleanQueryPhone) || cleanQueryPhone.endsWith(iPhoneNorm)) {
+          return true;
+        }
+      }
+      if (cleanDigits && cleanDigits.length >= 6 && inq.phone.replace(/[^0-9]/g, '').includes(cleanDigits)) {
+        return true;
+      }
+    }
+    if (inq.guest_name && inq.guest_name.toLowerCase().includes(trimmed)) return true;
+    return false;
+  });
+
+  if (foundInq) {
+    const ref = 'WP-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
+    const converted: CRMBooking = {
+      id: 'bk-' + (foundInq.id || Date.now()),
+      bookingReference: ref,
+      roomId: foundInq.room_id || 'room-101',
+      roomNumber: 101,
+      roomName: foundInq.room_name || 'Room 101 - Sunrise Mountain Balcony',
+      guestId: 'gst-' + Date.now(),
+      guest: {
+        id: 'gst-' + Date.now(),
+        fullName: foundInq.guest_name,
+        phone: foundInq.phone,
+        email: foundInq.email || '',
+        idType: 'Aadhaar Card',
+        idNumber: '',
+        nationality: 'Indian',
+        documentStatus: 'pending',
+        totalLifetimeStays: 1,
+      },
+      checkInDate: foundInq.check_in || new Date().toISOString().split('T')[0],
+      checkOutDate: foundInq.check_out || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+      tapeStatus: 'confirmed',
+      bookingStatus: 'confirmed',
+      mealPlan: 'CP',
+      adultsCount: foundInq.guests_count || 2,
+      childrenCount: 0,
+      roomRatePerNight: 4500,
+      totalNights: 1,
+      totalRoomAmount: 4500,
+      specialRequests: foundInq.message || '',
+      documentStatus: 'pending',
+      advancePaid: 0,
+    };
+    await saveCRMBooking(converted);
+    return converted;
+  }
+
+  // 4. Fallback: Check if cleanDigits matches 8101298882 specifically
   if (cleanDigits.includes('8101298882') || cleanQueryPhone === '8101298882' || trimmed === 'wp-2026-8882') {
     const fallbackBooking = INITIAL_CRM_BOOKINGS[0];
     if (fallbackBooking) return fallbackBooking;
@@ -884,6 +941,15 @@ export async function updateCheckinSubmission(data: CheckinSubmissionData): Prom
   if (!existing && data.guest?.phone) {
     const norm = normalizePhone(data.guest.phone);
     existing = (store.crmBookings || []).find(b => normalizePhone(b.guest.phone) === norm) || null;
+    if (!existing) {
+      const inq = (store.inquiries || []).find(i => normalizePhone(i.phone) === norm);
+      if (inq) {
+        if (!data.guest.email && inq.email) data.guest.email = inq.email;
+        if (!data.specialRequests && inq.message) data.specialRequests = inq.message;
+        if (!data.roomName && inq.room_name) data.roomName = inq.room_name;
+        if (!data.roomId && inq.room_id) data.roomId = inq.room_id;
+      }
+    }
   }
 
   const docStatus = (data.guest.idDocumentUrl || data.guest.idNumber) ? 'submitted' : 'pending';

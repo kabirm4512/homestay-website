@@ -43,11 +43,13 @@ function normalizePhone(raw: string): string {
 
 function CheckinContent() {
   const searchParams = useSearchParams();
-  const bookingParam = searchParams.get('booking');
+  const bookingParam = searchParams.get('booking') || searchParams.get('query') || searchParams.get('phone');
+  const nameParam = searchParams.get('name') || '';
+  const phoneParam = searchParams.get('phone') || '';
 
   const { bookings, updateBookingGuestDetails, showToast } = useCRM();
 
-  const [bookingQuery, setBookingQuery] = useState('');
+  const [bookingQuery, setBookingQuery] = useState(phoneParam || bookingParam || '');
   const [activeBooking, setActiveBooking] = useState<CRMBooking | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -57,8 +59,8 @@ function CheckinContent() {
   const [selectedCheckOutDate, setSelectedCheckOutDate] = useState(() => new Date(Date.now() + 86400000).toISOString().split('T')[0]);
 
   // Form Fields
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [fullName, setFullName] = useState(nameParam);
+  const [phone, setPhone] = useState(phoneParam);
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
@@ -82,18 +84,18 @@ function CheckinContent() {
     setSelectedRoomId(b.roomId || 'room-101');
     setSelectedCheckInDate(b.checkInDate || new Date().toISOString().split('T')[0]);
     setSelectedCheckOutDate(b.checkOutDate || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
-    setFullName(b.guest.fullName || '');
-    setPhone(b.guest.phone || '');
-    setEmail(b.guest.email || '');
-    setCity(b.guest.city || '');
-    setAddress(b.guest.address || '');
-    setNationality(b.guest.nationality || 'Indian');
-    setIdType(b.guest.idType || 'Aadhaar Card');
-    setIdNumber(b.guest.idNumber || '');
-    setIdDocumentUrl(b.guest.idDocumentUrl || '');
-    setIdDocumentBackUrl(b.guest.idDocumentBackUrl || '');
-    setDietaryPreferences(b.guest.dietaryPreferences || '');
-    setHospitalityPreferences(b.guest.hospitalityPreferences || '');
+    setFullName(b.guest?.fullName || nameParam || '');
+    setPhone(b.guest?.phone || phoneParam || '');
+    setEmail(b.guest?.email || '');
+    setCity(b.guest?.city || '');
+    setAddress(b.guest?.address || '');
+    setNationality(b.guest?.nationality || 'Indian');
+    setIdType(b.guest?.idType || 'Aadhaar Card');
+    setIdNumber(b.guest?.idNumber || '');
+    setIdDocumentUrl(b.guest?.idDocumentUrl || '');
+    setIdDocumentBackUrl(b.guest?.idDocumentBackUrl || '');
+    setDietaryPreferences(b.guest?.dietaryPreferences || '');
+    setHospitalityPreferences(b.guest?.hospitalityPreferences || '');
     setSpecialRequests(b.specialRequests || '');
 
     if (b.documentStatus === 'submitted' || b.documentStatus === 'verified') {
@@ -102,6 +104,15 @@ function CheckinContent() {
       setIsSubmitted(false);
     }
   };
+
+  // Pre-fill fields from URL query params
+  useEffect(() => {
+    if (nameParam && !fullName) setFullName(nameParam);
+    if (phoneParam && !phone) {
+      setPhone(phoneParam);
+      setBookingQuery(phoneParam);
+    }
+  }, [nameParam, phoneParam, fullName, phone]);
 
   // Resolve booking from query param or search
   useEffect(() => {
@@ -159,6 +170,7 @@ function CheckinContent() {
         }
       })
       .catch(() => setNotFound(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingParam, bookings]);
 
   const handleManualSearch = async (e: React.FormEvent) => {
@@ -215,9 +227,10 @@ function CheckinContent() {
     setNotFound(true);
   };
 
-  const startDirectSelfCheckin = (queryStr: string) => {
+  const startDirectSelfCheckin = (queryStr: string, suggestedName?: string) => {
     const cleanDigits = queryStr.replace(/[^0-9]/g, '');
-    const initialPhone = cleanDigits.length >= 7 ? cleanDigits : '';
+    const initialPhone = cleanDigits.length >= 7 ? cleanDigits : (phoneParam || phone || '');
+    const initialName = (suggestedName || fullName || nameParam || '').trim();
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
@@ -230,7 +243,7 @@ function CheckinContent() {
       guestId: `gst-${Date.now()}`,
       guest: {
         id: `gst-${Date.now()}`,
-        fullName: '',
+        fullName: initialName,
         phone: initialPhone,
         nationality: 'Indian',
         idType: 'Aadhaar Card',
@@ -327,6 +340,8 @@ function CheckinContent() {
       specialRequests: specialRequests.trim() || undefined,
     };
 
+    let savedBooking: CRMBooking = activeBooking;
+
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
@@ -337,6 +352,7 @@ function CheckinContent() {
       const resData = await res.json();
 
       if (res.ok && resData.success && resData.booking) {
+        savedBooking = resData.booking;
         setActiveBooking(resData.booking);
         updateBookingGuestDetails(resData.booking.id, guestUpdates, {
           specialRequests: specialRequests.trim() || undefined,
@@ -380,6 +396,13 @@ function CheckinContent() {
         window.dispatchEvent(new Event('storage'));
       }
     } catch {}
+
+    // Save session for seamless instant portal access
+    if (savedBooking) {
+      try {
+        localStorage.setItem('savera_guest_portal_session', JSON.stringify(savedBooking));
+      } catch {}
+    }
 
     setIsSubmitting(false);
     setIsSubmitted(true);
@@ -497,17 +520,17 @@ function CheckinContent() {
                   <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row gap-2">
                     <button
                       type="button"
-                      onClick={() => startDirectSelfCheckin(bookingQuery)}
-                      className="flex-1 py-2.5 px-3 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+                      onClick={() => startDirectSelfCheckin(bookingQuery, fullName || nameParam)}
+                      className="flex-1 py-3 px-3 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <Sparkles className="w-3.5 h-3.5 text-white" />
                       <span>Start Direct Self Check-In</span>
                     </button>
                     <a
-                      href="tel:+919876543210"
-                      className="py-2.5 px-3 bg-white hover:bg-sand-100 text-forest-900 border border-sand-300 rounded-xl font-bold text-xs transition-colors flex items-center justify-center space-x-1"
+                      href="tel:+919832022233"
+                      className="py-3 px-3.5 bg-white hover:bg-gray-50 text-[#0B1733] border border-gray-300 rounded-xl font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                     >
-                      <Phone className="w-3.5 h-3.5" />
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Call Reception</span>
                     </a>
                   </div>
@@ -1044,21 +1067,35 @@ function CheckinContent() {
               </div>
             </div>
 
+            {/* Primary Guest Portal CTA */}
+            <div className="pt-2 max-w-md mx-auto space-y-2">
+              <Link
+                href={`/portal?phone=${encodeURIComponent(activeBooking.guest?.phone || phone)}&booking=${encodeURIComponent(activeBooking.bookingReference)}`}
+                className="w-full py-4 px-6 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-2xl font-bold text-sm sm:text-base shadow-[0_4px_16px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2.5 cursor-pointer"
+              >
+                <Sparkles className="w-5 h-5 text-white" />
+                <span>Open My Guest Portal &amp; Stay Folio →</span>
+              </Link>
+              <p className="text-[11px] text-gray-500">
+                Order hot meals to your room, view GST folio &amp; bills, or copy property Wi-Fi password.
+              </p>
+            </div>
+
             {/* Useful Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <a
                 href="https://maps.google.com/?q=Savera+Homestay+Darjeeling"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto px-6 py-3 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center justify-center space-x-2"
+                className="w-full sm:w-auto px-5 py-2.5 bg-[#25479E] hover:bg-[#1E3A8A] text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center justify-center space-x-2"
               >
                 <MapPin className="w-4 h-4" />
                 <span>Get Estate Directions</span>
               </a>
 
               <a
-                href="tel:+919876543210"
-                className="w-full sm:w-auto px-6 py-3 bg-sand-100 hover:bg-sand-200 text-forest-900 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-2"
+                href="tel:+919832022233"
+                className="w-full sm:w-auto px-5 py-2.5 bg-[#F3F7FF] hover:bg-white text-[#0B1733] border border-gray-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-2"
               >
                 <Phone className="w-4 h-4" />
                 <span>Call Estate Reception</span>
@@ -1067,7 +1104,7 @@ function CheckinContent() {
               <button
                 type="button"
                 onClick={() => setIsSubmitted(false)}
-                className="w-full sm:w-auto px-6 py-3 border border-sand-300 hover:bg-sand-50 text-forest-700 rounded-xl text-xs font-bold transition-colors"
+                className="w-full sm:w-auto px-5 py-2.5 border border-gray-300 hover:bg-gray-50 text-gray-600 rounded-xl text-xs font-bold transition-colors"
               >
                 Edit Details
               </button>

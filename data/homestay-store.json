@@ -373,6 +373,23 @@
   "inquiries": [],
   "bookings": [
     {
+      "id": "bk-1790173015421",
+      "booking_reference": "WP-2026-2494",
+      "guest_name": "Rahul Sharma",
+      "email": "",
+      "phone": "7004656698",
+      "room_id": "room-101",
+      "room_name": "Room 101 - Sunrise Mountain Balcony",
+      "check_in": "2026-09-23",
+      "check_out": "2026-09-24",
+      "nights": 1,
+      "total_price": 4500,
+      "status": "completed",
+      "payment_status": "unpaid",
+      "special_requests": "Instant self check-in via Guest Portal",
+      "created_at": "2026-09-23T14:16:55.421Z"
+    },
+    {
       "id": "bk-8101298882",
       "booking_reference": "WP-2026-8882",
       "guest_name": "Savera Guest",
@@ -388,6 +405,77 @@
       "payment_status": "deposit_paid",
       "special_requests": "Mountain sunrise view, warm drinking water",
       "created_at": "2026-09-22T13:18:23.789Z"
+    }
+  ],
+  "crmBookings": [
+    {
+      "id": "bk-1790173015421",
+      "bookingReference": "WP-2026-2494",
+      "roomId": "room-101",
+      "roomNumber": 101,
+      "roomName": "Room 101 - Sunrise Mountain Balcony",
+      "guestId": "gst-1790173015421",
+      "guest": {
+        "id": "gst-1790173015421",
+        "fullName": "Rahul Sharma",
+        "phone": "7004656698",
+        "email": "",
+        "idType": "Aadhaar Card",
+        "idNumber": "",
+        "address": "",
+        "city": "",
+        "nationality": "Indian",
+        "dietaryPreferences": "",
+        "hospitalityPreferences": "",
+        "documentStatus": "pending",
+        "totalLifetimeStays": 1
+      },
+      "checkInDate": "2026-09-23",
+      "checkOutDate": "2026-09-24",
+      "tapeStatus": "checked_in",
+      "bookingStatus": "checked_in",
+      "mealPlan": "CP",
+      "adultsCount": 2,
+      "childrenCount": 0,
+      "roomRatePerNight": 4500,
+      "totalNights": 1,
+      "totalRoomAmount": 4500,
+      "specialRequests": "Instant self check-in via Guest Portal",
+      "checkedInAt": "2026-09-23T14:16:55.421Z",
+      "documentStatus": "pending",
+      "advancePaid": 0
+    },
+    {
+      "id": "bk-8101298882",
+      "bookingReference": "WP-2026-8882",
+      "roomId": "room-101",
+      "roomNumber": 101,
+      "roomName": "Room 101 - Sunrise Mountain Balcony",
+      "guestId": "gst-8101298882",
+      "guest": {
+        "id": "gst-8101298882",
+        "fullName": "Savera Guest",
+        "phone": "8101298882",
+        "email": "guest8882@gmail.com",
+        "nationality": "Indian",
+        "idType": "Aadhaar Card",
+        "documentStatus": "pending",
+        "totalLifetimeStays": 1
+      },
+      "checkInDate": "2026-09-22",
+      "checkOutDate": "2026-09-23",
+      "tapeStatus": "confirmed",
+      "bookingStatus": "confirmed",
+      "mealPlan": "CP",
+      "adultsCount": 2,
+      "childrenCount": 0,
+      "roomRatePerNight": 4500,
+      "totalNights": 1,
+      "totalRoomAmount": 4500,
+      "specialRequests": "Mountain sunrise view, warm drinking water",
+      "documentStatus": "pending",
+      "advancePaid": 2000,
+      "advancePaymentMethod": "upi"
     }
   ],
   "roomTariffs": {
@@ -2003,38 +2091,8 @@
       }
     }
   ],
-  "crmBookings": [
-    {
-      "id": "bk-8101298882",
-      "bookingReference": "WP-2026-8882",
-      "roomId": "room-101",
-      "roomNumber": 101,
-      "roomName": "Room 101 - Sunrise Mountain Balcony",
-      "guestId": "gst-8101298882",
-      "guest": {
-        "id": "gst-8101298882",
-        "fullName": "Savera Guest",
-        "phone": "8101298882",
-        "email": "guest8882@gmail.com",
-        "nationality": "Indian",
-        "idType": "Aadhaar Card",
-        "documentStatus": "pending",
-        "totalLifetimeStays": 1
-      },
-      "checkInDate": "2026-09-22",
-      "checkOutDate": "2026-09-23",
-      "tapeStatus": "confirmed",
-      "bookingStatus": "confirmed",
-      "mealPlan": "CP",
-      "adultsCount": 2,
-      "childrenCount": 0,
-      "roomRatePerNight": 4500,
-      "totalNights": 1,
-      "totalRoomAmount": 4500,
-      "specialRequests": "Mountain sunrise view, warm drinking water",
-      "documentStatus": "pending",
-      "advancePaid": 2000,
-      "advancePaymentMethod": "upi"
-    }
-  ]
+  "folios": [],
+  "foodOrders": [],
+  "staffAlerts": [],
+  "expenses": []
 }
