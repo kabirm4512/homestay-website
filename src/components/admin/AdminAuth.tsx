@@ -13,7 +13,7 @@ import {
 import { useCRM } from '@/context/CRMContext';
 
 interface AdminAuthProps {
-  onAuthenticated: (token: string, user: { name: string; role: string }) => void;
+  onAuthenticated: (token: string, user: { name: string; role: string; [key: string]: any }) => void;
 }
 
 export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
@@ -42,7 +42,10 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
       const result = await authenticateStaff(email, password);
       if (result.success && result.user) {
         onAuthenticated(`token-${result.user.id}-${Date.now()}`, {
+          id: result.user.id,
           name: result.user.fullName,
+          fullName: result.user.fullName,
+          email: result.user.email,
           role: result.user.role,
         });
       } else {
@@ -63,25 +66,28 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
   };
 
   return (
-    <div className="min-h-screen bg-sand-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-sand-200 overflow-hidden">
+    <div className="min-h-screen bg-[#F3F7FF] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-[#C7D4F5] overflow-hidden">
         {/* Header decoration */}
-        <div className="bg-forest-900 px-8 py-8 text-white relative overflow-hidden">
-          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-forest-800 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-[#0B1733] px-8 py-8 text-white relative overflow-hidden">
+          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-[#25479E]/20 rounded-full blur-2xl pointer-events-none" />
           <div className="flex items-center space-x-3 mb-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur-xs">
+            <div className="w-10 h-10 rounded-2xl bg-[#25479E] border border-[#3B62C7] flex items-center justify-center backdrop-blur-xs">
               <Trees className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <span className="text-xs uppercase tracking-widest text-amber-300 font-semibold block">
+              <span className="text-xs uppercase tracking-widest text-primary-200 font-semibold block">
                 Boutique Homestay CRM
               </span>
-              <h1 className="font-serif font-bold text-xl text-white">
+              <h1
+                className="font-bold text-xl text-white tracking-tight"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
                 Savera Homestay Staff Portal
               </h1>
             </div>
           </div>
-          <p className="text-xs text-sand-300">
+          <p className="text-xs text-gray-300">
             Secure individual sign-in for Administrators, Duty Managers, and Kitchen Staff.
           </p>
         </div>
@@ -96,7 +102,7 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
 
           <form onSubmit={handleCredentialSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-forest-900 block mb-1">
+              <label className="text-xs font-bold text-gray-800 block mb-1">
                 Staff Email / Login ID
               </label>
               <div className="relative">
@@ -106,14 +112,14 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. admin@saverahomestay.com"
-                  className="w-full text-xs p-3 pl-9 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:ring-1 focus:ring-forest-800"
+                  className="w-full text-xs p-3 pl-9 rounded-xl border border-gray-300 bg-[#F3F7FF]/50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#25479E] focus:bg-white"
                 />
-                <Mail className="w-4 h-4 text-forest-400 absolute left-3 top-3.5 pointer-events-none" />
+                <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-forest-900 block mb-1">
+              <label className="text-xs font-bold text-gray-800 block mb-1">
                 Password
               </label>
               <div className="relative">
@@ -123,13 +129,13 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your account password"
-                  className="w-full text-xs p-3 pl-9 pr-10 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:ring-1 focus:ring-forest-800"
+                  className="w-full text-xs p-3 pl-9 pr-10 rounded-xl border border-gray-300 bg-[#F3F7FF]/50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#25479E] focus:bg-white"
                 />
-                <Lock className="w-4 h-4 text-forest-400 absolute left-3 top-3.5 pointer-events-none" />
+                <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-forest-700"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -138,26 +144,26 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
 
             {/* 1-Click Fill Administrator Credentials */}
             <div className="pt-1">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-forest-600 block mb-1.5">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-gray-600 block mb-1.5">
                 Default Administrator Account:
               </span>
               <button
                 type="button"
                 onClick={() => handlePrefill('admin@saverahomestay.com', 'admin123')}
-                className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl font-medium text-xs flex items-center justify-between transition-colors group cursor-pointer"
+                className="w-full py-2.5 px-3 bg-primary-50 hover:bg-primary-100 border border-primary-200 text-primary-950 rounded-xl font-medium text-xs flex items-center justify-between transition-colors group cursor-pointer"
               >
                 <div className="flex items-center space-x-2 text-left">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-[#25479E] shrink-0" />
                   <div>
-                    <span className="font-bold text-emerald-900 block leading-tight">Savera Admin (Owner)</span>
-                    <span className="text-[11px] text-emerald-700 font-mono">admin@saverahomestay.com</span>
+                    <span className="font-bold text-primary-900 block leading-tight">Savera Admin (Owner)</span>
+                    <span className="text-[11px] text-primary-700 font-mono">admin@saverahomestay.com</span>
                   </div>
                 </div>
-                <span className="text-[10px] uppercase bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-md font-bold group-hover:bg-emerald-300 transition-colors">
+                <span className="text-[10px] uppercase bg-primary-200 text-primary-900 px-2 py-0.5 rounded-md font-bold group-hover:bg-primary-300 transition-colors">
                   1-Click Fill
                 </span>
               </button>
-              <p className="text-[11px] text-forest-600/80 mt-2 leading-relaxed">
+              <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
                 Log in as Administrator to access the <strong>Staff & Logins</strong> portal and create dedicated accounts for Duty Managers and Kitchen Staff.
               </p>
             </div>
@@ -165,15 +171,15 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full min-h-[44px] bg-forest-900 hover:bg-forest-800 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 text-xs"
+              className="w-full min-h-[44px] bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-2.5 px-4 rounded-xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 text-xs cursor-pointer"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <ShieldCheck className="w-4 h-4 text-white" />
                   <span>Sign In with Account</span>
-                  <ArrowRight className="w-4 h-4 text-sand-300" />
+                  <ArrowRight className="w-4 h-4 text-white" />
                 </>
               )}
             </button>

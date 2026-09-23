@@ -71,27 +71,30 @@ export default function TravelAndRentalsSection({
   };
 
   return (
-    <section id="travel-rentals" className="py-20 bg-[#faf8f5] border-t border-sand-200">
+    <section id="travel-rentals" className="py-20 bg-[#F3F7FF] border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto space-y-3">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-forest-100 text-forest-800 text-xs font-semibold tracking-wide uppercase">
-            <Compass className="w-3.5 h-3.5 text-forest-700" />
+          <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-primary-100 text-primary-800 text-xs font-semibold tracking-wide uppercase shadow-xs">
+            <Compass className="w-3.5 h-3.5 text-primary-600" />
             <span>Himalayan Transit & Self-Drive Fleet</span>
           </div>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-forest-950 tracking-tight">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0B1733] tracking-tight"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Transfers, Sightseeing & Bike Rentals
           </h2>
-          <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+          <p className="text-sm sm:text-base text-gray-600 leading-relaxed font-normal">
             Arrive stress-free with verified local mountain chauffeurs from Bagdogra (IXB) or NJP, or explore Darjeeling&apos;s misty tea estates at your own pace with our serviced Royal Enfield bikes and Scooties.
           </p>
         </div>
 
         {/* Dynamic Seasonal Date & Tariff Indicator Bar */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-sand-300/80 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-forest-50 border border-forest-100 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5 text-forest-800" />
+            <div className="w-11 h-11 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5 text-primary-600" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -106,7 +109,7 @@ export default function TravelAndRentalsSection({
                         ? 'bg-rose-100 text-rose-800 border border-rose-200'
                         : activeSeason.seasonType === 'off_season'
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : 'bg-sand-100 text-forest-900 border border-sand-300'
+                        : 'bg-primary-100 text-primary-900 border border-primary-200'
                     }`}
                   >
                     {activeSeason.seasonType === 'season' && <TrendingUp className="w-3 h-3 text-rose-600" />}
@@ -134,7 +137,7 @@ export default function TravelAndRentalsSection({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 self-end md:self-auto">
-            <label className="text-xs font-bold text-forest-950 whitespace-nowrap">
+            <label className="text-xs font-bold text-[#0B1733] whitespace-nowrap">
               Travel Date:
             </label>
             <input
@@ -142,13 +145,13 @@ export default function TravelAndRentalsSection({
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               min={todayStr}
-              className="px-3.5 py-2 bg-sand-50/90 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-700 outline-none"
+              className="px-3.5 py-2 bg-[#F3F7FF] border border-[#C7D4F5] rounded-xl text-xs sm:text-sm font-semibold text-[#0B1733] focus:ring-2 focus:ring-primary-500 outline-none"
             />
             {hasSelectedDate && (
               <button
                 type="button"
                 onClick={() => setSelectedDate('')}
-                className="px-2.5 py-2 bg-sand-200 hover:bg-sand-300 text-forest-900 rounded-xl text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
+                className="px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
                 title="Reset date and show starting rates"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -160,24 +163,24 @@ export default function TravelAndRentalsSection({
 
         {/* Tab Switcher */}
         <div className="flex justify-center">
-          <div className="bg-sand-200/70 p-1.5 rounded-2xl flex items-center space-x-1 text-xs sm:text-sm shadow-inner max-w-md w-full">
+          <div className="bg-[#E9EDFA] p-1.5 rounded-2xl flex items-center space-x-1 text-xs sm:text-sm shadow-xs max-w-md w-full">
             <button
               onClick={() => setActiveTab('transfers')}
-              className={`flex-1 py-2.5 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ${
+              className={`flex-1 py-2.5 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeTab === 'transfers'
-                  ? 'bg-forest-900 text-white shadow-md'
-                  : 'text-forest-900/80 hover:text-forest-950 hover:bg-sand-100/60'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'text-primary-900/80 hover:text-primary-950 hover:bg-white/50'
               }`}
             >
               <Car className="w-4 h-4" />
-              <span>Mountain Cabs & Transfers</span>
+              <span>Airport & Sightseeing Cabs</span>
             </button>
             <button
               onClick={() => setActiveTab('rentals')}
-              className={`flex-1 py-2.5 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 ${
+              className={`flex-1 py-2.5 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeTab === 'rentals'
-                  ? 'bg-forest-900 text-white shadow-md'
-                  : 'text-forest-900/80 hover:text-forest-950 hover:bg-sand-100/60'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'text-primary-900/80 hover:text-primary-950 hover:bg-white/50'
               }`}
             >
               <Bike className="w-4 h-4" />
@@ -208,33 +211,36 @@ export default function TravelAndRentalsSection({
                 return (
                   <div
                     key={route.id}
-                    className="bg-white rounded-3xl border border-sand-300 p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-5"
+                    className="bg-white rounded-3xl border border-gray-100 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_16px_36px_rgba(37,71,158,0.1)] transition-all flex flex-col justify-between space-y-5"
                   >
                     <div className="space-y-3.5">
                       <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 bg-forest-100 text-forest-900 text-[11px] font-bold rounded-lg flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-forest-700" />
+                        <span className="px-3 py-1 bg-primary-50 text-primary-800 text-[11px] font-bold rounded-full border border-primary-100 flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-primary-600" />
                           <span>~{route.estimatedDurationHours} Hours Travel</span>
                         </span>
                         
                         {hasSelectedDate && wagonR ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 text-[11px] font-bold rounded-md flex items-center gap-1">
+                          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 text-[11px] font-bold rounded-full flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Final: ₹{wagonR.rate.toLocaleString('en-IN')}</span>
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-amber-100 text-amber-900 text-[11px] font-bold rounded-md">
+                          <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[11px] font-bold rounded-full">
                             From ₹{lowestWagonR.toLocaleString('en-IN')}
                           </span>
                         )}
                       </div>
 
                       <div>
-                        <h3 className="font-serif text-lg sm:text-xl font-bold text-forest-950">
+                        <h3
+                          className="text-lg sm:text-xl font-bold text-[#0B1733]"
+                          style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                        >
                           {route.title}
                         </h3>
-                        <div className="flex items-center space-x-1.5 text-xs text-gray-600 mt-1">
-                          <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <div className="flex items-center space-x-1.5 text-xs text-gray-500 mt-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#FE6E00] shrink-0" />
                           <span className="line-clamp-1">{route.origin} → {route.destination}</span>
                         </div>
                       </div>
@@ -358,20 +364,20 @@ export default function TravelAndRentalsSection({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-sand-200 flex items-center gap-2">
+                    <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
                       <a
                         href={createWhatsAppLink(inquiryText)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 py-2.5 px-3 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer"
+                        className="flex-1 py-2.5 px-3 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-[0_4px_12px_rgba(254,110,0,0.25)] cursor-pointer"
                       >
-                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                        <Phone className="w-3.5 h-3.5 text-white" />
                         <span>{hasSelectedDate ? 'Reserve Quoted Cab' : 'Inquire Route'}</span>
                       </a>
                       {onOpenBookingModal && (
                         <button
                           onClick={onOpenBookingModal}
-                          className="py-2.5 px-3 border border-forest-800 text-forest-900 hover:bg-sand-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                          className="py-2.5 px-3 border border-primary-200 text-primary-700 bg-primary-50/70 hover:bg-primary-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                         >
                           Book Stay
                         </button>
@@ -383,16 +389,19 @@ export default function TravelAndRentalsSection({
             </div>
 
             {/* Chauffeur Trust Banner */}
-            <div className="bg-forest-950 text-sand-100 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-[#0B1733] text-white rounded-3xl p-6 sm:p-8 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2 text-amber-300 text-xs font-bold uppercase tracking-wider">
                   <ShieldCheck className="w-4 h-4" />
                   <span>Savera Safe Arrival Guarantee</span>
                 </div>
-                <h4 className="font-serif text-xl sm:text-2xl font-bold text-white">
+                <h4
+                  className="text-xl sm:text-2xl font-bold text-white"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
                   Need a custom pickup from Siliguri, Kalimpong, or Pelling?
                 </h4>
-                <p className="text-xs sm:text-sm text-sand-200/90 max-w-2xl">
+                <p className="text-xs sm:text-sm text-gray-300 max-w-2xl font-normal">
                   We coordinate directly with verified Darjeeling driver associations. AC on plains, skilled mountain cornering, upfront toll/parking clearance, and flight monitoring included.
                 </p>
               </div>
@@ -401,10 +410,10 @@ export default function TravelAndRentalsSection({
                 href={createWhatsAppLink('Hi Savera Homestay! I need a custom mountain transfer or inter-city taxi quote.')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-forest-950 font-bold text-xs sm:text-sm rounded-2xl shadow-lg transition-all whitespace-nowrap flex items-center space-x-2"
+                className="px-6 py-3.5 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold text-xs sm:text-sm rounded-full shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all whitespace-nowrap flex items-center space-x-2 cursor-pointer"
               >
-                <span>Request Custom Route</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>WhatsApp Custom Route</span>
+                <ArrowRight className="w-4 h-4 text-white" />
               </a>
             </div>
           </div>
@@ -415,9 +424,9 @@ export default function TravelAndRentalsSection({
         {/* ========================================================================= */}
         {activeTab === 'rentals' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rentalVehicles.map((veh) => {
-                const lowestRate = veh.seasonalTariffs?.offSeasonRatePerDay || Math.round(veh.ratePerDay * 0.85);
+                const lowestRate = veh.seasonalTariffs?.offSeasonRatePerDay || veh.ratePerDay || 800;
                 const dynRate = hasSelectedDate ? calculateDynamicRentalRate(veh, selectedDate) : null;
 
                 const inquiryText = hasSelectedDate && dynRate
@@ -427,21 +436,22 @@ export default function TravelAndRentalsSection({
                 return (
                   <div
                     key={veh.id}
-                    className="bg-white rounded-3xl border border-sand-300 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                    className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_16px_36px_rgba(37,71,158,0.1)] transition-all flex flex-col justify-between"
                   >
                     <div>
                       {/* Vehicle Image */}
                       {veh.imageUrl && (
-                        <div className="relative h-48 w-full bg-sand-100 overflow-hidden">
+                        <div className="relative h-48 w-full bg-gray-100 overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={veh.imageUrl}
                             alt={veh.vehicleName}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
-                          <div className="absolute top-3 left-3 bg-forest-900/90 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                          <div className="absolute top-3 left-3 bg-[#0B1733]/90 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
                             {veh.vehicleType}
                           </div>
-                          <div className="absolute top-3 right-3 bg-white/95 text-forest-950 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-xs">
+                          <div className="absolute top-3 right-3 bg-white/95 text-[#0B1733] text-[10px] font-bold px-2.5 py-1 rounded-full shadow-xs">
                             {veh.isAvailable ? 'In Fleet' : 'Reserved'}
                           </div>
                         </div>
@@ -449,7 +459,10 @@ export default function TravelAndRentalsSection({
 
                       <div className="p-6 space-y-4">
                         <div>
-                          <h3 className="font-serif text-xl font-bold text-forest-950">
+                          <h3
+                            className="text-xl font-bold text-[#0B1733]"
+                            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                          >
                             {veh.vehicleName}
                           </h3>
                           {veh.specs && (
@@ -460,7 +473,7 @@ export default function TravelAndRentalsSection({
                         </div>
 
                         {/* Rental Rate Box */}
-                        <div className="bg-sand-50 p-4 rounded-2xl border border-sand-200 space-y-2">
+                        <div className="bg-[#F3F7FF] p-4 rounded-2xl border border-[#C7D4F5] space-y-2">
                           <div className="flex items-baseline justify-between">
                             <span className="text-xs text-gray-500 font-medium">
                               {hasSelectedDate ? 'Final Quoted Tariff:' : 'Daily Tariff (Starting From):'}
@@ -468,7 +481,10 @@ export default function TravelAndRentalsSection({
                             <div className="text-right">
                               {hasSelectedDate && dynRate ? (
                                 <div>
-                                  <span className="font-serif text-2xl font-bold text-forest-950">
+                                  <span
+                                    className="text-2xl font-bold text-[#0B1733]"
+                                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                                  >
                                     ₹{dynRate.dailyAvgRate.toLocaleString('en-IN')}
                                   </span>
                                   <span className="text-xs text-gray-500"> / 24 hrs</span>
@@ -476,7 +492,10 @@ export default function TravelAndRentalsSection({
                               ) : (
                                 <div>
                                   <span className="text-xs text-gray-400 font-normal mr-1">From</span>
-                                  <span className="font-serif text-2xl font-bold text-forest-950">
+                                  <span
+                                    className="text-2xl font-bold text-[#0B1733]"
+                                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                                  >
                                     ₹{lowestRate.toLocaleString('en-IN')}
                                   </span>
                                   <span className="text-xs text-gray-500"> / 24 hrs</span>
@@ -498,14 +517,14 @@ export default function TravelAndRentalsSection({
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between text-[11px] pt-2 border-t border-sand-200/80 text-gray-600">
+                          <div className="flex items-center justify-between text-[11px] pt-2 border-t border-[#C7D4F5] text-gray-600">
                             <span>Refundable Security Deposit</span>
-                            <span className="font-bold text-forest-950">₹{veh.depositRequired}</span>
+                            <span className="font-bold text-[#0B1733]">₹{veh.depositRequired}</span>
                           </div>
                         </div>
 
                         {/* Inclusions */}
-                        <div className="space-y-1.5 text-xs text-forest-900/90 pt-1">
+                        <div className="space-y-1.5 text-xs text-[#0B1733] pt-1">
                           <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
                             Included with Every Rental:
                           </span>
@@ -530,9 +549,9 @@ export default function TravelAndRentalsSection({
                         href={createWhatsAppLink(inquiryText)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full py-3 px-4 bg-forest-900 hover:bg-forest-800 text-white rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-sm flex items-center justify-center space-x-2"
+                        className="w-full py-3.5 px-4 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-[0_4px_14px_rgba(254,110,0,0.35)] flex items-center justify-center space-x-2 cursor-pointer"
                       >
-                        <Bike className="w-4 h-4 text-amber-300" />
+                        <Bike className="w-4 h-4 text-white" />
                         <span>{hasSelectedDate ? `Reserve This ${veh.vehicleType === 'scooty' ? 'Scooty' : 'Bike'}` : `Inquire This ${veh.vehicleType === 'scooty' ? 'Scooty' : 'Bike'}`}</span>
                       </a>
                     </div>

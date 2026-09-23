@@ -130,39 +130,42 @@ export default function AboutSection({ data }: AboutSectionProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest text-forest-600 bg-forest-100 px-3 py-1 rounded-full inline-block mb-3">
+          <span className="text-xs font-bold uppercase tracking-widest text-primary-700 bg-primary-100 px-3.5 py-1 rounded-full inline-block mb-3 shadow-xs">
             The Homestay Story
           </span>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-forest-950 tracking-tight leading-tight mb-6">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0B1733] tracking-tight leading-tight mb-6"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             {data.headline}
           </h2>
-          <div className="w-16 h-1 bg-sand-400 mx-auto rounded-full" />
+          <div className="w-16 h-1 bg-[#FE6E00] mx-auto rounded-full" />
         </div>
 
         {/* Narrative & Visual Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center mb-20">
           {/* Story Text */}
           <div className="lg:col-span-6 space-y-6 text-gray-700 leading-relaxed text-base sm:text-lg">
-            <p className="first-letter:font-serif first-letter:text-5xl first-letter:font-bold first-letter:text-forest-800 first-letter:mr-3 first-letter:float-left">
+            <p className="first-letter:text-5xl first-letter:font-bold first-letter:text-primary-700 first-letter:mr-3 first-letter:float-left font-normal">
               {data.story}
             </p>
-            <p>
+            <p className="font-normal">
               Unlike commercial hotels, our homestay offers a true pause. Enjoy unhurried
               breakfasts overlooking orchards, take leisurely forest walks, or curl up with a book
               beside our traditional stone fireplace while our local hosts prepare wholesome meals.
             </p>
 
             <div className="pt-2 flex flex-wrap gap-3 sm:gap-4">
-              <div className="flex items-center space-x-2 text-forest-900 font-medium text-xs sm:text-sm bg-white/80 border border-sand-200/80 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-forest-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
                 <span>Zero Commercial Clutter</span>
               </div>
-              <div className="flex items-center space-x-2 text-forest-900 font-medium text-xs sm:text-sm bg-white/80 border border-sand-200/80 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-forest-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
                 <span>Dedicated On-Site Host</span>
               </div>
-              <div className="flex items-center space-x-2 text-forest-900 font-medium text-xs sm:text-sm bg-white/80 border border-sand-200/80 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-forest-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
                 <span>Fresh Mountain Water & Air</span>
               </div>
             </div>

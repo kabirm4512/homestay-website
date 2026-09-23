@@ -16,27 +16,30 @@ export default function ReviewsSection({
   const totalCount = 148;
 
   return (
-    <section id="reviews" className="py-20 sm:py-28 bg-[#f4efe8] relative overflow-hidden">
+    <section id="reviews" className="py-20 sm:py-28 bg-[#F3F7FF] relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest text-forest-600 bg-forest-100 px-3 py-1 rounded-full inline-block mb-3">
+          <span className="text-xs font-bold uppercase tracking-widest text-primary-700 bg-primary-100 px-3.5 py-1 rounded-full inline-block mb-3 shadow-xs">
             Guest Testimonials
           </span>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-forest-950 tracking-tight leading-tight mb-4">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0B1733] tracking-tight leading-tight mb-4"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Loved by Travelers
           </h2>
-          <p className="text-gray-600 text-base sm:text-lg">
-            Genuine experiences from couples, solo wanderers, and remote workers who stayed with us.
+          <p className="text-gray-600 text-base sm:text-lg font-normal">
+            Genuine experiences from couples, families, and remote workers who stayed with us.
           </p>
-          <div className="w-16 h-1 bg-sand-400 mx-auto rounded-full mt-6" />
+          <div className="w-16 h-1 bg-[#FE6E00] mx-auto rounded-full mt-6" />
         </div>
 
         {/* Google Reviews Summary Card */}
-        <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-lg border border-sand-200 mb-14 max-w-4xl mx-auto">
+        <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 mb-14 max-w-4xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
             {/* Left: Google Badge */}
-            <div className="md:col-span-5 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-sand-200 pb-6 md:pb-0 md:pr-8 text-center">
+            <div className="md:col-span-5 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
               {/* Google Brand Badge */}
               <div className="flex items-center space-x-2 mb-3">
                 <svg className="w-6 h-6" viewBox="0 0 24 24">
@@ -60,7 +63,10 @@ export default function ReviewsSection({
                 <span className="font-semibold text-gray-800 text-lg">Google Reviews</span>
               </div>
 
-              <div className="font-serif text-5xl font-bold text-forest-950 mb-2">
+              <div
+                className="text-5xl font-bold text-[#0B1733] mb-2"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
                 {averageRating.toFixed(1)}
               </div>
 
@@ -74,8 +80,8 @@ export default function ReviewsSection({
                 Based on <span className="font-bold text-gray-700">{totalCount}+ verified reviews</span>
               </p>
 
-              <div className="mt-3 inline-flex items-center space-x-1 text-xs text-forest-700 bg-forest-50 px-2.5 py-1 rounded-full font-medium">
-                <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
+              <div className="mt-3 inline-flex items-center space-x-1 text-xs text-primary-800 bg-primary-50 border border-primary-100 px-3 py-1 rounded-full font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-primary-600" />
                 <span>100% Verified Guests</span>
               </div>
             </div>
@@ -87,8 +93,8 @@ export default function ReviewsSection({
                   <span>Cleanliness & Hygiene</span>
                   <span>5.0 / 5.0</span>
                 </div>
-                <div className="w-full bg-sand-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-forest-600 h-full rounded-full w-[100%]" />
+                <div className="w-full bg-[#E9EDFA] h-2 rounded-full overflow-hidden">
+                  <div className="bg-primary-600 h-full rounded-full w-[100%]" />
                 </div>
               </div>
 
@@ -97,8 +103,8 @@ export default function ReviewsSection({
                   <span>Host Hospitality & Food</span>
                   <span>5.0 / 5.0</span>
                 </div>
-                <div className="w-full bg-sand-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-forest-600 h-full rounded-full w-[100%]" />
+                <div className="w-full bg-[#E9EDFA] h-2 rounded-full overflow-hidden">
+                  <div className="bg-primary-600 h-full rounded-full w-[100%]" />
                 </div>
               </div>
 
@@ -107,8 +113,8 @@ export default function ReviewsSection({
                   <span>Mountain Location & Scenery</span>
                   <span>4.9 / 5.0</span>
                 </div>
-                <div className="w-full bg-sand-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-forest-600 h-full rounded-full w-[98%]" />
+                <div className="w-full bg-[#E9EDFA] h-2 rounded-full overflow-hidden">
+                  <div className="bg-primary-600 h-full rounded-full w-[98%]" />
                 </div>
               </div>
 
@@ -117,8 +123,8 @@ export default function ReviewsSection({
                   <span>Value for Money & Peace</span>
                   <span>4.8 / 5.0</span>
                 </div>
-                <div className="w-full bg-sand-200 h-2 rounded-full overflow-hidden">
-                  <div className="bg-forest-600 h-full rounded-full w-[96%]" />
+                <div className="w-full bg-[#E9EDFA] h-2 rounded-full overflow-hidden">
+                  <div className="bg-primary-600 h-full rounded-full w-[96%]" />
                 </div>
               </div>
 
@@ -127,7 +133,7 @@ export default function ReviewsSection({
                   href={googleBusinessUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-1.5 text-xs text-forest-700 hover:text-forest-900 font-semibold transition-colors"
+                  className="inline-flex items-center space-x-1.5 text-xs text-primary-700 hover:text-primary-900 font-semibold transition-colors"
                 >
                   <span>View All Reviews on Google</span>
                   <ExternalLink className="w-3.5 h-3.5" />

@@ -467,20 +467,23 @@ function ConciergeContent() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans w-full max-w-full overflow-x-hidden ${cartItemCount > 0 ? 'pb-28 sm:pb-32' : 'pb-12'}`}>
+    <div className={`min-h-screen bg-[#F3F7FF] text-[#0B1733] flex flex-col font-sans w-full max-w-full overflow-x-hidden ${cartItemCount > 0 ? 'pb-28 sm:pb-32' : 'pb-12'}`}>
       {/* 1. Global Concierge Top Bar */}
-      <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md w-full">
+      <header className="sticky top-0 z-40 bg-[#0B1733] text-white border-b border-[#1E2D4A] shadow-md w-full">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           {/* Savera Homestay Logo - fully visible & unclipped */}
           <Link href="/" className="flex items-center space-x-2.5 min-w-0 group" title="Savera Homestay">
-            <div className="w-10 h-10 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center shrink-0 shadow-sm group-hover:border-amber-400/50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-[#25479E] border border-[#3B62C7] flex items-center justify-center shrink-0 shadow-sm group-hover:bg-[#1A3478] transition-colors">
               <Trees className="w-5 h-5 text-amber-300" />
             </div>
             <div className="min-w-0">
-              <span className="font-serif font-bold text-base sm:text-lg block leading-tight text-white tracking-tight whitespace-nowrap">
+              <span
+                className="font-bold text-base sm:text-lg block leading-tight text-white tracking-tight whitespace-nowrap"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
                 Savera Homestay
               </span>
-              <span className="text-[10px] uppercase tracking-wider text-sand-300 font-semibold block whitespace-nowrap">
+              <span className="text-[10px] uppercase tracking-wider text-primary-200 font-semibold block whitespace-nowrap">
                 In-Room Concierge
               </span>
             </div>
@@ -489,10 +492,10 @@ function ConciergeContent() {
           {/* Reception Call CTA */}
           <a
             href="tel:+918101298882"
-            className="min-h-[40px] px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center space-x-1.5 shrink-0"
+            className="min-h-[40px] px-3.5 py-1.5 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white text-xs font-bold rounded-xl shadow-[0_2px_8px_rgba(254,110,0,0.3)] transition-all flex items-center space-x-1.5 shrink-0"
             title="Call Front Desk Reception (+91 81012 98882)"
           >
-            <Phone className="w-3.5 h-3.5 text-forest-950 shrink-0" />
+            <Phone className="w-3.5 h-3.5 text-white shrink-0" />
             <span className="whitespace-nowrap font-bold">Call Reception</span>
           </a>
         </div>
@@ -501,28 +504,31 @@ function ConciergeContent() {
       {/* 2. Room Gate: Unscanned vs. Awaiting Check-In vs. Active In-Room Concierge */}
       {!currentRoom ? (
         <main className="flex-1 max-w-md mx-auto px-4 py-16 sm:py-24 flex flex-col items-center justify-center text-center w-full">
-          <div className="w-20 h-20 rounded-3xl bg-forest-900 text-amber-300 flex items-center justify-center mb-6 shadow-xl border border-forest-800">
+          <div className="w-20 h-20 rounded-3xl bg-[#0B1733] text-[#FE6E00] flex items-center justify-center mb-6 shadow-xl border border-[#1E2D4A]">
             <QrCode className="w-10 h-10" />
           </div>
 
-          <span className="text-[10px] uppercase font-extrabold tracking-widest text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 mb-3">
+          <span className="text-[10px] uppercase font-extrabold tracking-widest text-primary-800 bg-primary-100 px-3 py-1 rounded-full border border-primary-300 mb-3">
             In-Room Sanctuary Access
           </span>
 
-          <h2 className="font-serif font-bold text-2xl sm:text-3xl text-forest-950 mb-2">
+          <h2
+            className="font-bold text-2xl sm:text-3xl text-[#0B1733] mb-2"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Scan Your Room QR Code
           </h2>
 
-          <p className="text-xs sm:text-sm text-forest-700 max-w-sm leading-relaxed mb-6">
+          <p className="text-xs sm:text-sm text-gray-600 max-w-sm leading-relaxed mb-6">
             To protect guest privacy and connect directly to your dedicated room concierge, please scan the QR standee located on your bedside table or room desk.
           </p>
 
           <div className="w-full space-y-2.5 max-w-xs">
             <a
               href="tel:+918101298882"
-              className="w-full min-h-[44px] py-3 bg-forest-900 hover:bg-forest-800 active:scale-98 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              className="w-full min-h-[44px] py-3 bg-[#25479E] hover:bg-[#1A3478] active:scale-98 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-2 cursor-pointer"
             >
-              <Phone className="w-4 h-4 text-amber-300" />
+              <Phone className="w-4 h-4 text-white" />
               <span>Contact Front Desk (+91 81012 98882)</span>
             </a>
 
@@ -551,17 +557,20 @@ function ConciergeContent() {
             Room {currentRoom.roomNumber} Status: {currentRoom.currentStatus.toUpperCase()}
           </span>
 
-          <h2 className="font-serif font-bold text-2xl sm:text-3xl text-forest-950 mb-2">
+          <h2
+            className="font-bold text-2xl sm:text-3xl text-[#0B1733] mb-2"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Room {currentRoom.roomNumber} is Awaiting Check-In
           </h2>
 
-          <p className="text-sm text-forest-700 max-w-md leading-relaxed mb-6">
+          <p className="text-sm text-gray-600 max-w-md leading-relaxed mb-6">
             This in-room digital concierge portal activates automatically once your arrival is verified by our front desk team.
           </p>
 
-          <div className="p-5 bg-white rounded-3xl border border-sand-300 shadow-sm text-xs text-forest-800 max-w-md w-full text-left space-y-3 mb-4">
-            <div className="flex items-center space-x-2 font-bold text-forest-950 text-sm">
-              <Phone className="w-4 h-4 text-forest-700" />
+          <div className="p-5 bg-white rounded-3xl border border-[#C7D4F5] shadow-sm text-xs text-[#0B1733] max-w-md w-full text-left space-y-3 mb-4">
+            <div className="flex items-center space-x-2 font-bold text-[#0B1733] text-sm">
+              <Phone className="w-4 h-4 text-primary-700" />
               <span>Need Assistance?</span>
             </div>
             <p>
@@ -612,7 +621,7 @@ function ConciergeContent() {
                     showToast(`No active reservation found for Room ${currentRoom.roomNumber}.`);
                   }
                 }}
-                className="w-full min-h-[44px] py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center space-x-2"
+                className="w-full min-h-[44px] py-2.5 bg-[#0B1733] hover:bg-[#12244F] text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center space-x-2"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>Simulate Check-In for Room {currentRoom.roomNumber}</span>
@@ -627,26 +636,29 @@ function ConciergeContent() {
           <PWAInstaller variant="banner" className="w-full text-left" />
 
           {/* Welcome Banner */}
-          <div className="bg-gradient-to-br from-forest-900 via-forest-850 to-forest-800 text-white rounded-3xl p-6 shadow-md border border-forest-700">
+          <div className="bg-gradient-to-br from-[#0B1733] via-[#12244F] to-[#0B1733] text-white rounded-3xl p-6 shadow-md border border-[#1E2D4A]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-amber-300 block mb-1">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#FE6E00] block mb-1">
                   Active Stay In Residence
                 </span>
-                <h1 className="font-serif font-bold text-2xl text-white">
+                <h1
+                  className="text-2xl font-bold text-white tracking-tight"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
                   Welcome to {currentRoom.name}!
                 </h1>
-                <p className="text-xs text-sand-300 mt-1">
+                <p className="text-xs text-gray-300 mt-1">
                   Guest: <strong className="text-white">{activeBooking?.guest.fullName}</strong> • Meal Plan:{' '}
-                  <strong className="text-amber-300 font-mono">{activeBooking?.mealPlan}</strong> • Folio: #{activeFolio?.folioNumber}
+                  <strong className="text-[#FE6E00] font-mono">{activeBooking?.mealPlan}</strong> • Folio: #{activeFolio?.folioNumber}
                 </p>
               </div>
 
               {/* Late Night Simulation Toggle */}
-              <div className="bg-forest-950/80 p-3 rounded-2xl border border-forest-800 text-xs self-start sm:self-auto space-y-1">
+              <div className="bg-[#070F22] p-3 rounded-2xl border border-[#1E2D4A] text-xs self-start sm:self-auto space-y-1">
                 <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-amber-400" />
-                  <span className="font-bold text-sand-200">
+                  <Clock className="w-4 h-4 text-[#FE6E00]" />
+                  <span className="font-bold text-gray-200">
                     Kitchen Clock: {isLateNight ? '10:45 PM (Night)' : '2:30 PM (Day)'}
                   </span>
                 </div>
@@ -655,9 +667,9 @@ function ConciergeContent() {
                     type="checkbox"
                     checked={simulateLateNight}
                     onChange={(e) => setSimulateLateNight(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-0"
+                    className="rounded text-[#FE6E00] focus:ring-0"
                   />
-                  <span className="text-[11px] text-sand-300">
+                  <span className="text-[11px] text-gray-300">
                     Test 10 PM Cutoff (Hide Mains)
                   </span>
                 </label>
@@ -666,13 +678,13 @@ function ConciergeContent() {
           </div>
 
           {/* Module Switcher: Dining vs Travel Add-ons */}
-          <div className="flex items-center justify-center space-x-3 bg-sand-200/80 p-1.5 rounded-2xl max-w-md mx-auto">
+          <div className="flex items-center justify-center space-x-3 bg-[#070F22] p-1.5 rounded-2xl max-w-md mx-auto border border-[#1E2D4A]">
             <button
               onClick={() => setActiveTab('dining')}
-              className={`flex-1 min-h-[44px] py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 ${
+              className={`flex-1 min-h-[44px] py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeTab === 'dining'
-                  ? 'bg-forest-900 text-white shadow-sm'
-                  : 'text-forest-700 hover:text-forest-950'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-sm'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               <Utensils className="w-4 h-4" />
@@ -681,10 +693,10 @@ function ConciergeContent() {
 
             <button
               onClick={() => setActiveTab('travel')}
-              className={`flex-1 min-h-[44px] py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 ${
+              className={`flex-1 min-h-[44px] py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeTab === 'travel'
-                  ? 'bg-forest-900 text-white shadow-sm'
-                  : 'text-forest-700 hover:text-forest-950'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-sm'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               <Compass className="w-4 h-4" />

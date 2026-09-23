@@ -158,22 +158,25 @@ export default function InquiryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-sand-200 overflow-hidden my-8">
         {/* Header with Title and Close Button */}
-        <div className="bg-forest-900 text-white p-6 sm:p-7 relative">
+        <div className="bg-[#0B1733] text-white p-6 sm:p-7 relative">
           <button
             onClick={handleResetAndClose}
             aria-label="Close modal"
-            className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+            className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <span className="text-xs uppercase tracking-widest text-sand-300 font-semibold block mb-1">
-            Direct Homestay Reservation
+          <span className="inline-flex items-center space-x-1.5 bg-primary-500/20 text-primary-200 text-[10px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-primary-400/30 mb-2">
+            DIRECT HOMESTAY RESERVATION
           </span>
-          <h3 className="font-serif text-2xl font-bold text-white">
+          <h3
+            className="text-2xl font-bold text-white tracking-tight"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             {selectedRoom ? `Inquire for ${selectedRoom.name}` : 'Check Availability & Rates'}
           </h3>
-          <p className="text-xs sm:text-sm text-sand-100/80 mt-1 font-light">
+          <p className="text-xs sm:text-sm text-gray-300 mt-1 font-light">
             Our family host will confirm your dates directly with zero booking commissions.
           </p>
         </div>
@@ -348,11 +351,11 @@ export default function InquiryModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-forest-800 hover:bg-forest-900 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm"
+                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm cursor-pointer"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-sand-300" />
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
                       <span>Saving directly to Supabase...</span>
                     </>
                   ) : (

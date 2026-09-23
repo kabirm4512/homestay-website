@@ -284,7 +284,7 @@ export default function AvailabilityModal({
         {step === 'form' ? (
           <>
             {/* Header */}
-            <div className="bg-forest-900 text-white p-6 sm:p-7 relative shrink-0">
+            <div className="bg-[#0B1733] text-white p-6 sm:p-7 relative shrink-0">
               <button
                 onClick={onClose}
                 aria-label="Close modal"
@@ -294,17 +294,20 @@ export default function AvailabilityModal({
               </button>
 
               <div className="flex items-center space-x-2 mb-2">
-                <span className="inline-flex items-center space-x-1.5 bg-sand-400/20 text-sand-300 text-[11px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-sand-400/30">
-                  <Sparkles className="w-3.5 h-3.5 text-sand-400" />
+                <span className="inline-flex items-center space-x-1.5 bg-primary-500/20 text-primary-200 text-[11px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-primary-400/30">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>DIRECT HOMESTAY BOOKING</span>
                 </span>
-                <span className="text-xs text-sand-200/80 font-medium">• Live Inventory</span>
+                <span className="text-xs text-gray-300 font-medium">• Live Inventory</span>
               </div>
 
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              <h3
+                className="text-2xl sm:text-3xl font-bold text-white tracking-tight"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
                 Check Room Availability
               </h3>
-              <p className="mt-1.5 text-xs sm:text-sm text-sand-200 max-w-lg leading-relaxed">
+              <p className="mt-1.5 text-xs sm:text-sm text-gray-300 max-w-lg leading-relaxed">
                 Select your check-in and check-out dates and required rooms to check live inventory across all our suites and cottages.
               </p>
             </div>
@@ -325,10 +328,10 @@ export default function AvailabilityModal({
               </div>
 
               {/* Number of Rooms Container */}
-              <div className="bg-sand-50/90 border border-sand-300/80 hover:border-forest-600/60 rounded-2xl p-4 transition-all focus-within:border-forest-600 focus-within:ring-2 focus-within:ring-forest-600/20">
+              <div className="bg-[#F3F7FF] border border-[#C7D4F5] hover:border-primary-500 rounded-2xl p-4 transition-all focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-600/20">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-forest-900 flex items-center space-x-1.5 select-none">
-                    <Bed className="w-4 h-4 text-forest-700 shrink-0" />
+                  <label className="text-xs font-bold uppercase tracking-wider text-primary-900 flex items-center space-x-1.5 select-none">
+                    <Bed className="w-4 h-4 text-primary-600 shrink-0" />
                     <span>Number of Rooms</span>
                   </label>
                   <span className="text-[11px] text-gray-500 font-medium">Estate Capacity: 7 Rooms</span>
@@ -336,7 +339,7 @@ export default function AvailabilityModal({
                 <select
                   value={roomsCount}
                   onChange={(e) => setRoomsCount(Number(e.target.value))}
-                  className="w-full bg-white border border-sand-300 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-forest-950 focus:outline-none focus:ring-1 focus:ring-forest-600 cursor-pointer shadow-sm"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-[#0B1733] focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer shadow-xs"
                 >
                   <option value={1}>1 Room (Ideal for 1-2 Guests)</option>
                   <option value={2}>2 Rooms (Ideal for 3-4 Guests)</option>
@@ -349,10 +352,10 @@ export default function AvailabilityModal({
               </div>
 
               {/* Trip Summary Chip */}
-              <div className="bg-sand-100/90 border border-sand-200 rounded-2xl p-3.5 flex items-center justify-between text-xs text-forest-950">
+              <div className="bg-primary-50/80 border border-primary-100 rounded-2xl p-3.5 flex items-center justify-between text-xs text-[#0B1733]">
                 <div className="flex items-center space-x-2">
-                  <span className="font-semibold text-forest-900">Duration:</span>
-                  <span className="bg-forest-900 text-white font-bold px-2 py-0.5 rounded-md text-[11px]">
+                  <span className="font-semibold text-primary-900">Duration:</span>
+                  <span className="bg-primary-600 text-white font-bold px-2 py-0.5 rounded-md text-[11px]">
                     {getStayNights(checkIn, checkOut)} {getStayNights(checkIn, checkOut) === 1 ? 'Night' : 'Nights'}
                   </span>
                   <span className="text-gray-400 hidden sm:inline">•</span>
@@ -360,19 +363,19 @@ export default function AvailabilityModal({
                     {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} selected
                   </span>
                 </div>
-                <div className="text-[11px] text-forest-800 font-medium hidden xs:inline">
+                <div className="text-[11px] text-primary-800 font-medium hidden xs:inline">
                   ⚡ Instant Live Inventory
                 </div>
               </div>
 
-              {/* Check Availability CTA Button */}
+              {/* Check Availability CTA Button in Wizz Orange */}
               <button
                 type="submit"
-                className="w-full bg-forest-800 hover:bg-forest-900 active:scale-[0.99] text-white font-bold py-4 px-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center justify-center space-x-2 text-base sm:text-lg cursor-pointer group"
+                className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-[0.99] text-white font-bold py-4 px-6 rounded-2xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 text-base sm:text-lg cursor-pointer group"
               >
-                <Search className="w-5 h-5 text-sand-300 group-hover:scale-110 transition-transform shrink-0" />
+                <Search className="w-5 h-5 text-white group-hover:scale-110 transition-transform shrink-0" />
                 <span>Check Availability</span>
-                <ArrowRight className="w-4 h-4 text-sand-300 group-hover:translate-x-1 transition-transform shrink-0" />
+                <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform shrink-0" />
               </button>
 
               {/* Trust Guarantees */}
@@ -416,7 +419,7 @@ export default function AvailabilityModal({
              ========================================================================= */
           <>
             {/* Modal Header */}
-            <div className="bg-forest-900 text-white p-5 sm:p-6 relative shrink-0">
+            <div className="bg-[#0B1733] text-white p-5 sm:p-6 relative shrink-0">
               <button
                 onClick={onClose}
                 aria-label="Close modal"
@@ -435,7 +438,10 @@ export default function AvailabilityModal({
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-serif text-2xl sm:text-3xl font-bold text-white">
+                  <h3
+                    className="text-2xl sm:text-3xl font-bold text-white tracking-tight"
+                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                  >
                     Available Rooms & Rates
                   </h3>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-sand-200">
@@ -541,7 +547,7 @@ export default function AvailabilityModal({
                     className={`rounded-2xl border transition-all overflow-hidden flex flex-col md:flex-row gap-4 p-4 items-center ${
                       isSoldOut
                         ? 'border-gray-200 bg-gray-50/70 opacity-80'
-                        : 'border-sand-200 bg-white hover:border-forest-600/40 hover:shadow-md'
+                        : 'border-[#C7D4F5] bg-white hover:border-primary-500 hover:shadow-md'
                     }`}
                   >
                     {/* Room Category Image */}
@@ -555,7 +561,7 @@ export default function AvailabilityModal({
                         alt={room.name}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-sand-200 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded">
+                      <div className="absolute top-2 left-2 bg-[#0B1733]/80 backdrop-blur-sm text-sand-200 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded">
                         {room.room_type}
                       </div>
                     </div>
@@ -563,7 +569,10 @@ export default function AvailabilityModal({
                     {/* Room Category Details */}
                     <div className="flex-1 min-w-0 space-y-2 w-full text-left">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h4 className="font-serif text-lg sm:text-xl font-bold text-forest-950">
+                        <h4
+                          className="text-lg sm:text-xl font-bold text-[#0B1733] tracking-tight"
+                          style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                        >
                           {room.name}
                         </h4>
 
@@ -600,9 +609,9 @@ export default function AvailabilityModal({
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-forest-800">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
                         <span className="flex items-center space-x-1">
-                          <Users className="w-3.5 h-3.5 text-forest-600" />
+                          <Users className="w-3.5 h-3.5 text-primary-600" />
                           <span>
                             Max {room.capacity_adults} Adults
                             {room.capacity_children > 0 ? ` + ${room.capacity_children} Child` : ''}
@@ -624,7 +633,7 @@ export default function AvailabilityModal({
                           {room.amenities.slice(0, 3).map((amenity, idx) => (
                             <span
                               key={idx}
-                              className="bg-sand-100 text-forest-900 text-[11px] px-2 py-0.5 rounded-md font-medium"
+                              className="bg-sand-100 text-gray-800 text-[11px] px-2 py-0.5 rounded-md font-medium"
                             >
                               {amenity}
                             </span>
@@ -642,7 +651,10 @@ export default function AvailabilityModal({
                     <div className="w-full md:w-52 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-2 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-sand-100">
                       <div className="text-left md:text-right">
                         <div className="text-xs text-gray-500">Starting from</div>
-                        <div className="text-lg sm:text-xl font-bold text-forest-900">
+                        <div
+                          className="text-lg sm:text-xl font-bold text-[#0B1733]"
+                          style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                        >
                           ₹{room.price_per_night.toLocaleString()}
                           <span className="text-xs font-normal text-gray-600"> /night</span>
                         </div>
@@ -650,7 +662,7 @@ export default function AvailabilityModal({
                           <Coffee className="w-3 h-3 text-emerald-600" />
                           <span>Breakfast included</span>
                         </div>
-                        <div className="text-[11px] text-forest-700 font-medium">
+                        <div className="text-[11px] text-primary-700 font-medium">
                           ₹{totalStayPrice.toLocaleString()} for {stayNights}{' '}
                           {stayNights === 1 ? 'night' : 'nights'}
                         </div>
@@ -660,15 +672,15 @@ export default function AvailabilityModal({
                       {!isSoldOut ? (
                         <button
                           onClick={() => handleSelectRoomToBook(room)}
-                          className="bg-forest-800 hover:bg-forest-900 active:scale-95 text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                          className="bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-[0_3px_10px_rgba(254,110,0,0.3)] transition-all flex items-center space-x-1.5 cursor-pointer"
                         >
                           <span>Reserve Category</span>
-                          <ArrowRight className="w-3.5 h-3.5 text-sand-300" />
+                          <ArrowRight className="w-3.5 h-3.5 text-white" />
                         </button>
                       ) : (
                         <button
                           onClick={() => handleInquireCategory(room)}
-                          className="bg-sand-200 hover:bg-sand-300 text-forest-900 text-xs font-semibold px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                          className="bg-sand-200 hover:bg-sand-300 text-[#0B1733] text-xs font-semibold px-3 py-2 rounded-xl transition-colors cursor-pointer"
                         >
                           <span>Join Waitlist</span>
                         </button>
@@ -680,13 +692,16 @@ export default function AvailabilityModal({
 
               {/* Full Estate Buyout Notice */}
               {roomsCount >= 5 && (
-                <div className="bg-sand-50 border border-sand-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-forest-950">
+                <div className="bg-[#F3F7FF] border border-[#C7D4F5] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[#0B1733]">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-sand-200 flex items-center justify-center shrink-0">
-                      <Building className="w-5 h-5 text-forest-800" />
+                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                      <Building className="w-5 h-5 text-primary-700" />
                     </div>
                     <div>
-                      <h5 className="font-semibold text-sm">
+                      <h5
+                        className="font-bold text-sm text-[#0B1733]"
+                        style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                      >
                         Planning an Exclusive Buyout (All 7 Rooms)?
                       </h5>
                       <p className="text-xs text-gray-600">
@@ -699,7 +714,7 @@ export default function AvailabilityModal({
                       onClose();
                       onOpenInquiry({ checkIn, checkOut, guests: 14 });
                     }}
-                    className="whitespace-nowrap bg-sand-400 hover:bg-sand-500 text-forest-950 text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition-colors cursor-pointer"
+                    className="whitespace-nowrap bg-[#25479E] hover:bg-[#1A3478] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition-colors cursor-pointer"
                   >
                     Inquire Villa Buyout
                   </button>

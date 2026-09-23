@@ -630,6 +630,7 @@ export default function AdminCMS({
               >
                 {/* Thumbnail */}
                 <div className="w-full md:w-44 h-28 rounded-xl bg-sand-200 overflow-hidden relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={slide.image}
                     alt={slide.title}

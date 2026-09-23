@@ -211,20 +211,25 @@ export default function BookingModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-sand-200 overflow-hidden my-8">
         {/* Header */}
-        <div className="bg-forest-900 text-white p-6 relative">
+        <div className="bg-[#0B1733] text-white p-6 relative">
           <button
             onClick={handleResetAndClose}
             aria-label="Close modal"
-            className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+            className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <span className="text-xs uppercase tracking-widest text-sand-300 font-semibold block mb-1">
+          <span className="text-xs uppercase tracking-wider text-amber-300 font-semibold block mb-1">
             Instant Direct Reservation
           </span>
           <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
-            <h3 className="font-serif text-2xl font-bold text-white">{room.name}</h3>
+            <h3
+              className="text-2xl font-bold text-white"
+              style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+            >
+              {room.name}
+            </h3>
             <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-full">
               <Coffee className="w-3.5 h-3.5 text-emerald-400" />
               <span>
@@ -232,7 +237,7 @@ export default function BookingModal({
               </span>
             </span>
           </div>
-          <p className="text-xs text-sand-200 mt-1 font-light">
+          <p className="text-xs text-gray-300 mt-1 font-light">
             ₹{effectiveNightlyRate.toLocaleString()} / night • {mealPlan === 'EP' ? 'Room Only (No Meals Included)' : mealPlan === 'CP' ? 'Includes Complimentary Gourmet Breakfast' : mealPlan === 'MAP' ? 'Includes Breakfast & Pahadi Dinner' : 'Includes All 3 Daily Meals (Full Board)'}
           </p>
         </div>
@@ -596,16 +601,16 @@ export default function BookingModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-forest-800 hover:bg-forest-900 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm"
+                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-3.5 px-4 rounded-2xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm cursor-pointer"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-sand-300" />
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
                       <span>Submitting Reservation...</span>
                     </>
                   ) : (
                     <>
-                      <CreditCard className="w-4 h-4 text-sand-300" />
+                      <CreditCard className="w-4 h-4 text-white" />
                       <span>Confirm Reservation Request</span>
                     </>
                   )}

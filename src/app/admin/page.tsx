@@ -75,7 +75,7 @@ export default function AdminPage() {
     role: 'admin',
   });
 
-  // Check auth session
+  // Check auth session on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem('savera_admin_session');
@@ -93,6 +93,25 @@ export default function AdminPage() {
           setIsAuthenticated(true);
         }
       } else {
+        // Fallback: check wp_crm_current_user or homestay_admin_user
+        const fallbackRaw = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
+        if (fallbackRaw) {
+          const parsed = JSON.parse(fallbackRaw);
+          if (parsed && (parsed.fullName || parsed.name) && parsed.id !== 'staff-2' && parsed.id !== 'staff-3') {
+            setAdminUser({
+              name: parsed.fullName || parsed.name || 'Staff User',
+              role: parsed.role || 'admin',
+            });
+            setCurrentUser(parsed);
+            setIsAuthenticated(true);
+            const sessionData = {
+              ...parsed,
+              expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            };
+            localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
+            return;
+          }
+        }
         setIsAuthenticated(false);
       }
     } catch {
@@ -100,7 +119,8 @@ export default function AdminPage() {
     } finally {
       setAuthChecking(false);
     }
-  }, [setCurrentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Primary Workspace state with persistence
   const [workspace, setWorkspace] = useState<PrimaryWorkspace>(() => {
@@ -343,13 +363,33 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, fetchData]);
 
-  const handleAuthenticated = (token: string, user: { name: string; role: string }) => {
+  const handleAuthenticated = (token: string, user: { name: string; role: string; [key: string]: any }) => {
+    const sessionData = {
+      ...user,
+      token,
+      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    };
+    try {
+      localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
+      localStorage.setItem('homestay_admin_token', token);
+      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
+      localStorage.setItem('wp_crm_current_user', JSON.stringify(user));
+      localStorage.setItem('wp_crm_role', user.role || 'admin');
+    } catch {}
     setAdminUser(user);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('savera_admin_session');
+    try {
+      localStorage.removeItem('savera_admin_session');
+      localStorage.removeItem('homestay_admin_token');
+      localStorage.removeItem('homestay_admin_user');
+      localStorage.removeItem('wp_crm_current_user');
+      localStorage.removeItem('wp_crm_role');
+      sessionStorage.removeItem('homestay_admin_token');
+    } catch {}
+    setCurrentUser(null);
     setIsAuthenticated(false);
     showToast('Signed out of staff portal.');
   };
@@ -379,21 +419,24 @@ export default function AdminPage() {
   const totalOrdersBadge = pendingKitchenCount + pendingDispatchCount;
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans pb-16 md:pb-6">
+    <div className="min-h-screen bg-[#F3F7FF] text-[#0B1733] flex flex-col font-sans pb-16 md:pb-6">
       {/* ================= 1. GLOBAL ADMIN TOP NAVBAR ================= */}
-      <header className="sticky top-0 z-40 bg-forest-900 text-white border-b border-forest-800 shadow-md">
+      <header className="sticky top-0 z-40 bg-[#0B1733] text-white border-b border-[#1E2D4A] shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           {/* Brand Logo & Title */}
           <div className="flex items-center space-x-3 shrink-0">
             <Link href="/" className="flex items-center space-x-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center group-hover:bg-forest-700 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-[#25479E] border border-[#3B62C7] flex items-center justify-center group-hover:bg-[#1A3478] transition-colors shadow-sm">
                 <Trees className="w-5 h-5 text-amber-300" />
               </div>
               <div>
-                <span className="font-serif font-bold text-base block leading-tight">
+                <span
+                  className="font-bold text-base block leading-tight tracking-tight text-white"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
                   Savera Homestay
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-sand-300 font-semibold flex items-center space-x-1">
+                <span className="text-[10px] uppercase tracking-widest text-primary-200 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />
                   <span>Boutique CRM &amp; Concierge</span>
                 </span>
@@ -406,27 +449,27 @@ export default function AdminPage() {
             {/* Quick Action 1: + Manual Check-In */}
             <button
               onClick={() => setIsManualCheckInOpen(true)}
-              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-500/50 transition-all shadow-sm cursor-pointer shrink-0"
+              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-400/40 transition-all shadow-sm cursor-pointer shrink-0"
               title="Initiate manual check-in, assign room & generate guest portal link"
             >
-              <Plus className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
+              <Plus className="w-3.5 h-3.5 text-emerald-200 stroke-[3]" />
               <span>Manual Check-In</span>
             </button>
 
-            {/* Quick Action 2: + Quick Expense */}
+            {/* Quick Action 2: + Quick Expense in Wizz Orange */}
             <button
               onClick={() => setIsQuickExpenseOpen(true)}
-              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-forest-950 bg-amber-400 hover:bg-amber-300 active:scale-95 px-3 py-1.5 rounded-xl border border-amber-300 transition-all shadow-sm cursor-pointer shrink-0"
+              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 px-3 py-1.5 rounded-xl shadow-[0_2px_8px_rgba(254,110,0,0.3)] transition-all cursor-pointer shrink-0"
               title="1-tap fast manager expense logger"
             >
-              <Receipt className="w-3.5 h-3.5 text-forest-950" />
+              <Receipt className="w-3.5 h-3.5 text-white" />
               <span>Quick Expense</span>
             </button>
 
             {/* Dine-In QR Standees Generator */}
             <button
               onClick={() => setShowQRHubModal(true)}
-              className="min-h-[38px] hidden md:flex items-center space-x-1.5 text-xs font-semibold text-sand-200 hover:text-white bg-forest-800/80 hover:bg-forest-800 px-2.5 py-1.5 rounded-xl border border-forest-700 transition-colors shrink-0 cursor-pointer"
+              className="min-h-[38px] hidden md:flex items-center space-x-1.5 text-xs font-semibold text-gray-200 hover:text-white bg-[#182C58] hover:bg-[#25479E] px-2.5 py-1.5 rounded-xl border border-[#25479E]/40 transition-colors shrink-0 cursor-pointer"
               title="In-Room Dine-In QR Standees"
             >
               <QrCode className="w-3.5 h-3.5 text-amber-400" />
@@ -440,8 +483,8 @@ export default function AdminPage() {
             <PWAInstaller variant="button" />
 
             {/* Logged-in Staff Badge */}
-            <div className="hidden lg:flex items-center space-x-2 bg-forest-800/80 px-2.5 py-1 rounded-xl border border-forest-700/60 shrink-0">
-              <div className="w-6 h-6 rounded-lg bg-amber-400 text-forest-950 font-bold text-[10px] flex items-center justify-center uppercase">
+            <div className="hidden lg:flex items-center space-x-2 bg-[#182C58] px-2.5 py-1 rounded-xl border border-[#25479E]/40 shrink-0">
+              <div className="w-6 h-6 rounded-lg bg-[#FE6E00] text-white font-bold text-[10px] flex items-center justify-center uppercase">
                 {(currentUser?.fullName || adminUser.name).charAt(0)}
               </div>
               <div className="text-left">
@@ -454,12 +497,12 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="h-5 w-px bg-forest-700 hidden sm:block shrink-0" />
+            <div className="h-5 w-px bg-white/20 hidden sm:block shrink-0" />
 
             {/* Refresh Data */}
             <button
               onClick={handleRefresh}
-              className="min-h-[38px] p-2 text-forest-300 hover:text-white rounded-xl hover:bg-forest-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+              className="min-h-[38px] p-2 text-gray-300 hover:text-white rounded-xl hover:bg-[#182C58] transition-colors flex items-center justify-center cursor-pointer shrink-0"
               title="Refresh Homestay Live Data"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -469,10 +512,10 @@ export default function AdminPage() {
             <Link
               href="/"
               target="_blank"
-              className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-sand-200 hover:text-white rounded-xl hover:bg-forest-800 transition-colors hidden sm:flex items-center space-x-1.5 shrink-0"
+              className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-gray-200 hover:text-white rounded-xl hover:bg-[#182C58] transition-colors hidden sm:flex items-center space-x-1.5 shrink-0"
               title="View Public Website"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+              <ExternalLink className="w-3.5 h-3.5 text-[#FE6E00]" />
               <span>Site</span>
             </Link>
 
@@ -488,7 +531,7 @@ export default function AdminPage() {
         </div>
 
         {/* ================= 2. REDESIGNED 5 LUXURY WORKSPACES BAR ================= */}
-        <div className="bg-forest-950/80 border-t border-forest-800/90 px-4 sm:px-6 lg:px-8">
+        <div className="bg-[#070F22] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-2 no-scrollbar">
             <div className="flex items-center space-x-2 sm:space-x-3">
               {/* Workspace 1: Front Desk (Tape Chart) */}
@@ -496,8 +539,8 @@ export default function AdminPage() {
                 onClick={() => handleSelectWorkspace('front_desk', 'tape_chart')}
                 className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   workspace === 'front_desk'
-                    ? 'bg-amber-500 text-forest-950 shadow-sm'
-                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                    ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-md'
+                    : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
                 }`}
               >
                 <CalendarDays className="w-4 h-4" />
@@ -509,8 +552,8 @@ export default function AdminPage() {
                 onClick={() => handleSelectWorkspace('orders_concierge', 'kitchen')}
                 className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   workspace === 'orders_concierge'
-                    ? 'bg-amber-500 text-forest-950 shadow-sm'
-                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                    ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-md'
+                    : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
                 }`}
               >
                 <UtensilsCrossed className="w-4 h-4" />
@@ -527,8 +570,8 @@ export default function AdminPage() {
                 onClick={() => handleSelectWorkspace('operations', 'tasks')}
                 className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   workspace === 'operations'
-                    ? 'bg-amber-500 text-forest-950 shadow-sm'
-                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                    ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-md'
+                    : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
                 }`}
               >
                 <LayoutDashboard className="w-4 h-4" />
@@ -540,8 +583,8 @@ export default function AdminPage() {
                 onClick={() => handleSelectWorkspace('ledger', 'ledger')}
                 className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   workspace === 'ledger'
-                    ? 'bg-amber-500 text-forest-950 shadow-sm'
-                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                    ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-md'
+                    : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
                 }`}
               >
                 <Receipt className="w-4 h-4" />
@@ -558,8 +601,8 @@ export default function AdminPage() {
                 onClick={() => handleSelectWorkspace('settings', 'rooms')}
                 className={`min-h-[40px] flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   workspace === 'settings'
-                    ? 'bg-amber-500 text-forest-950 shadow-sm'
-                    : 'text-sand-200 hover:text-white hover:bg-forest-900/60'
+                    ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-md'
+                    : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
                 }`}
               >
                 <Settings className="w-4 h-4" />
@@ -571,13 +614,13 @@ export default function AdminPage() {
 
         {/* Secondary Subtab Bar for Active Workspace */}
         {workspace === 'orders_concierge' && (
-          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+          <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2">
             <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
-              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <span className="text-gray-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
               <button
                 onClick={() => setActiveSubtab('kitchen')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'kitchen' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'kitchen' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <ChefHat className="w-3.5 h-3.5" />
@@ -590,22 +633,22 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('dispatch')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'dispatch' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'dispatch' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Truck className="w-3.5 h-3.5" />
                 <span>Transfers &amp; Rentals Dispatch</span>
                 {pendingDispatchCount > 0 && (
-                  <span className="bg-amber-500 text-forest-950 text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
+                  <span className="bg-[#FE6E00] text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
                     {pendingDispatchCount}
                   </span>
                 )}
               </button>
               <button
                 onClick={() => setActiveSubtab('orders')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'orders' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'orders' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <ClipboardList className="w-3.5 h-3.5" />
@@ -616,13 +659,13 @@ export default function AdminPage() {
         )}
 
         {workspace === 'operations' && (
-          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+          <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2">
             <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
-              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <span className="text-gray-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
               <button
                 onClick={() => setActiveSubtab('tasks')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'tasks' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'tasks' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Wrench className="w-3.5 h-3.5" />
@@ -630,8 +673,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('expenses')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'expenses' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'expenses' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5" />
@@ -642,13 +685,13 @@ export default function AdminPage() {
         )}
 
         {workspace === 'ledger' && (
-          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2">
+          <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2">
             <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
-              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
+              <span className="text-gray-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Module:</span>
               <button
                 onClick={() => setActiveSubtab('ledger')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'ledger' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'ledger' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5" />
@@ -656,8 +699,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('staff')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'staff' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'staff' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -668,13 +711,13 @@ export default function AdminPage() {
         )}
 
         {workspace === 'settings' && (
-          <div className="bg-forest-900/90 border-t border-forest-800 px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto no-scrollbar">
+          <div className="bg-[#0B1733] border-t border-[#1E2D4A] px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto no-scrollbar">
             <div className="max-w-7xl mx-auto flex items-center space-x-2 text-xs font-bold">
-              <span className="text-sand-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Settings:</span>
+              <span className="text-gray-400 text-[11px] uppercase tracking-wider mr-2 hidden sm:inline">Settings:</span>
               <button
                 onClick={() => setActiveSubtab('rooms')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'rooms' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'rooms' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <BedDouble className="w-3.5 h-3.5" />
@@ -682,8 +725,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('addons')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'addons' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'addons' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <UtensilsCrossed className="w-3.5 h-3.5" />
@@ -691,8 +734,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('cms')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'cms' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'cms' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <Sliders className="w-3.5 h-3.5" />
@@ -700,8 +743,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('inquiries')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'inquiries' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'inquiries' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <MessageSquareText className="w-3.5 h-3.5" />
@@ -709,8 +752,8 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveSubtab('overview')}
-                className={`px-3 py-1 rounded-lg transition-colors flex items-center space-x-1.5 ${
-                  activeSubtab === 'overview' ? 'bg-amber-400 text-forest-950 font-bold' : 'text-sand-200 hover:bg-forest-800'
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'overview' ? 'bg-[#25479E] text-white font-bold shadow-xs' : 'text-gray-300 hover:bg-[#182C58] hover:text-white'
                 }`}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />

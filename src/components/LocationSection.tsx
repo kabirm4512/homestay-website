@@ -9,59 +9,62 @@ interface LocationSectionProps {
 
 export default function LocationSection({ siteInfo }: LocationSectionProps) {
   return (
-    <section id="location" className="py-20 sm:py-28 bg-[#faf8f5] relative">
+    <section id="location" className="py-20 sm:py-28 bg-[#F3F7FF] relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest text-forest-600 bg-forest-100 px-3 py-1 rounded-full inline-block mb-3">
+          <span className="text-xs font-bold uppercase tracking-widest text-primary-700 bg-primary-100 px-3.5 py-1 rounded-full inline-block mb-3 shadow-xs">
             Finding Savera
           </span>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-forest-950 tracking-tight leading-tight mb-4">
+          <h2
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0B1733] tracking-tight leading-tight mb-4"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Location & Getting Here
           </h2>
-          <p className="text-gray-600 text-base sm:text-lg">
+          <p className="text-gray-600 text-base sm:text-lg font-normal">
             Located along Hill Cart Road in West Point, Darjeeling with panoramic views of the eastern Himalayas.
           </p>
-          <div className="w-16 h-1 bg-sand-400 mx-auto rounded-full mt-6" />
+          <div className="w-16 h-1 bg-[#FE6E00] mx-auto rounded-full mt-6" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left: Directions & Details Card */}
           <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white p-7 rounded-3xl border border-sand-200 shadow-sm space-y-6">
+            <div className="bg-white p-7 rounded-3xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
               {/* Address */}
               <div className="flex items-start space-x-3.5">
-                <div className="w-10 h-10 rounded-xl bg-forest-50 text-forest-700 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center flex-shrink-0">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-forest-950 mb-1">Our Location</h4>
+                  <h4 className="font-bold text-sm text-[#0B1733] mb-1">Our Location</h4>
                   <p className="text-sm text-gray-600 leading-relaxed">{siteInfo.address}</p>
                 </div>
               </div>
 
               {/* Timings */}
               <div className="flex items-start space-x-3.5">
-                <div className="w-10 h-10 rounded-xl bg-forest-50 text-forest-700 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center flex-shrink-0">
                   <Clock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-forest-950 mb-1">Stay Timings</h4>
+                  <h4 className="font-bold text-sm text-[#0B1733] mb-1">Stay Timings</h4>
                   <p className="text-sm text-gray-600">
-                    Check-in: <span className="font-medium text-gray-900">{siteInfo.check_in_time}</span>
+                    Check-in: <span className="font-semibold text-gray-900">{siteInfo.check_in_time}</span>
                     <br />
-                    Check-out: <span className="font-medium text-gray-900">{siteInfo.check_out_time}</span>
+                    Check-out: <span className="font-semibold text-gray-900">{siteInfo.check_out_time}</span>
                   </p>
                 </div>
               </div>
 
               {/* Getting Here Guidance */}
               <div className="flex items-start space-x-3.5">
-                <div className="w-10 h-10 rounded-xl bg-forest-50 text-forest-700 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center flex-shrink-0">
                   <Car className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-forest-950 mb-1">Transportation & Parking</h4>
+                  <h4 className="font-bold text-sm text-[#0B1733] mb-1">Transportation & Parking</h4>
                   <p className="text-sm text-gray-600 leading-relaxed">
                     {siteInfo.directions || 'Private safe parking is available. Airport transfers from Bagdogra (IXB) and train station transfers from New Jalpaiguri (NJP) can be pre-arranged upon request.'}
                   </p>
@@ -70,11 +73,11 @@ export default function LocationSection({ siteInfo }: LocationSectionProps) {
 
               {/* House Ethics */}
               <div className="flex items-start space-x-3.5">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center flex-shrink-0">
                   <ShieldAlert className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-forest-950 mb-1">Homestay Guidelines</h4>
+                  <h4 className="font-bold text-sm text-[#0B1733] mb-1">Homestay Guidelines</h4>
                   <p className="text-sm text-gray-600 leading-relaxed">
                     To preserve peaceful mountain rest, quiet hours commence at 10:00 PM.
                     Smoking is strictly restricted to designated outdoor garden areas.
@@ -87,9 +90,9 @@ export default function LocationSection({ siteInfo }: LocationSectionProps) {
                   href={siteInfo.map_url || 'https://maps.app.goo.gl/KMJe676np8aDYExD6'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-forest-800 hover:bg-forest-900 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition-colors flex items-center justify-center space-x-2 text-sm"
+                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-3.5 px-4 rounded-2xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 text-sm cursor-pointer"
                 >
-                  <Navigation className="w-4 h-4 text-sand-300" />
+                  <Navigation className="w-4 h-4 text-white" />
                   <span>Open in Google Maps</span>
                 </a>
 
@@ -97,7 +100,7 @@ export default function LocationSection({ siteInfo }: LocationSectionProps) {
                   href={siteInfo.google_business_url || 'https://share.google/ufeIhNLjkk7qoPffW'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-sand-100 hover:bg-sand-200 text-forest-900 font-semibold py-2.5 px-4 rounded-xl border border-sand-300 transition-colors flex items-center justify-center space-x-2 text-xs"
+                  className="w-full bg-[#F3F7FF] hover:bg-[#E9EDFA] text-primary-700 font-semibold py-2.5 px-4 rounded-2xl border border-[#C7D4F5] transition-colors flex items-center justify-center space-x-2 text-xs cursor-pointer"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path

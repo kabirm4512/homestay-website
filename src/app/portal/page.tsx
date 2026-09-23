@@ -508,25 +508,31 @@ Please confirm the arrangement. Thank you!`;
   // ================= VIEW 1: UN-AUTHENTICATED LOOKUP FORM =================
   if (!activeBooking) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-forest-950 via-forest-900 to-forest-950 text-white flex flex-col justify-between p-4 sm:p-6 font-sans">
+      <div className="min-h-screen bg-gradient-to-b from-[#0B1733] via-[#12244F] to-[#0B1733] text-white flex flex-col justify-between p-4 sm:p-6 font-sans">
         <header className="max-w-md mx-auto w-full pt-8 text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-300 mb-2 shadow-inner">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#25479E]/30 border border-[#25479E]/50 text-[#FE6E00] mb-2 shadow-inner">
             <Trees className="w-7 h-7" />
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
+            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+          >
             Savera Homestay
           </h1>
-          <p className="text-xs sm:text-sm text-sand-300 uppercase tracking-widest font-medium">
+          <p className="text-xs sm:text-sm text-primary-200 uppercase tracking-widest font-semibold">
             Guest Self-Service Portal
           </p>
         </header>
 
-        <main className="max-w-md mx-auto w-full my-8 bg-white text-forest-950 rounded-3xl p-6 sm:p-8 shadow-2xl border border-sand-200">
+        <main className="max-w-md mx-auto w-full my-8 bg-white text-[#0B1733] rounded-3xl p-6 sm:p-8 shadow-2xl border border-[#C7D4F5]">
           <div className="mb-6 text-center space-y-1">
-            <h2 className="font-serif font-bold text-lg text-forest-900">
+            <h2
+              className="font-bold text-lg text-[#0B1733]"
+              style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+            >
               Access Your Stay Details
             </h2>
-            <p className="text-xs text-forest-600">
+            <p className="text-xs text-gray-600">
               Enter the First Name and Mobile Number provided during check-in to access your room information, bills &amp; dining.
             </p>
           </div>
@@ -540,35 +546,35 @@ Please confirm the arrangement. Thank you!`;
 
           <form onSubmit={handleManualLookup} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1">
+              <label className="text-xs font-bold text-gray-800 block mb-1">
                 First Name *
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-forest-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   required
                   value={inputFirstName}
                   onChange={(e) => setInputFirstName(e.target.value)}
                   placeholder="e.g. Aditi"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-sand-300 bg-sand-50/50 focus:bg-white focus:ring-2 focus:ring-forest-700"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-gray-300 bg-[#F3F7FF]/50 focus:bg-white focus:ring-2 focus:ring-[#25479E] focus:border-[#25479E]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1">
+              <label className="text-xs font-bold text-gray-800 block mb-1">
                 Mobile Number (10 Digits) *
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-forest-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="tel"
                   required
                   value={inputPhone}
                   onChange={(e) => setInputPhone(e.target.value)}
                   placeholder="e.g. 9876543210"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-sand-300 bg-sand-50/50 focus:bg-white focus:ring-2 focus:ring-forest-700 font-mono"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm font-medium rounded-xl border border-gray-300 bg-[#F3F7FF]/50 focus:bg-white focus:ring-2 focus:ring-[#25479E] focus:border-[#25479E] font-mono"
                 />
               </div>
             </div>
@@ -576,7 +582,7 @@ Please confirm the arrangement. Thank you!`;
             <button
               type="submit"
               disabled={isSearching}
-              className="w-full min-h-[48px] mt-2 bg-forest-900 hover:bg-forest-800 disabled:bg-forest-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              className="w-full min-h-[48px] mt-2 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] disabled:opacity-60 text-white rounded-xl font-bold text-sm shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 cursor-pointer"
             >
               {isSearching ? (
                 <>
@@ -585,15 +591,15 @@ Please confirm the arrangement. Thank you!`;
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <Sparkles className="w-4 h-4 text-white" />
                   <span>Open Guest Portal</span>
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-sand-200 text-center space-y-2">
-            <p className="text-[11px] text-forest-600">
+          <div className="mt-6 pt-5 border-t border-gray-200 text-center space-y-2">
+            <p className="text-[11px] text-gray-600">
               Need immediate check-in assistance or having trouble accessing?
             </p>
             <a
@@ -608,7 +614,7 @@ Please confirm the arrangement. Thank you!`;
           </div>
         </main>
 
-        <footer className="text-center text-xs text-sand-400 pb-4">
+        <footer className="text-center text-xs text-primary-200 pb-4">
           Savera Homestay • Boutique Mountain Retreat &amp; Organic Orchards
         </footer>
       </div>
@@ -623,24 +629,27 @@ Please confirm the arrangement. Thank you!`;
     activeBooking.guest?.documentStatus === 'verified';
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-forest-950 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F3F7FF] text-[#0B1733] flex flex-col font-sans">
       {/* 1. Portal Header */}
-      <header className="sticky top-0 z-30 bg-forest-900 text-white border-b border-forest-800 shadow-md">
+      <header className="sticky top-0 z-30 bg-[#0B1733] text-white border-b border-[#1E2D4A] shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-forest-800 border border-forest-700 flex items-center justify-center text-amber-300">
+            <div className="w-9 h-9 rounded-xl bg-[#25479E] border border-[#3B62C7] flex items-center justify-center text-amber-300">
               <Trees className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-serif font-bold text-sm sm:text-base leading-none">
+                <span
+                  className="font-bold text-sm sm:text-base leading-none tracking-tight text-white"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
                   Savera Homestay
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-forest-950">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FE6E00] text-white">
                   Room {activeBooking.roomNumber}
                 </span>
               </div>
-              <span className="text-[11px] text-sand-300">
+              <span className="text-[11px] text-gray-300">
                 Welcome, {activeBooking.guest?.fullName}
               </span>
             </div>
@@ -649,16 +658,16 @@ Please confirm the arrangement. Thank you!`;
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowInvoicePrint(true)}
-              className="min-h-[38px] px-3 py-1.5 bg-forest-800 hover:bg-forest-700 text-sand-200 hover:text-white rounded-xl text-xs font-semibold border border-forest-700 transition-colors flex items-center space-x-1.5 cursor-pointer"
+              className="min-h-[38px] px-3 py-1.5 bg-[#182C58] hover:bg-[#25479E] text-gray-200 hover:text-white rounded-xl text-xs font-semibold border border-[#25479E]/40 transition-colors flex items-center space-x-1.5 cursor-pointer"
               title="View & Download Official GST Invoice"
             >
-              <Printer className="w-3.5 h-3.5 text-amber-300" />
+              <Printer className="w-3.5 h-3.5 text-[#FE6E00]" />
               <span className="hidden sm:inline">Invoice</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="min-h-[38px] p-2 text-sand-300 hover:text-rose-300 rounded-xl hover:bg-forest-800 transition-colors flex items-center space-x-1 cursor-pointer"
+              className="min-h-[38px] p-2 text-gray-300 hover:text-rose-300 rounded-xl hover:bg-[#182C58] transition-colors flex items-center space-x-1 cursor-pointer"
               title="Sign Out / Switch Booking"
             >
               <LogOut className="w-4 h-4" />
@@ -667,14 +676,14 @@ Please confirm the arrangement. Thank you!`;
         </div>
 
         {/* Navigation Tabs Bar */}
-        <div className="bg-forest-950/70 border-t border-forest-800/80 px-4 sm:px-6">
+        <div className="bg-[#070F22] border-t border-[#1E2D4A] px-4 sm:px-6">
           <div className="max-w-4xl mx-auto flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 no-scrollbar text-xs font-bold">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
                 activeTab === 'overview'
-                  ? 'bg-amber-500 text-forest-950 shadow-xs'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-xs'
+                  : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
               }`}
             >
               <Info className="w-3.5 h-3.5" />
@@ -683,10 +692,10 @@ Please confirm the arrangement. Thank you!`;
 
             <button
               onClick={() => setActiveTab('checkin')}
-              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
                 activeTab === 'checkin'
-                  ? 'bg-amber-500 text-forest-950 shadow-xs'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-xs'
+                  : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -695,10 +704,10 @@ Please confirm the arrangement. Thank you!`;
 
             <button
               onClick={() => setActiveTab('billing')}
-              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
                 activeTab === 'billing'
-                  ? 'bg-amber-500 text-forest-950 shadow-xs'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-xs'
+                  : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
@@ -707,10 +716,10 @@ Please confirm the arrangement. Thank you!`;
 
             <button
               onClick={() => setActiveTab('celebrations')}
-              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
                 activeTab === 'celebrations'
-                  ? 'bg-amber-500 text-forest-950 shadow-xs'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-xs'
+                  : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -719,10 +728,10 @@ Please confirm the arrangement. Thank you!`;
 
             <button
               onClick={() => setActiveTab('dining')}
-              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer ${
                 activeTab === 'dining'
-                  ? 'bg-amber-500 text-forest-950 shadow-xs'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-900/50'
+                  ? 'bg-gradient-to-r from-[#FE6E00] to-[#EA580C] text-white shadow-xs'
+                  : 'text-gray-300 hover:text-white hover:bg-[#182C58]'
               }`}
             >
               <Utensils className="w-3.5 h-3.5" />

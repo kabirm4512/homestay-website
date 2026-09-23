@@ -387,28 +387,31 @@ function CheckinContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] text-forest-950 pb-16">
+    <div className="min-h-screen bg-[#F3F7FF] text-[#0B1733] pb-16">
       {/* Top Header */}
-      <header className="bg-forest-950 text-white border-b border-forest-900 sticky top-0 z-30 shadow-md">
+      <header className="bg-[#0B1733] text-white border-b border-[#1E2D4A] sticky top-0 z-30 shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-2xl bg-[#25479E] border border-[#3B62C7] flex items-center justify-center text-amber-300">
               <Trees className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-serif font-bold text-lg text-white leading-tight">
+              <h1
+                className="font-bold text-lg text-white leading-tight tracking-tight"
+                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              >
                 Savera Homestay
               </h1>
-              <p className="text-[11px] text-amber-300/90 tracking-wide font-medium">
+              <p className="text-[11px] text-primary-200 tracking-wide font-medium">
                 Guest Digital Check-In &amp; ID Verification
               </p>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[10px] text-sand-300 block">Need help?</span>
+            <span className="text-[10px] text-gray-300 block">Need help?</span>
             <a
               href="tel:+919876543210"
-              className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors"
+              className="text-xs font-bold text-[#FE6E00] hover:underline transition-colors"
             >
               +91 98765 43210
             </a>
@@ -420,22 +423,25 @@ function CheckinContent() {
         {/* Reservation Search Bar (if no active booking selected) */}
         {!activeBooking && (
           <div className="space-y-6">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-sand-200 text-center space-y-4">
-              <div className="w-14 h-14 rounded-3xl bg-forest-900 text-sand-200 flex items-center justify-center mx-auto shadow-sm">
-                <ShieldCheck className="w-7 h-7 text-amber-400" />
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-[#C7D4F5] text-center space-y-4">
+              <div className="w-14 h-14 rounded-3xl bg-[#0B1733] text-[#FE6E00] flex items-center justify-center mx-auto shadow-sm">
+                <ShieldCheck className="w-7 h-7 text-[#FE6E00]" />
               </div>
               <div>
-                <h2 className="font-serif font-bold text-2xl text-forest-950">
+                <h2
+                  className="font-bold text-2xl text-[#0B1733]"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
                   Welcome to Savera Homestay
                 </h2>
-                <p className="text-xs sm:text-sm text-forest-700 max-w-md mx-auto mt-1">
+                <p className="text-xs sm:text-sm text-gray-600 max-w-md mx-auto mt-1">
                   Please enter your <strong>Booking Reference</strong> or registered <strong>Phone Number</strong> to complete your digital registration.
                 </p>
               </div>
 
               <form onSubmit={handleManualSearch} className="max-w-md mx-auto space-y-3 pt-2">
                 <div className="relative">
-                  <Search className="w-5 h-5 text-forest-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     required
@@ -445,13 +451,13 @@ function CheckinContent() {
                       setNotFound(false);
                     }}
                     placeholder="e.g. WP-2026-101 or 9911233445"
-                    className="w-full pl-11 pr-4 py-3 rounded-2xl border border-sand-300 bg-sand-50/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-forest-800 focus:bg-white text-forest-950"
+                    className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-300 bg-[#F3F7FF]/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#25479E] focus:bg-white text-[#0B1733]"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={isSearching}
-                  className="w-full py-3 bg-forest-900 hover:bg-forest-800 active:scale-98 text-white rounded-2xl font-bold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
+                  className="w-full py-3 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-2xl font-bold text-sm shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
                 >
                   {isSearching ? (
                     <>
@@ -467,7 +473,7 @@ function CheckinContent() {
               <div className="pt-1 text-center">
                 <Link
                   href="/portal"
-                  className="inline-flex items-center space-x-1.5 text-xs font-bold text-forest-900 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-1.5 rounded-full transition-colors shadow-2xs"
+                  className="inline-flex items-center space-x-1.5 text-xs font-bold text-primary-900 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-3.5 py-1.5 rounded-full transition-colors shadow-2xs"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                   <span>Looking for the All-in-One Guest Portal &amp; Bills? Click here →</span>

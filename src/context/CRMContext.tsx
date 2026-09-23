@@ -442,8 +442,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem('wp_crm_current_user');
           localStorage.removeItem('homestay_admin_token');
           localStorage.removeItem('homestay_admin_user');
+          localStorage.removeItem('savera_admin_session');
         } else {
           setCurrentUserState(parsedUser);
+        }
+      } else {
+        const sessionRaw = localStorage.getItem('savera_admin_session');
+        if (sessionRaw) {
+          try {
+            const parsedSession = JSON.parse(sessionRaw);
+            if (parsedSession && (!parsedSession.expiresAt || parsedSession.expiresAt > Date.now())) {
+              setCurrentUserState(parsedSession);
+            }
+          } catch {}
         }
       }
     } catch {
@@ -469,7 +480,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const setRole = (newRole: StaffRole) => {
+  const setRole = useCallback((newRole: StaffRole) => {
     setRoleState(newRole);
     try {
       localStorage.setItem('wp_crm_role', newRole);
@@ -477,7 +488,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
     showToast(`Switched active role to ${newRole.replace('_', ' ').toUpperCase()}`, 'info');
-  };
+  }, [showToast]);
 
   const updateRoomStatus = (roomId: string, status: RoomTapeStatus) => {
     setRooms((prev) => {
@@ -1287,20 +1298,35 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Staff Account & Authentication Actions
-  const setCurrentUser = (user: StaffAccount | null) => {
+  const setCurrentUser = useCallback((user: StaffAccount | null) => {
     setCurrentUserState(user);
     try {
       if (user) {
         localStorage.setItem('wp_crm_current_user', JSON.stringify(user));
         setRoleState(user.role);
         localStorage.setItem('wp_crm_role', user.role);
+
+        // Keep savera_admin_session active and valid
+        const existingSessionRaw = localStorage.getItem('savera_admin_session');
+        const session = existingSessionRaw ? { ...JSON.parse(existingSessionRaw), ...user } : {
+          ...user,
+          token: `token-${user.id}-${Date.now()}`,
+          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        };
+        if (!session.expiresAt || session.expiresAt < Date.now()) {
+          session.expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        }
+        localStorage.setItem('savera_admin_session', JSON.stringify(session));
       } else {
         localStorage.removeItem('wp_crm_current_user');
+        localStorage.removeItem('savera_admin_session');
+        localStorage.removeItem('homestay_admin_token');
+        localStorage.removeItem('homestay_admin_user');
       }
     } catch {
       // ignore
     }
-  };
+  }, []);
 
   const addStaffAccount = async (accountData: Omit<StaffAccount, 'id' | 'createdAt'>): Promise<StaffAccount> => {
     const newAccount: StaffAccount = {
@@ -1335,6 +1361,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         if (stored) {
           localStorage.setItem('wp_crm_current_user', JSON.stringify({ ...JSON.parse(stored), ...updates }));
         }
+        const sessionRaw = localStorage.getItem('savera_admin_session');
+        if (sessionRaw) {
+          localStorage.setItem('savera_admin_session', JSON.stringify({ ...JSON.parse(sessionRaw), ...updates }));
+        }
       } catch {}
     }
     showToast('Staff profile updated successfully');
@@ -1368,7 +1398,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  const authenticateStaff = async (
+  const authenticateStaff = useCallback(async (
     identifier: string,
     password: string
   ): Promise<{ success: boolean; user?: StaffAccount; error?: string }> => {
@@ -1389,16 +1419,24 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'This account has been deactivated. Please contact the administrator.' };
     }
 
-    setCurrentUser(found);
+    setCurrentUserState(found);
     setRoleState(found.role);
     try {
+      const sessionData = {
+        ...found,
+        token: `token-${found.id}-${Date.now()}`,
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+      localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
+      localStorage.setItem('homestay_admin_token', sessionData.token);
+      localStorage.setItem('homestay_admin_user', JSON.stringify(found));
       localStorage.setItem('wp_crm_role', found.role);
       localStorage.setItem('wp_crm_current_user', JSON.stringify(found));
     } catch {}
 
     showToast(`Signed in as ${found.fullName} (${found.role.replace('_', ' ').toUpperCase()})`);
     return { success: true, user: found };
-  };
+  }, [staffAccounts, showToast]);
 
   // =========================================================================
   // Menu Management CRUD (In-Room Dining)

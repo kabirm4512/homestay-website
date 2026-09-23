@@ -949,6 +949,7 @@ export default function AdminAddonsCMS() {
                   <div className="space-y-2.5">
                     {veh.imageUrl && (
                       <div className="relative h-36 w-full rounded-xl overflow-hidden bg-sand-100 border border-sand-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={veh.imageUrl}
                           alt={veh.vehicleName}

@@ -800,6 +800,7 @@ export default function AdminRooms({
                 >
                   {/* Room Image & Badges */}
                   <div className="relative h-48 bg-sand-200 overflow-hidden group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={primaryImage}
                       alt={room.name}
@@ -1901,6 +1902,7 @@ export default function AdminRooms({
                       className="flex items-center space-x-2 bg-sand-50 p-2 rounded-xl border border-sand-200"
                     >
                       <div className="w-12 h-9 rounded-lg bg-sand-200 overflow-hidden shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="thumbnail" className="w-full h-full object-cover" />
                       </div>
                       <span className="text-xs text-gray-700 truncate flex-1 font-mono">{url}</span>

@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 27, 45, 37;
-  --background-start-rgb: 250, 248, 245;
-  --background-end-rgb: 244, 239, 232;
+  --foreground-rgb: 16, 24, 40;
+  --background-start-rgb: 243, 247, 255;
+  --background-end-rgb: 233, 237, 250;
 }
 
 html {
@@ -16,8 +16,8 @@ html {
 
 body {
   color: rgb(var(--foreground-rgb));
-  background-color: #faf8f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #F3F7FF;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -25,23 +25,28 @@ body {
   width: 100%;
 }
 
-/* Custom scrollbar */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-outfit), var(--font-inter), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Custom scrollbar matching Wizz Sapphire Blue */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f4efe8;
+  background: #E9EDFA;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c5dccf;
-  border-radius: 4px;
+  background: #9BB4EE;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ec2b0;
+  background: #25479E;
 }
 
 @layer utilities {
@@ -53,6 +58,39 @@ body {
   }
   .safe-area-pt {
     padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+  }
+
+  /* Wizz Holidays Glassmorphism & Surface utilities */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 10px 30px -5px rgba(37, 71, 158, 0.08);
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 20px 40px -15px rgba(11, 23, 51, 0.10);
+  }
+
+  .wizz-gradient-canvas {
+    background: linear-gradient(180deg, #F3F7FF 0%, #E8F0FE 35%, #F0F4FF 70%, #F8FAFC 100%);
+  }
+
+  .wizz-hero-gradient {
+    background: linear-gradient(135deg, #0B1733 0%, #12244F 45%, #1F3C86 100%);
+  }
+
+  .wizz-orange-gradient {
+    background: linear-gradient(135deg, #FE6E00 0%, #EA580C 100%);
+  }
+
+  .img-enhance {
+    filter: contrast(1.05) saturate(1.08) brightness(1.02);
   }
 }
 
@@ -66,7 +104,7 @@ body {
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #f0eae1 25%, #fbf8f4 50%, #f0eae1 75%);
+  background: linear-gradient(90deg, #E9EDFA 25%, #FFFFFF 50%, #E9EDFA 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
