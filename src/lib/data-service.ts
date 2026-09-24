@@ -17,9 +17,10 @@ import {
   INITIAL_TRANSFER_ROUTES,
   INITIAL_RENTAL_VEHICLES,
   INITIAL_BOOKINGS as INITIAL_CRM_BOOKINGS,
+  INITIAL_PHYSICAL_ROOMS,
 } from './crm-data';
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
-import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, FoodOrderStatus, Expense } from '@/types/crm';
+import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, FoodOrderStatus, Expense, PhysicalRoom, RoomTapeStatus, HousekeepingStatus } from '@/types/crm';
 import { generateUniversalBookingId } from './booking-id';
 
 export interface StaffAlert {
@@ -35,6 +36,7 @@ export interface StaffAlert {
 
 interface LocalStoreData {
   rooms: Room[];
+  physicalRooms?: PhysicalRoom[];
   heroSlides: HeroSlide[];
   aboutData: AboutSectionData;
   siteInfo: SiteInfo;
@@ -66,6 +68,7 @@ function getActiveStorePath(): string {
 function getInitialStore(): LocalStoreData {
   return {
     rooms: [...INITIAL_ROOMS],
+    physicalRooms: [...INITIAL_PHYSICAL_ROOMS],
     heroSlides: [...INITIAL_HERO_SLIDES],
     aboutData: { ...INITIAL_ABOUT_DATA },
     siteInfo: { ...INITIAL_SITE_INFO },
@@ -105,6 +108,7 @@ function getStoreData(): LocalStoreData {
 
       return {
         rooms: sanitizedRooms,
+        physicalRooms: Array.isArray(parsed.physicalRooms) && parsed.physicalRooms.length > 0 ? parsed.physicalRooms : [...INITIAL_PHYSICAL_ROOMS],
         heroSlides: Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 ? parsed.heroSlides : [...INITIAL_HERO_SLIDES],
         aboutData: parsed.aboutData?.headline ? parsed.aboutData : { ...INITIAL_ABOUT_DATA },
         siteInfo: parsed.siteInfo?.name ? parsed.siteInfo : { ...INITIAL_SITE_INFO },
@@ -305,6 +309,192 @@ export async function deleteRoom(id: string): Promise<boolean> {
   delete store.roomTariffs[id];
   saveStoreData(store);
   return true;
+}
+
+// ==========================================
+// PHYSICAL ROOMS & STATUS API
+// ==========================================
+export async function getPhysicalRooms(): Promise<PhysicalRoom[]> {
+  const store = getStoreData();
+  const rooms = Array.isArray(store.physicalRooms) && store.physicalRooms.length > 0
+    ? [...store.physicalRooms]
+    : [...INITIAL_PHYSICAL_ROOMS];
+
+  const checkedInBookings = (store.crmBookings || []).filter(
+    (b) => b.tapeStatus === 'checked_in' || b.bookingStatus === 'checked_in'
+  );
+
+  return rooms.map((r) => {
+    const isCheckedIn = checkedInBookings.some(
+      (b) => b.roomId === r.id || b.roomNumber === r.roomNumber
+    );
+    if (isCheckedIn && r.currentStatus !== 'maintenance') {
+      return { ...r, currentStatus: 'checked_in' as const };
+    }
+    return r;
+  });
+}
+
+export async function savePhysicalRooms(rooms: PhysicalRoom[]): Promise<boolean> {
+  const store = getStoreData();
+  store.physicalRooms = rooms;
+  saveStoreData(store);
+  return true;
+}
+
+export async function updatePhysicalRoom(
+  roomId: string,
+  updates: Partial<PhysicalRoom>
+): Promise<PhysicalRoom | null> {
+  const store = getStoreData();
+  const rooms = Array.isArray(store.physicalRooms) && store.physicalRooms.length > 0
+    ? store.physicalRooms
+    : [...INITIAL_PHYSICAL_ROOMS];
+
+  const idx = rooms.findIndex(
+    (r) => r.id === roomId || String(r.roomNumber) === String(roomId)
+  );
+
+  if (idx >= 0) {
+    rooms[idx] = { ...rooms[idx], ...updates };
+    store.physicalRooms = rooms;
+    saveStoreData(store);
+    return rooms[idx];
+  }
+  return null;
+}
+
+export async function checkInRoomServer(params: {
+  bookingId?: string;
+  roomId?: string;
+  roomNumber?: number;
+  managerInfo?: { id: string; name: string };
+}): Promise<{ success: boolean; room?: PhysicalRoom; booking?: CRMBooking }> {
+  const store = getStoreData();
+  const rooms = Array.isArray(store.physicalRooms) && store.physicalRooms.length > 0
+    ? store.physicalRooms
+    : [...INITIAL_PHYSICAL_ROOMS];
+
+  let targetRoomIdx = -1;
+  if (params.roomId) {
+    targetRoomIdx = rooms.findIndex((r) => r.id === params.roomId);
+  }
+  if (targetRoomIdx < 0 && params.roomNumber) {
+    targetRoomIdx = rooms.findIndex((r) => r.roomNumber === params.roomNumber);
+  }
+  if (targetRoomIdx < 0 && params.bookingId) {
+    const bk = (store.crmBookings || []).find((b) => b.id === params.bookingId);
+    if (bk) {
+      targetRoomIdx = rooms.findIndex(
+        (r) => r.id === bk.roomId || r.roomNumber === bk.roomNumber
+      );
+    }
+  }
+
+  let updatedRoom: PhysicalRoom | undefined;
+  if (targetRoomIdx >= 0) {
+    rooms[targetRoomIdx].currentStatus = 'checked_in';
+    updatedRoom = rooms[targetRoomIdx];
+    store.physicalRooms = rooms;
+  }
+
+  let updatedBooking: CRMBooking | undefined;
+  const crmList = store.crmBookings || [];
+  let bkIdx = -1;
+  if (params.bookingId) {
+    bkIdx = crmList.findIndex((b) => b.id === params.bookingId);
+  }
+  if (bkIdx < 0 && (params.roomNumber || params.roomId)) {
+    bkIdx = crmList.findIndex(
+      (b) =>
+        (params.roomNumber && b.roomNumber === params.roomNumber) ||
+        (params.roomId && b.roomId === params.roomId)
+    );
+  }
+
+  if (bkIdx >= 0) {
+    crmList[bkIdx] = {
+      ...crmList[bkIdx],
+      tapeStatus: 'checked_in',
+      bookingStatus: 'checked_in',
+      checkedInAt: new Date().toISOString(),
+      checkedInByManagerId: params.managerInfo?.id || 'staff-1',
+    };
+    updatedBooking = crmList[bkIdx];
+    store.crmBookings = crmList;
+    if (store.bookings) {
+      const bMirrorIdx = store.bookings.findIndex((b) => b.id === crmList[bkIdx].id);
+      if (bMirrorIdx >= 0) {
+        store.bookings[bMirrorIdx].status = 'completed';
+      }
+    }
+  }
+
+  saveStoreData(store);
+  return { success: true, room: updatedRoom, booking: updatedBooking };
+}
+
+export async function checkOutRoomServer(params: {
+  bookingId?: string;
+  roomId?: string;
+  roomNumber?: number;
+}): Promise<{ success: boolean; room?: PhysicalRoom; booking?: CRMBooking }> {
+  const store = getStoreData();
+  const rooms = Array.isArray(store.physicalRooms) && store.physicalRooms.length > 0
+    ? store.physicalRooms
+    : [...INITIAL_PHYSICAL_ROOMS];
+
+  let targetRoomIdx = -1;
+  if (params.roomId) {
+    targetRoomIdx = rooms.findIndex((r) => r.id === params.roomId);
+  }
+  if (targetRoomIdx < 0 && params.roomNumber) {
+    targetRoomIdx = rooms.findIndex((r) => r.roomNumber === params.roomNumber);
+  }
+  if (targetRoomIdx < 0 && params.bookingId) {
+    const bk = (store.crmBookings || []).find((b) => b.id === params.bookingId);
+    if (bk) {
+      targetRoomIdx = rooms.findIndex(
+        (r) => r.id === bk.roomId || r.roomNumber === bk.roomNumber
+      );
+    }
+  }
+
+  let updatedRoom: PhysicalRoom | undefined;
+  if (targetRoomIdx >= 0) {
+    rooms[targetRoomIdx].currentStatus = 'available';
+    rooms[targetRoomIdx].housekeeping = 'deep_clean_turnover';
+    updatedRoom = rooms[targetRoomIdx];
+    store.physicalRooms = rooms;
+  }
+
+  let updatedBooking: CRMBooking | undefined;
+  const crmList = store.crmBookings || [];
+  let bkIdx = -1;
+  if (params.bookingId) {
+    bkIdx = crmList.findIndex((b) => b.id === params.bookingId);
+  }
+  if (bkIdx < 0 && (params.roomNumber || params.roomId)) {
+    bkIdx = crmList.findIndex(
+      (b) =>
+        (params.roomNumber && b.roomNumber === params.roomNumber) ||
+        (params.roomId && b.roomId === params.roomId)
+    );
+  }
+
+  if (bkIdx >= 0) {
+    crmList[bkIdx] = {
+      ...crmList[bkIdx],
+      tapeStatus: 'hold',
+      bookingStatus: 'checked_out',
+      checkedOutAt: new Date().toISOString(),
+    };
+    updatedBooking = crmList[bkIdx];
+    store.crmBookings = crmList;
+  }
+
+  saveStoreData(store);
+  return { success: true, room: updatedRoom, booking: updatedBooking };
 }
 
 // ==========================================

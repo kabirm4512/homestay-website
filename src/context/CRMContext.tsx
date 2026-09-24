@@ -437,17 +437,45 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         fetch('/api/checkin')
           .then((r) => r.json())
           .then((json) => {
-            if (json?.success && Array.isArray(json.bookings) && json.bookings.length > 0) {
-              setBookings((prev) => {
-                const existingIds = new Set(prev.map((b) => b.id));
-                const newFromServer = json.bookings.filter((b: CRMBooking) => !existingIds.has(b.id));
-                if (newFromServer.length === 0) return prev;
-                const merged = [...prev, ...newFromServer];
-                try {
-                  localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
-                } catch {}
-                return merged;
-              });
+            if (json?.success) {
+              if (Array.isArray(json.rooms) && json.rooms.length > 0) {
+                setRooms((prev) => {
+                  const serverRoomsMap = new Map<string, PhysicalRoom>(json.rooms.map((r: PhysicalRoom) => [r.id, r]));
+                  const merged = prev.map((r) => {
+                    const serverR = serverRoomsMap.get(r.id);
+                    return serverR ? { ...r, currentStatus: serverR.currentStatus, housekeeping: serverR.housekeeping } : r;
+                  });
+                  try {
+                    localStorage.setItem('wp_crm_rooms', JSON.stringify(merged));
+                  } catch {}
+                  return merged;
+                });
+              }
+              if (Array.isArray(json.bookings) && json.bookings.length > 0) {
+                setBookings((prev) => {
+                  const serverBookingsMap = new Map<string, CRMBooking>(json.bookings.map((b: CRMBooking) => [b.id, b]));
+                  const updatedPrev = prev.map((b) => {
+                    const serverB = serverBookingsMap.get(b.id);
+                    if (serverB) {
+                      return {
+                        ...b,
+                        tapeStatus: serverB.tapeStatus || b.tapeStatus,
+                        bookingStatus: serverB.bookingStatus || b.bookingStatus,
+                        checkedInAt: serverB.checkedInAt || b.checkedInAt,
+                        checkedOutAt: serverB.checkedOutAt || b.checkedOutAt,
+                      };
+                    }
+                    return b;
+                  });
+                  const prevIds = new Set(prev.map((b) => b.id));
+                  const newFromServer = json.bookings.filter((b: CRMBooking) => !prevIds.has(b.id));
+                  const merged = [...updatedPrev, ...newFromServer];
+                  try {
+                    localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
+                  } catch {}
+                  return merged;
+                });
+              }
             }
           })
           .catch(() => null);
@@ -544,7 +572,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('storage', handleStorage);
 
-    // 5-second polling interval for live server orders (cross-device kitchen sync)
+    // 5-second polling interval for live server orders (cross-device kitchen sync) and room/booking statuses
     const pollInterval = setInterval(() => {
       fetch('/api/orders?orders=true')
         .then((r) => r.json())
@@ -575,6 +603,69 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           }
         })
         .catch(() => null);
+
+      // Keep physical rooms and booking statuses live across devices
+      fetch('/api/checkin')
+        .then((r) => r.json())
+        .then((json) => {
+          if (json?.success) {
+            if (Array.isArray(json.rooms) && json.rooms.length > 0) {
+              setRooms((prev) => {
+                const serverRoomsMap = new Map<string, PhysicalRoom>(json.rooms.map((r: PhysicalRoom) => [r.id, r]));
+                let changed = false;
+                const merged = prev.map((r) => {
+                  const s = serverRoomsMap.get(r.id);
+                  if (s && (s.currentStatus !== r.currentStatus || s.housekeeping !== r.housekeeping)) {
+                    changed = true;
+                    return { ...r, currentStatus: s.currentStatus, housekeeping: s.housekeeping };
+                  }
+                  return r;
+                });
+                if (changed) {
+                  try {
+                    localStorage.setItem('wp_crm_rooms', JSON.stringify(merged));
+                  } catch {}
+                  return merged;
+                }
+                return prev;
+              });
+            }
+            if (Array.isArray(json.bookings) && json.bookings.length > 0) {
+              setBookings((prev) => {
+                const serverBookingsMap = new Map<string, CRMBooking>(json.bookings.map((b: CRMBooking) => [b.id, b]));
+                let changed = false;
+                const updatedPrev = prev.map((b) => {
+                  const s = serverBookingsMap.get(b.id);
+                  if (s && (s.tapeStatus !== b.tapeStatus || s.bookingStatus !== b.bookingStatus)) {
+                    changed = true;
+                    return {
+                      ...b,
+                      tapeStatus: s.tapeStatus || b.tapeStatus,
+                      bookingStatus: s.bookingStatus || b.bookingStatus,
+                      checkedInAt: s.checkedInAt || b.checkedInAt,
+                      checkedOutAt: s.checkedOutAt || b.checkedOutAt,
+                    };
+                  }
+                  return b;
+                });
+                const prevIds = new Set(prev.map((b) => b.id));
+                const newFromServer = json.bookings.filter((b: CRMBooking) => !prevIds.has(b.id));
+                if (newFromServer.length > 0) {
+                  changed = true;
+                }
+                if (changed) {
+                  const merged = [...updatedPrev, ...newFromServer];
+                  try {
+                    localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
+                  } catch {}
+                  return merged;
+                }
+                return prev;
+              });
+            }
+          }
+        })
+        .catch(() => null);
     }, 5000);
 
     return () => {
@@ -601,6 +692,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       } catch {}
       return updated;
     });
+    try {
+      fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_room_status', roomId, status }),
+      }).catch(() => null);
+    } catch {}
     showToast(`Room status updated to ${status}`);
   };
 
@@ -1198,6 +1296,20 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
+    try {
+      fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'check_in',
+          bookingId: bk.id,
+          roomId: bk.roomId,
+          roomNumber: bk.roomNumber,
+          managerInfo: { id: mgrId, name: mgrName },
+        }),
+      }).catch(() => null);
+    } catch {}
+
     logManagerActivity({
       managerId: mgrId,
       managerName: mgrName,
@@ -1296,6 +1408,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       } catch {}
       return updated;
     });
+
+    try {
+      fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'check_out',
+          bookingId: bk.id,
+          roomId: bk.roomId,
+          roomNumber: bk.roomNumber,
+        }),
+      }).catch(() => null);
+    } catch {}
 
     // 5. Create housekeeping turnover task
     const newTask: HousekeepingTask = {

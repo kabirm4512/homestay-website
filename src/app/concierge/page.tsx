@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -28,9 +28,11 @@ import {
   ExternalLink,
   QrCode,
   Wifi,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
-import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle } from '@/types/crm';
+import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle, PhysicalRoom, CRMBooking } from '@/types/crm';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
 
@@ -122,27 +124,104 @@ function ConciergeContent() {
     }
   }, [initialRoomQuery, isStaffMode, rooms, selectedRoomNumber, showToast]);
 
+  // Live server status check for cross-device sync (e.g., manager checks in on CRM, guest scans QR on mobile)
+  const [serverStatus, setServerStatus] = useState<{
+    isCheckedIn?: boolean;
+    room?: PhysicalRoom;
+    booking?: CRMBooking;
+  } | null>(null);
+  const [isCheckingServer, setIsCheckingServer] = useState(false);
+
+  const fetchRoomStatusFromServer = useCallback(async (roomNum: number) => {
+    setIsCheckingServer(true);
+    try {
+      const res = await fetch(`/api/checkin?room=${encodeURIComponent(roomNum)}&_t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success) {
+          setServerStatus({
+            isCheckedIn: Boolean(data.isCheckedIn),
+            room: data.room,
+            booking: data.booking,
+          });
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsCheckingServer(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRoomNumber) return;
+    fetchRoomStatusFromServer(selectedRoomNumber);
+
+    const interval = setInterval(() => {
+      fetchRoomStatusFromServer(selectedRoomNumber);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [selectedRoomNumber, fetchRoomStatusFromServer]);
+
   // Current active physical room (null if no room scanned)
-  const currentRoom = useMemo(() => {
+  const baseRoom = useMemo(() => {
     if (!selectedRoomNumber) return null;
     return rooms.find((r) => r.roomNumber === selectedRoomNumber) || null;
   }, [rooms, selectedRoomNumber]);
 
+  const currentRoom = useMemo(() => {
+    if (serverStatus?.room) {
+      const r = baseRoom ? { ...baseRoom, ...serverStatus.room } : serverStatus.room;
+      if (serverStatus.isCheckedIn) {
+        return { ...r, currentStatus: 'checked_in' as const };
+      }
+      return r;
+    }
+    return baseRoom;
+  }, [baseRoom, serverStatus]);
+
   // Current booking for this room
-  const activeBooking = useMemo(() => {
+  const baseBooking = useMemo(() => {
     if (!currentRoom) return null;
     return bookings.find(
-      (b) => b.roomId === currentRoom.id && ['checked_in', 'confirmed'].includes(b.tapeStatus)
+      (b) =>
+        (b.roomId === currentRoom.id || b.roomNumber === currentRoom.roomNumber) &&
+        ['checked_in', 'confirmed'].includes(b.tapeStatus || b.bookingStatus)
     );
   }, [bookings, currentRoom]);
+
+  const activeBooking = useMemo(() => {
+    return baseBooking || serverStatus?.booking || null;
+  }, [baseBooking, serverStatus]);
 
   // Active folio for this booking
   const activeFolio = useMemo(() => {
     if (!activeBooking) return null;
-    return folios.find((f) => f.bookingId === activeBooking.id) || null;
+    return (
+      folios.find((f) => f.bookingId === activeBooking.id || f.roomNumber === activeBooking.roomNumber) || null
+    );
   }, [folios, activeBooking]);
 
-  const isCheckedIn = currentRoom ? currentRoom.currentStatus === 'checked_in' : false;
+  const isCheckedIn = useMemo(() => {
+    if (serverStatus?.isCheckedIn === true) return true;
+    if (currentRoom?.currentStatus === 'checked_in') return true;
+    if (
+      activeBooking &&
+      (activeBooking.tapeStatus === 'checked_in' || activeBooking.bookingStatus === 'checked_in')
+    ) {
+      return true;
+    }
+    if (selectedRoomNumber) {
+      const anyCheckedIn = bookings.some(
+        (b) =>
+          (b.roomNumber === selectedRoomNumber || b.roomId === `room-${selectedRoomNumber}`) &&
+          (b.tapeStatus === 'checked_in' || b.bookingStatus === 'checked_in')
+      );
+      if (anyCheckedIn) return true;
+    }
+    return false;
+  }, [serverStatus, currentRoom, activeBooking, selectedRoomNumber, bookings]);
 
   // Navigation tab in concierge: 'dining' or 'travel' with persistence across reloads
   const [activeTab, setActiveTabState] = useState<'dining' | 'travel'>(() => {
@@ -576,6 +655,27 @@ function ConciergeContent() {
             <p>
               Please contact the front desk at <strong>+91 81012 98882</strong> or ring the bell at reception for early baggage drop or instant check-in.
             </p>
+          </div>
+
+          {/* Refresh Live Status Button */}
+          <div className="w-full max-w-md mb-4">
+            <button
+              onClick={() => {
+                if (selectedRoomNumber) {
+                  fetchRoomStatusFromServer(selectedRoomNumber);
+                  showToast('Checking live room status with front desk...');
+                }
+              }}
+              disabled={isCheckingServer}
+              className="w-full min-h-[44px] py-2.5 px-4 bg-primary-50 hover:bg-primary-100 active:scale-98 text-primary-800 font-bold text-xs rounded-2xl border border-primary-200 transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs disabled:opacity-60"
+            >
+              {isCheckingServer ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary-700" />
+              ) : (
+                <RefreshCw className="w-4 h-4 text-primary-700" />
+              )}
+              <span>{isCheckingServer ? 'Checking Front Desk Status...' : 'Already Checked In? Refresh Status'}</span>
+            </button>
           </div>
 
           {/* Complimentary Wi-Fi while awaiting check-in */}
