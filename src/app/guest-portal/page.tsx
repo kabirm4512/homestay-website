@@ -18,7 +18,6 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
-  Wifi,
   FileText,
   Printer,
   Upload,
@@ -144,7 +143,6 @@ function GuestPortalContent() {
   const [transferSuccess, setTransferSuccess] = useState<string>('');
 
   // UI Utilities State
-  const [wifiCopied, setWifiCopied] = useState<boolean>(false);
   const [showInvoicePrint, setShowInvoicePrint] = useState<boolean>(false);
 
   // Fetch Folio
@@ -636,15 +634,6 @@ function GuestPortalContent() {
       alert('Unable to submit celebration request. Please try again.');
     } finally {
       setIsOrderingCelebration(false);
-    }
-  };
-
-  // Copy Wi-Fi password
-  const handleCopyWifi = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText('saverahomestay');
-      setWifiCopied(true);
-      setTimeout(() => setWifiCopied(false), 3000);
     }
   };
 
@@ -1199,18 +1188,19 @@ function GuestPortalContent() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* 2. Welcome Greeting Screen (Local-Time Greeting with Customer Name) */}
-        <div className="bg-gradient-to-br from-[#0B1733] via-[#102450] to-[#0B1733] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#1E2D4A] relative overflow-hidden">
+        {/* 2. Welcome Greeting Screen with Check-In, Check-Out, Booking ID & Balance */}
+        <div className="bg-gradient-to-br from-[#0B1733] via-[#102450] to-[#0B1733] text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-[#1E2D4A] relative overflow-hidden space-y-5">
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-500/10 via-transparent to-transparent pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Top Greeting Header */}
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1.5">
               <div className="inline-flex items-center space-x-2 bg-amber-400/20 border border-amber-400/30 px-3 py-1 rounded-full text-[11px] font-bold text-amber-300 uppercase tracking-wider mb-1">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Guest Stay Sanctuary</span>
               </div>
               <h1
-                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight"
+                className="text-2xl sm:text-3xl font-bold text-white tracking-tight"
                 style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
               >
                 {timeGreeting}, {guestFirstName}!
@@ -1219,101 +1209,93 @@ function GuestPortalContent() {
                 Welcome to your mountain homecoming. Your digital stay pass is active with verified registration.
               </p>
             </div>
+          </div>
 
-            {/* Wi-Fi & Quick Access Pill */}
-            <div className="bg-[#182C58]/80 backdrop-blur-sm border border-[#25479E]/60 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-400/20 flex items-center justify-center text-amber-300">
-                  <Wifi className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Homestay High-Speed Wi-Fi</span>
-                  <span className="text-xs font-mono font-bold text-white">saverahomestay</span>
-                </div>
+          {/* Details Grid in Blue Card: Check-In, Check-Out, Booking ID, Stay Balance */}
+          <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 pt-1">
+            {/* 1. Check-In */}
+            <div className="bg-[#182C58]/80 backdrop-blur-sm border border-[#25479E]/60 p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between">
+              <div className="flex items-center space-x-2 text-amber-400 mb-1.5">
+                <Calendar className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-300">Check-In</span>
               </div>
-              <button
-                type="button"
-                onClick={handleCopyWifi}
-                className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-[#0B1733] font-bold text-xs flex items-center justify-center space-x-1 transition-all cursor-pointer shrink-0"
-              >
-                {wifiCopied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Wi-Fi</span>
-                  </>
-                )}
-              </button>
+              <div>
+                <div className="font-mono font-bold text-sm sm:text-base text-white">
+                  {activeBooking.checkInDate}
+                </div>
+                <span className="text-[10px] text-gray-400 block mt-0.5">From 12:00 PM</span>
+              </div>
+            </div>
+
+            {/* 2. Check-Out */}
+            <div className="bg-[#182C58]/80 backdrop-blur-sm border border-[#25479E]/60 p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between">
+              <div className="flex items-center space-x-2 text-amber-400 mb-1.5">
+                <Calendar className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-300">Check-Out</span>
+              </div>
+              <div>
+                <div className="font-mono font-bold text-sm sm:text-base text-white">
+                  {activeBooking.checkOutDate}
+                </div>
+                <span className="text-[10px] text-gray-400 block mt-0.5">
+                  {activeBooking.totalNights} {activeBooking.totalNights === 1 ? 'Night' : 'Nights'}
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Universal Booking ID */}
+            <div className="bg-[#182C58]/80 backdrop-blur-sm border border-[#25479E]/60 p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between">
+              <div className="flex items-center space-x-2 text-emerald-400 mb-1.5">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-300">Booking ID</span>
+              </div>
+              <div>
+                <div className="font-mono font-bold text-sm sm:text-base text-white truncate">
+                  {activeBooking.bookingReference}
+                </div>
+                <span className="inline-flex items-center text-[10px] font-bold text-emerald-300 mt-0.5">
+                  Pass Active ✓
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Stay Balance Due */}
+            <div className="bg-[#182C58]/80 backdrop-blur-sm border border-[#25479E]/60 p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between">
+              <div className="flex items-center space-x-2 text-rose-400 mb-1.5">
+                <IndianRupee className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-300">Balance Due</span>
+              </div>
+              <div>
+                <div className={`font-mono font-bold text-sm sm:text-base ${balanceDue > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                  ₹{balanceDue.toLocaleString('en-IN')}
+                </div>
+                <span className="text-[10px] text-gray-400 block mt-0.5 truncate">
+                  {balanceDue > 0 ? 'Payable upon checkout' : 'All dues cleared ✓'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 3. Small but Elegant Card Showing Room Category, Room Number, Dates */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Card 1: Room & Category */}
-          <div className="bg-white p-4 rounded-2xl border border-sand-300 shadow-sm flex items-center space-x-3.5">
+        {/* 3. Accommodated Room Banner Card */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-sand-300 shadow-sm flex items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5 min-w-0">
             <div className="w-12 h-12 rounded-xl bg-[#25479E]/10 border border-[#25479E]/20 text-[#25479E] flex items-center justify-center shrink-0">
               <BedDouble className="w-6 h-6" />
             </div>
             <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-gray-500 block">Accommodated Room</span>
-              <h2 className="font-bold text-sm text-[#0B1733] truncate">Room {activeBooking.roomNumber}</h2>
-              <span className="text-[11px] text-[#25479E] font-semibold truncate block">
+              <h2 className="font-bold text-base sm:text-lg text-[#0B1733] truncate">Room {activeBooking.roomNumber}</h2>
+              <span className="text-xs text-[#25479E] font-semibold truncate block">
                 {activeBooking.roomName.split(' - ')[1] || activeBooking.roomName}
               </span>
             </div>
           </div>
-
-          {/* Card 2: Stay Dates */}
-          <div className="bg-white p-4 rounded-2xl border border-sand-300 shadow-sm flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#FE6E00] flex items-center justify-center shrink-0">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block">Stay Duration</span>
-              <span className="font-bold text-sm text-[#0B1733] block">
-                {activeBooking.checkInDate} &rarr; {activeBooking.checkOutDate}
-              </span>
-              <span className="text-[11px] text-gray-600 font-medium">
-                {activeBooking.totalNights} {activeBooking.totalNights === 1 ? 'Night' : 'Nights'} • {activeBooking.mealPlan} Plan
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Universal Booking ID */}
-          <div className="bg-white p-4 rounded-2xl border border-sand-300 shadow-sm flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block">Universal Booking ID</span>
-              <span className="font-mono font-bold text-sm text-[#0B1733] block">
-                {activeBooking.bookingReference}
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                Digital Pass Active ✓
-              </span>
-            </div>
-          </div>
-
-          {/* Card 4: Balance Due / Stay Folio Status */}
-          <div className="bg-white p-4 rounded-2xl border border-sand-300 shadow-sm flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center shrink-0">
-              <IndianRupee className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block">Stay Balance Due</span>
-              <span className={`font-mono font-bold text-base block ${balanceDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                ₹{balanceDue.toLocaleString('en-IN')}
-              </span>
-              <span className="text-[10px] text-gray-500">
-                {balanceDue > 0 ? 'Payable upon checkout' : 'All dues cleared'}
-              </span>
-            </div>
+          <div className="text-right shrink-0">
+            <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Meal Plan</span>
+            <span className="text-xs font-bold text-[#0B1733] bg-sand-100 px-3 py-1 rounded-lg border border-sand-200">
+              {activeBooking.mealPlan} Plan
+            </span>
           </div>
         </div>
 
