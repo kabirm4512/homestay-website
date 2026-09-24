@@ -64,69 +64,64 @@ function ConciergeContent() {
   // 1. Scanned room is parsed from ?room=...
   // 2. If already locked in this session/device (e.g. Room 103), URL tampering to another room without staff mode is strictly blocked.
   // 3. If no room was scanned and no session exists, returns null (prompts guest to scan in-room QR).
+  // 1. Selected room number determination:
+  // - Priority 1: URL parameter ?room=... (the scanned QR standee in that room)
+  // - Priority 2: Previously active room stored in session/local storage
+  // - Priority 3: Staff mode default or unscanned prompt
   const [selectedRoomNumber, setSelectedRoomNumber] = useState<number | null>(() => {
     const parsedQuery = initialRoomQuery ? parseInt(initialRoomQuery, 10) : null;
     const isValidQuery = parsedQuery !== null && !isNaN(parsedQuery) && parsedQuery > 0 && rooms.some((r) => r.roomNumber === parsedQuery);
 
-    if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
-      const parsedStored = stored ? parseInt(stored, 10) : null;
-      const isValidStored = parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored);
-
-      // If user had already scanned a room on this device (e.g. Room 103)
-      if (isValidStored) {
-        // Anti-tamper: if URL query attempts to access another room without staff mode, enforce locked room
-        if (isValidQuery && parsedQuery !== parsedStored && !isStaffMode) {
-          return parsedStored;
-        }
-        return parsedStored;
-      }
-
-      // First time scanning from in-room QR standee
-      if (isValidQuery) {
+    if (isValidQuery) {
+      if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem('savera_guest_room', String(parsedQuery));
           localStorage.setItem('savera_guest_room', String(parsedQuery));
         } catch {}
-        return parsedQuery;
+      }
+      return parsedQuery;
+    }
+
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+      const parsedStored = stored ? parseInt(stored, 10) : null;
+      if (parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored)) {
+        return parsedStored;
       }
     }
 
-    if (isValidQuery) return parsedQuery;
     if (isStaffMode) return 101;
     return null;
   });
 
-  // Client-side session lock & URL tamper sync
+  // Keep selectedRoomNumber synchronized when URL ?room changes (e.g. scanning a different room QR)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const parsedQuery = initialRoomQuery ? parseInt(initialRoomQuery, 10) : null;
     const isValidQuery = parsedQuery !== null && !isNaN(parsedQuery) && parsedQuery > 0 && rooms.some((r) => r.roomNumber === parsedQuery);
 
-    const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
-    const parsedStored = stored ? parseInt(stored, 10) : null;
-    const isValidStored = parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored);
-
-    if (isValidStored) {
-      if (isValidQuery && parsedQuery !== parsedStored && !isStaffMode) {
-        showToast(`Your session is locked to Room ${parsedStored} for guest privacy.`, 'info');
-        setSelectedRoomNumber(parsedStored);
-      } else if (!selectedRoomNumber) {
-        setSelectedRoomNumber(parsedStored);
+    if (isValidQuery) {
+      if (selectedRoomNumber !== parsedQuery) {
+        setSelectedRoomNumber(parsedQuery);
       }
-    } else if (isValidQuery) {
       try {
         sessionStorage.setItem('savera_guest_room', String(parsedQuery));
         localStorage.setItem('savera_guest_room', String(parsedQuery));
       } catch {}
-      setSelectedRoomNumber(parsedQuery);
+    } else if (!selectedRoomNumber) {
+      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+      const parsedStored = stored ? parseInt(stored, 10) : null;
+      if (parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored)) {
+        setSelectedRoomNumber(parsedStored);
+      }
     }
-  }, [initialRoomQuery, isStaffMode, rooms, selectedRoomNumber, showToast]);
+  }, [initialRoomQuery, rooms, selectedRoomNumber]);
 
-  // Live server status check for cross-device sync (e.g., manager checks in on CRM, guest scans QR on mobile)
+  // 2. Server check-in status verification (strictly keyed by room number to prevent cross-room leakage)
   const [serverStatus, setServerStatus] = useState<{
-    isCheckedIn?: boolean;
+    roomNumber: number;
+    isCheckedIn: boolean;
     room?: PhysicalRoom;
     booking?: CRMBooking;
   } | null>(null);
@@ -140,6 +135,7 @@ function ConciergeContent() {
         const data = await res.json();
         if (data?.success) {
           setServerStatus({
+            roomNumber: roomNum,
             isCheckedIn: Boolean(data.isCheckedIn),
             room: data.room,
             booking: data.booking,
@@ -153,8 +149,14 @@ function ConciergeContent() {
     }
   }, []);
 
+  // Whenever selectedRoomNumber changes, reset serverStatus immediately and query server for that exact room
   useEffect(() => {
-    if (!selectedRoomNumber) return;
+    if (!selectedRoomNumber) {
+      setServerStatus(null);
+      return;
+    }
+
+    setServerStatus(null);
     fetchRoomStatusFromServer(selectedRoomNumber);
 
     const interval = setInterval(() => {
@@ -164,36 +166,43 @@ function ConciergeContent() {
     return () => clearInterval(interval);
   }, [selectedRoomNumber, fetchRoomStatusFromServer]);
 
-  // Current active physical room (null if no room scanned)
+  // Valid server status matching the currently active room
+  const currentRoomServerStatus = (serverStatus && serverStatus.roomNumber === selectedRoomNumber) ? serverStatus : null;
+
+  // 3. Current physical room for this room number
   const baseRoom = useMemo(() => {
     if (!selectedRoomNumber) return null;
     return rooms.find((r) => r.roomNumber === selectedRoomNumber) || null;
   }, [rooms, selectedRoomNumber]);
 
   const currentRoom = useMemo(() => {
-    if (serverStatus?.room) {
-      const r = baseRoom ? { ...baseRoom, ...serverStatus.room } : serverStatus.room;
-      if (serverStatus.isCheckedIn) {
-        return { ...r, currentStatus: 'checked_in' as const };
-      }
-      return r;
+    if (!baseRoom) return null;
+    if (currentRoomServerStatus?.room && currentRoomServerStatus.room.roomNumber === selectedRoomNumber) {
+      return {
+        ...baseRoom,
+        ...currentRoomServerStatus.room,
+        currentStatus: currentRoomServerStatus.isCheckedIn ? ('checked_in' as const) : (currentRoomServerStatus.room.currentStatus || 'available'),
+      };
     }
     return baseRoom;
-  }, [baseRoom, serverStatus]);
+  }, [baseRoom, currentRoomServerStatus, selectedRoomNumber]);
 
-  // Current booking for this room
+  // 4. Current booking strictly for this room
   const baseBooking = useMemo(() => {
     if (!currentRoom) return null;
     return bookings.find(
       (b) =>
-        (b.roomId === currentRoom.id || b.roomNumber === currentRoom.roomNumber) &&
+        (b.roomNumber === currentRoom.roomNumber || b.roomId === currentRoom.id) &&
         ['checked_in', 'confirmed'].includes(b.tapeStatus || b.bookingStatus)
     );
   }, [bookings, currentRoom]);
 
   const activeBooking = useMemo(() => {
-    return baseBooking || serverStatus?.booking || null;
-  }, [baseBooking, serverStatus]);
+    if (currentRoomServerStatus?.booking && currentRoomServerStatus.booking.roomNumber === selectedRoomNumber) {
+      return currentRoomServerStatus.booking;
+    }
+    return baseBooking;
+  }, [baseBooking, currentRoomServerStatus, selectedRoomNumber]);
 
   // Active folio for this booking
   const activeFolio = useMemo(() => {
@@ -203,25 +212,36 @@ function ConciergeContent() {
     );
   }, [folios, activeBooking]);
 
+  // 5. Check-In Gate: ONLY true if THIS specific room is checked in
   const isCheckedIn = useMemo(() => {
-    if (serverStatus?.isCheckedIn === true) return true;
-    if (currentRoom?.currentStatus === 'checked_in') return true;
-    if (
-      activeBooking &&
-      (activeBooking.tapeStatus === 'checked_in' || activeBooking.bookingStatus === 'checked_in')
-    ) {
-      return true;
+    if (!selectedRoomNumber) return false;
+
+    // A. If server response is available for this room, server status is authoritative
+    if (currentRoomServerStatus) {
+      return currentRoomServerStatus.isCheckedIn === true;
     }
-    if (selectedRoomNumber) {
-      const anyCheckedIn = bookings.some(
-        (b) =>
-          (b.roomNumber === selectedRoomNumber || b.roomId === `room-${selectedRoomNumber}`) &&
-          (b.tapeStatus === 'checked_in' || b.bookingStatus === 'checked_in')
-      );
-      if (anyCheckedIn) return true;
+
+    // B. Client fallback: room's currentStatus must be 'checked_in'
+    if (currentRoom && currentRoom.roomNumber === selectedRoomNumber) {
+      if (currentRoom.currentStatus === 'checked_in') return true;
     }
+
+    // C. Or an active booking for this exact room is checked in
+    if (activeBooking && activeBooking.roomNumber === selectedRoomNumber) {
+      if (activeBooking.tapeStatus === 'checked_in' || activeBooking.bookingStatus === 'checked_in') {
+        return true;
+      }
+    }
+
+    const thisRoomCheckedIn = bookings.some(
+      (b) =>
+        (b.roomNumber === selectedRoomNumber || b.roomId === `room-${selectedRoomNumber}`) &&
+        (b.tapeStatus === 'checked_in' || b.bookingStatus === 'checked_in')
+    );
+    if (thisRoomCheckedIn) return true;
+
     return false;
-  }, [serverStatus, currentRoom, activeBooking, selectedRoomNumber, bookings]);
+  }, [selectedRoomNumber, currentRoomServerStatus, currentRoom, activeBooking, bookings]);
 
   // Navigation tab in concierge: 'dining' or 'travel' with persistence across reloads
   const [activeTab, setActiveTabState] = useState<'dining' | 'travel'>(() => {
