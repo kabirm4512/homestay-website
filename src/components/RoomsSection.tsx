@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Room } from '@/types';
+import { RoomSeasonalTariffs } from '@/types/crm';
+import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
+import { normalizeCategoryId } from '@/lib/tariff-calculator';
 import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight, Coffee, Utensils } from 'lucide-react';
 
 interface RoomsSectionProps {
@@ -17,6 +20,23 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
   const [selectedPlans, setSelectedPlans] = useState<Record<string, 'EP' | 'CP' | 'MAP' | 'AP'>>({});
   // Store state for expanding detailed tariff view per room
   const [expandedTariffs, setExpandedTariffs] = useState<Record<string, boolean>>({});
+  // Live tariffs from backend PMS
+  const [liveTariffs, setLiveTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
+
+  useEffect(() => {
+    async function loadTariffs() {
+      try {
+        const res = await fetch('/api/tariffs');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data?.tariffs) {
+            setLiveTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
+          }
+        }
+      } catch {}
+    }
+    loadTariffs();
+  }, []);
 
   const nextImage = (roomId: string, total: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,12 +82,27 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
               : ['/images/hero/deluxe-bedroom-suite.jpg'];
             const currentImgIndex = activeImageIndices[room.id] || 0;
 
-            // Compute exact meal plan rates
+            // Compute exact meal plan rates matching backend PMS
+            const catKey = normalizeCategoryId(room.id);
+            const tariffsObj =
+              liveTariffs[room.id] ||
+              liveTariffs[catKey] ||
+              room.tariffs ||
+              INITIAL_ROOM_SEASONAL_TARIFFS[room.id] ||
+              INITIAL_ROOM_SEASONAL_TARIFFS[catKey];
+
+            const canonicalRegular = tariffsObj?.regular || {
+              EP: 4500,
+              CP: 5200,
+              MAP: 6200,
+              AP: 7200,
+            };
+
             const planRates: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
-              EP: room.tariffs?.regular?.EP || room.price_per_night,
-              CP: room.tariffs?.regular?.CP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 700 : room.price_per_night + 700),
-              MAP: room.tariffs?.regular?.MAP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 1700 : room.price_per_night + 1700),
-              AP: room.tariffs?.regular?.AP || (room.tariffs?.regular?.EP ? room.tariffs.regular.EP + 2700 : room.price_per_night + 2700),
+              EP: canonicalRegular.EP,
+              CP: canonicalRegular.CP,
+              MAP: canonicalRegular.MAP,
+              AP: canonicalRegular.AP,
             };
 
             const activePlan = selectedPlans[room.id] || 'CP';
