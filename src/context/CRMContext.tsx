@@ -326,7 +326,20 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       if (savedRooms) setRooms(JSON.parse(savedRooms));
 
       const savedBookings = localStorage.getItem('wp_crm_bookings');
-      if (savedBookings) setBookings(JSON.parse(savedBookings));
+      if (savedBookings) {
+        try {
+          const parsedBk = JSON.parse(savedBookings);
+          setBookings(parsedBk);
+          // Sync client-side bookings to server so mobile guests can log in immediately
+          if (Array.isArray(parsedBk) && parsedBk.length > 0) {
+            fetch('/api/checkin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ syncBookings: parsedBk }),
+            }).catch(() => null);
+          }
+        } catch {}
+      }
 
       const savedHousekeeping = localStorage.getItem('wp_crm_housekeeping');
       if (savedHousekeeping) setHousekeepingTasks(JSON.parse(savedHousekeeping));
@@ -1565,6 +1578,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
+    // Sync new reservation to server so guest can immediately log in from mobile device
+    try {
+      fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crmBooking: newBooking, folio: initialFolio }),
+      }).catch(() => null);
+    } catch {}
+
     setFolios((prev) => {
       const updated = [initialFolio, ...prev];
       try {
@@ -1618,6 +1640,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       try {
         localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        const updatedTarget = updated.find((b) => b.id === bookingId);
+        if (updatedTarget) {
+          fetch('/api/checkin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ crmBooking: updatedTarget }),
+          }).catch(() => null);
+        }
       } catch {}
       return updated;
     });
@@ -1658,6 +1688,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       });
       try {
         localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        const updatedTarget = updated.find((b) => b.id === bookingId);
+        if (updatedTarget) {
+          fetch('/api/checkin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ crmBooking: updatedTarget }),
+          }).catch(() => null);
+        }
       } catch {}
       return updated;
     });

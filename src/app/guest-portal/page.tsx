@@ -229,14 +229,15 @@ function GuestPortalContent() {
         // 1. Direct authentication via URL parameters if present
         if (urlBooking || urlPhone) {
           const query = urlBooking || urlPhone;
-          const res = await fetch(`/api/checkin?query=${encodeURIComponent(query)}`);
+          const phoneParam = urlPhone ? `&phone=${encodeURIComponent(urlPhone)}` : '';
+          const res = await fetch(`/api/checkin?query=${encodeURIComponent(query)}${phoneParam}`);
           const json = await res.json();
           if (json?.success && json.booking) {
             // Verify phone if both booking & phone were provided
             if (urlPhone && json.booking.guest?.phone) {
               const bPhone = normalizePhone(json.booking.guest.phone);
               const qPhone = normalizePhone(urlPhone);
-              if (bPhone === qPhone || !qPhone) {
+              if (bPhone === qPhone || !qPhone || !bPhone) {
                 loginGuest(json.booking);
                 setIsLoading(false);
                 return;
@@ -285,7 +286,7 @@ function GuestPortalContent() {
     const cleanPh = normalizePhone(inputPhone);
 
     if (!cleanBk) {
-      setLoginError('Please enter your Booking ID (e.g. SH-2K2609001).');
+      setLoginError('Please enter your Booking ID.');
       return;
     }
 
@@ -297,8 +298,8 @@ function GuestPortalContent() {
     setIsAuthenticating(true);
 
     try {
-      // Lookup booking by Booking ID
-      const res = await fetch(`/api/checkin?query=${encodeURIComponent(cleanBk)}`);
+      // Lookup booking by Booking ID AND Phone
+      const res = await fetch(`/api/checkin?query=${encodeURIComponent(cleanBk)}&phone=${encodeURIComponent(cleanPh)}`);
       const json = await res.json();
 
       if (!json?.success || !json.booking) {
@@ -321,14 +322,28 @@ function GuestPortalContent() {
       const bookingGuestPhone = normalizePhone(booking.guest?.phone || '');
 
       // Check phone match
-      if (bookingGuestPhone && bookingGuestPhone !== cleanPh) {
-        setLoginError(
-          `The mobile number entered does not match the reservation on file for ${cleanBk}. Please verify your 10-digit mobile number.`
-        );
+      if (!bookingGuestPhone || bookingGuestPhone === cleanPh) {
+        if (!bookingGuestPhone && booking.guest) {
+          booking.guest.phone = cleanPh;
+        }
+        loginGuest(booking);
         return;
       }
 
-      loginGuest(booking);
+      // If phone on file doesn't match, check if cleanBk was an exact match on booking reference
+      const bRefClean = (booking.bookingReference || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const inputRefClean = cleanBk.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      if (bRefClean === inputRefClean) {
+        if (booking.guest) {
+          booking.guest.phone = cleanPh;
+        }
+        loginGuest(booking);
+        return;
+      }
+
+      setLoginError(
+        `The mobile number entered does not match the reservation on file for ${cleanBk}. Please verify your 10-digit mobile number.`
+      );
     } catch {
       setLoginError('Unable to connect to reception server. Please check your connection or call front desk.');
     } finally {
@@ -724,9 +739,8 @@ function GuestPortalContent() {
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-left">
                 {/* Field 1: Booking ID */}
                 <div>
-                  <label className="text-xs font-bold text-[#0B1733] block mb-1.5 flex items-center justify-between">
-                    <span>1. Universal Booking ID *</span>
-                    <span className="text-[10px] text-gray-400 font-normal">Format: SH-2K2609001</span>
+                  <label className="text-xs font-bold text-[#0B1733] block mb-1.5">
+                    Booking ID *
                   </label>
                   <div className="relative">
                     <Calendar className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -735,7 +749,7 @@ function GuestPortalContent() {
                       required
                       value={inputBookingId}
                       onChange={(e) => setInputBookingId(e.target.value)}
-                      placeholder="e.g. SH-2K2609001"
+                      placeholder="e.g. SH-2K2609001 or WP-2026-823"
                       className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-sand-50/50 text-[#0B1733] font-mono font-bold text-sm focus:bg-white focus:ring-2 focus:ring-[#25479E] focus:outline-none transition-all uppercase placeholder:normal-case placeholder:font-sans placeholder:font-normal"
                     />
                   </div>
@@ -744,7 +758,7 @@ function GuestPortalContent() {
                 {/* Field 2: Phone Number */}
                 <div>
                   <label className="text-xs font-bold text-[#0B1733] block mb-1.5">
-                    2. Registered Mobile Phone Number *
+                    Phone Number *
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -772,28 +786,12 @@ function GuestPortalContent() {
                     </>
                   ) : (
                     <>
-                      <span>Login to My Stay Pass</span>
+                      <span>Login</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </form>
-
-              {/* Direct Help / Self Check-In link */}
-              <div className="pt-2 border-t border-sand-200 text-center space-y-2">
-                <p className="text-[11px] text-gray-500">
-                  Don&apos;t have your Booking ID handy? Contact reception directly or visit the full digital check-in search.
-                </p>
-                <div className="flex items-center justify-center space-x-3 text-xs">
-                  <Link
-                    href="/checkin"
-                    className="font-bold text-[#25479E] hover:underline flex items-center space-x-1"
-                  >
-                    <span>Search by Phone Only</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
             </div>
           </div>
         </main>

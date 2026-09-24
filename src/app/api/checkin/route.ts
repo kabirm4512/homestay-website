@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
-import { findBookingByQuery, getCRMBookings, updateCheckinSubmission } from '@/lib/data-service';
+import { findBookingByQuery, getCRMBookings, updateCheckinSubmission, saveCRMBooking } from '@/lib/data-service';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('query')?.trim();
+    const query = searchParams.get('query')?.trim() || searchParams.get('booking')?.trim();
+    const phone = searchParams.get('phone')?.trim();
 
-    if (!query) {
+    if (!query && !phone) {
       const all = await getCRMBookings();
       return NextResponse.json({ success: true, bookings: all });
     }
 
-    const booking = await findBookingByQuery(query);
+    const booking = await findBookingByQuery(query || phone || '', phone);
 
     if (!booking) {
       return NextResponse.json(
-        { success: false, notFound: true, message: `Reservation not found for '${query}'.` },
+        { success: false, notFound: true, message: `Reservation not found for '${query || phone}'.` },
         { status: 404 }
       );
     }
@@ -31,6 +32,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    // 1. Bulk sync from manager client
+    if (Array.isArray(body?.syncBookings) && body.syncBookings.length > 0) {
+      for (const b of body.syncBookings) {
+        if (b && (b.id || b.bookingReference)) {
+          await saveCRMBooking(b);
+        }
+      }
+      return NextResponse.json({ success: true, count: body.syncBookings.length });
+    }
+
+    // 2. Direct single booking sync from CRM manager
+    if (body?.crmBooking && (body.crmBooking.id || body.crmBooking.bookingReference)) {
+      const saved = await saveCRMBooking(body.crmBooking);
+      return NextResponse.json({ success: true, booking: saved });
+    }
+
+    // 3. Digital check-in submission from Guest Portal / checkin page
     const guest = body?.guest;
     if (!guest?.fullName || !guest?.phone) {
       return NextResponse.json(
