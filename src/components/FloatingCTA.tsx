@@ -52,13 +52,13 @@ export default function FloatingCTA({
             <span className="truncate">Check Dates</span>
           </button>
 
-          {/* Button 3: Call */}
+          {/* Button 3: Call - High Visibility Vibrant Royal Blue */}
           <a
             href={`tel:${cleanPhone}`}
             aria-label="Call Homestay Directly"
-            className="flex-1 flex items-center justify-center space-x-1.5 sm:space-x-2 bg-white/15 hover:bg-white/25 text-white py-2.5 sm:py-3 px-2 sm:px-3 rounded-full font-semibold text-xs sm:text-sm border border-white/20 transition-all transform hover:scale-[1.02] active:scale-95 text-center"
+            className="flex-1 flex items-center justify-center space-x-1.5 sm:space-x-2 bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#1E40AF] text-white py-2.5 sm:py-3 px-2 sm:px-3 rounded-full font-bold text-xs sm:text-sm shadow-md border border-blue-400/30 transition-all transform hover:scale-[1.02] active:scale-95 text-center"
           >
-            <PhoneCall className="w-4 h-4 text-amber-300 flex-shrink-0" />
+            <PhoneCall className="w-4 h-4 text-white flex-shrink-0" />
             <span className="truncate">Call</span>
           </a>
         </div>

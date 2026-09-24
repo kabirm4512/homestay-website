@@ -341,13 +341,13 @@ export default function AvailabilityModal({
                   onChange={(e) => setRoomsCount(Number(e.target.value))}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-[#0B1733] focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer shadow-xs"
                 >
-                  <option value={1}>1 Room (Ideal for 1-2 Guests)</option>
-                  <option value={2}>2 Rooms (Ideal for 3-4 Guests)</option>
-                  <option value={3}>3 Rooms (Ideal for 5-6 Guests)</option>
-                  <option value={4}>4 Rooms (Ideal for 7-8 Guests)</option>
-                  <option value={5}>5 Rooms (Ideal for 9-10 Guests)</option>
-                  <option value={6}>6 Rooms (Ideal for 11-12 Guests)</option>
-                  <option value={7}>All 7 Rooms (Exclusive Estate Buyout - Up to 14+ Guests)</option>
+                  <option value={1}>1 Room</option>
+                  <option value={2}>2 Rooms</option>
+                  <option value={3}>3 Rooms</option>
+                  <option value={4}>4 Rooms</option>
+                  <option value={5}>5 Rooms</option>
+                  <option value={6}>6 Rooms</option>
+                  <option value={7}>7 Rooms</option>
                 </select>
               </div>
 

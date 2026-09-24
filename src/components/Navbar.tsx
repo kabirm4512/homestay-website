@@ -9,7 +9,6 @@ import {
   Menu,
   X,
   Bed,
-  UtensilsCrossed,
   Compass,
   Sparkles,
   Star,
@@ -118,35 +117,8 @@ export default function Navbar({
             </div>
           </Link>
 
-          {/* Desktop Navigation Links */}
+          {/* Desktop Navigation Links in Serial Order of Page Content */}
           <nav className="hidden md:flex items-center space-x-6 lg:space-x-7 font-sans">
-            <a
-              href="#rooms"
-              className={`text-sm font-medium transition-colors ${
-                scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
-              }`}
-            >
-              Rooms & Rates
-            </a>
-            <Link
-              href="/concierge"
-              className={`text-sm font-medium transition-colors flex items-center space-x-1.5 ${
-                scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
-              }`}
-            >
-              <span>Dine-In Menu</span>
-              <span className="text-[10px] bg-amber-400 text-[#0B1733] font-bold px-1.5 py-0.5 rounded-full shadow-xs">
-                79 Dishes
-              </span>
-            </Link>
-            <a
-              href="#travel-rentals"
-              className={`text-sm font-medium transition-colors ${
-                scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
-              }`}
-            >
-              Cabs & Rentals
-            </a>
             <a
               href="#about"
               className={`text-sm font-medium transition-colors ${
@@ -156,6 +128,22 @@ export default function Navbar({
               Experience
             </a>
             <a
+              href="#rooms"
+              className={`text-sm font-medium transition-colors ${
+                scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
+              }`}
+            >
+              Rooms &amp; Rates
+            </a>
+            <a
+              href="#travel-rentals"
+              className={`text-sm font-medium transition-colors ${
+                scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
+              }`}
+            >
+              Cabs &amp; Rentals
+            </a>
+            <a
               href="#reviews"
               className={`text-sm font-medium transition-colors ${
                 scrolled ? 'text-gray-700 hover:text-primary-600' : 'text-white/90 hover:text-white'
@@ -163,32 +151,11 @@ export default function Navbar({
             >
               Reviews
             </a>
-            <Link
-              href="/guest-portal"
-              className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                scrolled
-                  ? 'border-primary-200 text-primary-700 bg-primary-50 hover:bg-primary-100'
-                  : 'border-white/30 text-white bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              Guest Portal
-            </Link>
           </nav>
 
-          {/* Right CTA / Phone & Booking Button (Desktop) */}
+          {/* Right CTA / Install App & Booking Button (Desktop) */}
           <div className="hidden lg:flex items-center space-x-3">
             <PWAInstaller variant="button" />
-            <a
-              href={`tel:${cleanPhone}`}
-              className={`flex items-center space-x-1.5 text-xs font-semibold px-3.5 py-2 rounded-full transition-colors ${
-                scrolled
-                  ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-                  : 'text-white bg-white/15 backdrop-blur-md hover:bg-white/25 border border-white/20'
-              }`}
-            >
-              <Phone className="w-3.5 h-3.5 text-amber-400" />
-              <span>{phone}</span>
-            </a>
             <button
               onClick={handleBookingAction}
               className="flex items-center space-x-2 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-full shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all hover:scale-102 active:scale-98 cursor-pointer"
@@ -262,7 +229,29 @@ export default function Navbar({
             </div>
 
             <nav className="space-y-2">
-              {/* 1. Rooms & Tariffs */}
+              {/* 1. The Experience & Story */}
+              <a
+                href="#about"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/[0.08] transition-all group"
+              >
+                <div className="flex items-center space-x-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-primary-900/60 flex items-center justify-center text-amber-300 border border-primary-700/60 shrink-0 shadow-sm">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-base text-white group-hover:text-amber-300 transition-colors">
+                      The Experience & Story
+                    </div>
+                    <p className="text-xs text-gray-300 font-light mt-0.5 truncate">
+                      Pine forest walks, bonfire evenings & local Himalayan hospitality
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+              </a>
+
+              {/* 2. Rooms & Tariffs */}
               <a
                 href="#rooms"
                 onClick={() => setMobileMenuOpen(false)}
@@ -288,31 +277,6 @@ export default function Navbar({
                 <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
               </a>
 
-              {/* 2. In-Room Dine-In Menu (79 Items) */}
-              <Link
-                href="/concierge"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-500/[0.09] hover:bg-amber-500/[0.15] active:bg-amber-500/[0.2] border border-amber-500/30 transition-all group"
-              >
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-300 border border-amber-500/40 shrink-0 shadow-sm">
-                    <UtensilsCrossed className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-base text-white group-hover:text-amber-200 transition-colors flex items-center space-x-2">
-                      <span className="truncate">In-Room Dining Menu</span>
-                      <span className="text-[10px] font-sans font-bold bg-amber-400 text-[#0B1733] px-2 py-0.5 rounded-full shrink-0 shadow-xs">
-                        79 Items
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-300 font-light mt-0.5 truncate">
-                      Darjeeling first flush teas, breakfast, thalis & kitchen portal
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-amber-400/70 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-              </Link>
-
               {/* 3. Travel, Transfers & Scooty Rentals */}
               <a
                 href="#travel-rentals"
@@ -332,53 +296,6 @@ export default function Navbar({
                     </div>
                     <p className="text-xs text-gray-300 font-light mt-0.5 truncate">
                       Bagdogra/NJP cabs, Mirik tours & Royal Enfield / Scooty rentals
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-              </a>
-
-              {/* 4. Guest Self-Service Portal (My Bookings) */}
-              <Link
-                href="/guest-portal"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-primary-500/[0.12] hover:bg-primary-500/[0.20] active:bg-primary-500/[0.25] border border-primary-500/30 transition-all group"
-              >
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-primary-600/30 flex items-center justify-center text-primary-300 border border-primary-400/40 shrink-0 shadow-sm">
-                    <Calendar className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-base text-white group-hover:text-primary-200 transition-colors flex items-center space-x-2">
-                      <span className="truncate">My Bookings & Orders</span>
-                      <span className="text-[10px] font-sans font-bold bg-primary-600 text-white px-2 py-0.5 rounded-full shrink-0 shadow-xs">
-                        Guest Portal
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-300 font-light mt-0.5 truncate">
-                      View reservation status, WiFi details, ID check-in & bills
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-primary-300 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-              </Link>
-
-              {/* 5. The Experience & Story */}
-              <a
-                href="#about"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/[0.08] transition-all group"
-              >
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-primary-900/60 flex items-center justify-center text-amber-300 border border-primary-700/60 shrink-0 shadow-sm">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-base text-white group-hover:text-amber-300 transition-colors">
-                      The Experience & Story
-                    </div>
-                    <p className="text-xs text-gray-300 font-light mt-0.5 truncate">
-                      Pine forest walks, bonfire evenings & local Himalayan hospitality
                     </p>
                   </div>
                 </div>
