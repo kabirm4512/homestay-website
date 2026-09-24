@@ -68,8 +68,8 @@ export default function Footer({ siteInfo }: FooterProps) {
                 </a>
               </li>
               <li>
-                <a href="/portal" className="hover:text-amber-400 transition-colors font-medium">
-                  Guest Portal (My Bookings)
+                <a href="/guest-portal" className="hover:text-amber-400 transition-colors font-medium">
+                  Guest Portal (My Stay Pass &amp; Folio)
                 </a>
               </li>
             </ul>

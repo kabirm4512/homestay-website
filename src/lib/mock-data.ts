@@ -288,7 +288,7 @@ export const INITIAL_INQUIRIES: Inquiry[] = [];
 export const INITIAL_BOOKINGS: Booking[] = [
   {
     id: 'bk-8101298882',
-    booking_reference: 'WP-2026-8882',
+    booking_reference: 'SH-2K2609001',
     guest_name: 'Savera Guest',
     email: 'guest8882@gmail.com',
     phone: '8101298882',

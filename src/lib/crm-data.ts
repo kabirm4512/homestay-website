@@ -170,7 +170,7 @@ export const INITIAL_GUESTS: Guest[] = [
 export const INITIAL_BOOKINGS: CRMBooking[] = [
   {
     id: 'bk-8101298882',
-    bookingReference: 'WP-2026-8882',
+    bookingReference: 'SH-2K2609001',
     roomId: 'room-101',
     roomNumber: 101,
     roomName: 'Room 101 - Sunrise Mountain Balcony',

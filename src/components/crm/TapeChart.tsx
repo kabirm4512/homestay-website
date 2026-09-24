@@ -34,6 +34,7 @@ import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm';
 import ManualBookingModal from './ManualBookingModal';
 import GuestCheckoutModal from './GuestCheckoutModal';
+import { INDIAN_STATES } from '@/lib/booking-id';
 
 export default function TapeChart() {
   const {
@@ -62,6 +63,7 @@ export default function TapeChart() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editState, setEditState] = useState('West Bengal');
   const [editCity, setEditCity] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editNationality, setEditNationality] = useState('Indian');
@@ -138,6 +140,7 @@ export default function TapeChart() {
     setEditName(booking.guest.fullName);
     setEditPhone(booking.guest.phone);
     setEditEmail(booking.guest.email || '');
+    setEditState(booking.guest.state || 'West Bengal');
     setEditCity(booking.guest.city || '');
     setEditAddress(booking.guest.address || '');
     setEditNationality(booking.guest.nationality || 'Indian');
@@ -166,6 +169,7 @@ export default function TapeChart() {
       fullName: editName.trim(),
       phone: editPhone.trim(),
       email: editEmail.trim() || undefined,
+      state: editState,
       city: editCity.trim() || undefined,
       address: editAddress.trim() || undefined,
       nationality: editNationality || 'Indian',
@@ -196,28 +200,26 @@ export default function TapeChart() {
     setIsEditingGuest(false);
   };
 
-  const getShareableCheckinUrl = (bookingId: string) => {
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/checkin?booking=${bookingId}`;
-    }
-    return `/checkin?booking=${bookingId}`;
+  const getShareableCheckinUrl = (booking: CRMBooking) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}/guest-portal?booking=${encodeURIComponent(booking.bookingReference)}&phone=${encodeURIComponent(booking.guest.phone)}`;
   };
 
-  const handleCopyShareableLink = (bookingId: string) => {
-    const url = getShareableCheckinUrl(bookingId);
+  const handleCopyShareableLink = (booking: CRMBooking) => {
+    const url = getShareableCheckinUrl(booking);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(url);
       setCopiedLink(true);
-      showToast('Check-in & document upload link copied to clipboard!');
+      showToast('Guest Portal & Digital Check-In link copied to clipboard!');
       setTimeout(() => setCopiedLink(false), 3000);
     }
   };
 
   const handleShareWhatsApp = (booking: CRMBooking) => {
-    const url = getShareableCheckinUrl(booking.id);
+    const url = getShareableCheckinUrl(booking);
     const cleanPhone = (booking.guest.whatsappNumber || booking.guest.phone).replace(/[^0-9]/g, '');
     const message = encodeURIComponent(
-      `Namaste ${booking.guest.fullName}! 🌿\n\nGreetings from Savera Homestay. We look forward to hosting you in ${booking.roomName} (${booking.checkInDate} to ${booking.checkOutDate}).\n\nTo ensure a seamless contactless check-in, please verify your details and upload your government ID document at this secure link:\n${url}\n\nWarm regards,\nSavera Homestay Team`
+      `Namaste ${booking.guest.fullName}! 🌿\n\nGreetings from Savera Homestay. We look forward to hosting you in ${booking.roomName} (${booking.checkInDate} to ${booking.checkOutDate}).\n\nYour Universal Booking ID: ${booking.bookingReference}\n\nPlease click below to access your Guest Portal, complete digital check-in, and manage in-room dining & special requests:\n${url}\n\nWarm regards,\nSavera Homestay Team`
     );
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
   };
@@ -765,11 +767,11 @@ export default function TapeChart() {
                 {/* Link Bar */}
                 <div className="bg-white/10 p-2.5 rounded-xl border border-white/15 flex items-center justify-between gap-2">
                   <div className="font-mono text-[11px] text-amber-200 truncate select-all flex-1">
-                    {getShareableCheckinUrl(selectedBooking.id)}
+                    {getShareableCheckinUrl(selectedBooking)}
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopyShareableLink(selectedBooking.id)}
+                    onClick={() => handleCopyShareableLink(selectedBooking)}
                     className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 font-bold text-xs flex items-center space-x-1 shrink-0 transition-all cursor-pointer"
                   >
                     {copiedLink ? (
@@ -798,7 +800,7 @@ export default function TapeChart() {
                   </button>
 
                   <a
-                    href={getShareableCheckinUrl(selectedBooking.id)}
+                    href={getShareableCheckinUrl(selectedBooking)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-sand-200 hover:text-white font-bold text-xs flex items-center space-x-1.5 transition-all"
@@ -895,12 +897,29 @@ export default function TapeChart() {
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                          City / State
+                          State / UT
+                        </label>
+                        <select
+                          value={editState}
+                          onChange={(e) => setEditState(e.target.value)}
+                          className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-950"
+                        >
+                          {INDIAN_STATES.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                          City / Town
                         </label>
                         <input
                           type="text"
                           value={editCity}
                           onChange={(e) => setEditCity(e.target.value)}
+                          placeholder="e.g. Siliguri, Kolkata"
                           className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-950"
                         />
                       </div>
@@ -1208,19 +1227,22 @@ export default function TapeChart() {
       {/* Enlarged Photo Modal */}
       {enlargedImage && (
         <div
-          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setEnlargedImage(null)}
         >
-          <div className="relative max-w-2xl max-h-[85vh] bg-white rounded-3xl p-2 overflow-hidden shadow-2xl">
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-white rounded-3xl p-3 overflow-hidden shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={enlargedImage}
               alt="Government ID Full Preview"
-              className="max-w-full max-h-[80vh] object-contain rounded-2xl mx-auto"
+              className="max-w-full max-h-[82vh] object-contain rounded-2xl mx-auto shadow-inner"
             />
             <button
               onClick={() => setEnlargedImage(null)}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-forest-950/80 text-white flex items-center justify-center hover:bg-forest-900"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-forest-950/80 hover:bg-forest-950 text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

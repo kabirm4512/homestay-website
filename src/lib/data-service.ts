@@ -20,6 +20,7 @@ import {
 } from './crm-data';
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
 import { RoomSeasonalTariffs, SeasonalDateRange, MenuItem, TransferRoute, RentalVehicle, CRMBooking, Guest, GuestFolio, FolioCharge, FoodOrder, FoodOrderStatus, Expense } from '@/types/crm';
+import { generateUniversalBookingId } from './booking-id';
 
 export interface StaffAlert {
   id: string;
@@ -633,7 +634,12 @@ export async function getBookings(): Promise<Booking[]> {
 export async function createBooking(
   bookingData: Omit<Booking, 'id' | 'booking_reference' | 'created_at' | 'status' | 'payment_status'>
 ): Promise<{ success: boolean; data?: Booking; error?: string }> {
-  const reference = 'WP-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
+  const store = getStoreData();
+  const existingRefs = [
+    ...(store.bookings || []).map((b) => b.booking_reference),
+    ...(store.crmBookings || []).map((b) => b.bookingReference),
+  ];
+  const reference = generateUniversalBookingId(bookingData.check_in, existingRefs);
   const newBooking: Booking = {
     ...bookingData,
     id: 'bk-' + Date.now(),
@@ -674,7 +680,6 @@ export async function createBooking(
     }
   }
 
-  const store = getStoreData();
   store.bookings = [newBooking, ...store.bookings];
   saveStoreData(store);
   return { success: true, data: newBooking };
@@ -971,11 +976,15 @@ export async function updateCheckinSubmission(data: CheckinSubmissionData): Prom
   } else {
     // New Walk-In Registration
     const bookingId = 'bk-' + Date.now();
-    const ref = 'WP-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
     const roomNum = data.roomNumber || 101;
     const roomName = data.roomName || 'Room 101 - Sunrise Mountain Balcony';
     const checkIn = data.checkInDate || now.split('T')[0];
     const checkOut = data.checkOutDate || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const existingRefs = [
+      ...(store.bookings || []).map((b) => b.booking_reference),
+      ...(store.crmBookings || []).map((b) => b.bookingReference),
+    ];
+    const ref = generateUniversalBookingId(checkIn, existingRefs);
 
     booking = {
       id: bookingId,

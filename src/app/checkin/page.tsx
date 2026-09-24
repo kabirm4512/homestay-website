@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, Guest } from '@/types/crm';
+import { INDIAN_STATES } from '@/lib/booking-id';
 
 const ROOM_OPTIONS = [
   { id: 'room-101', roomNumber: 101, name: 'Room 101 - Sunrise Mountain Balcony' },
@@ -62,6 +63,7 @@ function CheckinContent() {
   const [fullName, setFullName] = useState(nameParam);
   const [phone, setPhone] = useState(phoneParam);
   const [email, setEmail] = useState('');
+  const [selectedState, setSelectedState] = useState('West Bengal');
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [nationality, setNationality] = useState('Indian');
@@ -87,6 +89,7 @@ function CheckinContent() {
     setFullName(b.guest?.fullName || nameParam || '');
     setPhone(b.guest?.phone || phoneParam || '');
     setEmail(b.guest?.email || '');
+    setSelectedState(b.guest?.state || 'West Bengal');
     setCity(b.guest?.city || '');
     setAddress(b.guest?.address || '');
     setNationality(b.guest?.nationality || 'Indian');
@@ -310,8 +313,13 @@ function CheckinContent() {
       return;
     }
 
+    if (!selectedState) {
+      alert('Please select your State / Province.');
+      return;
+    }
+
     if (!city.trim()) {
-      alert('Please enter your City & State.');
+      alert('Please enter your City / Town.');
       return;
     }
 
@@ -341,6 +349,7 @@ function CheckinContent() {
       fullName: fullName.trim(),
       phone: phone.trim(),
       email: email.trim(),
+      state: selectedState,
       city: city.trim(),
       address: address.trim(),
       nationality: nationality || 'Indian',
@@ -528,7 +537,7 @@ function CheckinContent() {
 
               <div className="pt-1 text-center">
                 <Link
-                  href="/portal"
+                  href="/guest-portal"
                   className="inline-flex items-center space-x-1.5 text-xs font-bold text-primary-900 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-3.5 py-1.5 rounded-full transition-colors shadow-2xs"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -808,14 +817,33 @@ function CheckinContent() {
 
                   <div>
                     <label className="font-bold text-forest-800 block mb-1">
-                      City &amp; State *
+                      State / Province *
+                    </label>
+                    <select
+                      required
+                      value={selectedState}
+                      onChange={(e) => setSelectedState(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 font-medium focus:bg-white focus:ring-2 focus:ring-forest-800 focus:outline-none"
+                    >
+                      <option value="">-- Select State / UT --</option>
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-forest-800 block mb-1">
+                      City / Town *
                     </label>
                     <input
                       type="text"
                       required
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      placeholder="e.g. Kolkata, West Bengal"
+                      placeholder="e.g. Siliguri, Kolkata, New Delhi"
                       className="w-full p-3 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 focus:bg-white focus:ring-2 focus:ring-forest-800 focus:outline-none"
                     />
                   </div>
@@ -1105,7 +1133,7 @@ function CheckinContent() {
             {/* Primary Guest Portal CTA */}
             <div className="pt-2 max-w-md mx-auto space-y-2">
               <Link
-                href={`/portal?phone=${encodeURIComponent(activeBooking.guest?.phone || phone)}&booking=${encodeURIComponent(activeBooking.bookingReference)}`}
+                href={`/guest-portal?phone=${encodeURIComponent(activeBooking.guest?.phone || phone)}&booking=${encodeURIComponent(activeBooking.bookingReference)}`}
                 className="w-full py-4 px-6 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-2xl font-bold text-sm sm:text-base shadow-[0_4px_16px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2.5 cursor-pointer"
               >
                 <Sparkles className="w-5 h-5 text-white" />

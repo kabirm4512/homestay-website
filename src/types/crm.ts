@@ -96,6 +96,7 @@ export interface Guest {
   idNumber?: string;
   address?: string;
   city?: string;
+  state?: string;
   nationality?: string;
   documentStatus?: 'pending' | 'submitted' | 'verified';
   dietaryPreferences?: string; // Vegetarian, Jain, Nut Allergy, Lactose Intolerant, etc.

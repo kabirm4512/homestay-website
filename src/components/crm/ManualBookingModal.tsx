@@ -33,6 +33,7 @@ import {
 import { useCRM } from '@/context/CRMContext';
 import { MealPlan, RoomTapeStatus, PaymentMethod, CRMBooking } from '@/types/crm';
 import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
+import { INDIAN_STATES } from '@/lib/booking-id';
 
 interface ManualBookingModalProps {
   isOpen: boolean;
@@ -80,6 +81,7 @@ export default function ManualBookingModal({
   const [guestName, setGuestName] = useState<string>('');
   const [guestPhone, setGuestPhone] = useState<string>('');
   const [guestEmail, setGuestEmail] = useState<string>('');
+  const [guestState, setGuestState] = useState<string>('West Bengal');
   const [guestCity, setGuestCity] = useState<string>('');
   const [guestAddress, setGuestAddress] = useState<string>('');
   const [guestNationality, setGuestNationality] = useState<string>('Indian');
@@ -313,6 +315,7 @@ export default function ManualBookingModal({
         idDocumentBackUrl: idDocumentBackUrl || undefined,
         address: guestAddress.trim() || undefined,
         city: guestCity.trim() || undefined,
+        state: guestState,
         nationality: guestNationality,
         dietaryPreferences: dietaryPreferences.trim() || undefined,
         hospitalityPreferences: hospitalityPreferences.trim() || undefined,
@@ -341,8 +344,8 @@ export default function ManualBookingModal({
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const phoneParam = encodeURIComponent(cleanPhone);
     const nameParam = encodeURIComponent(guestFirstName);
-    const bookingParam = createdBooking ? `&booking=${encodeURIComponent(createdBooking.bookingReference)}` : '';
-    return `${origin}/portal?phone=${phoneParam}&name=${nameParam}${bookingParam}`;
+    const bookingParam = createdBooking?.bookingReference ? encodeURIComponent(createdBooking.bookingReference) : '';
+    return `${origin}/guest-portal?booking=${bookingParam}&phone=${phoneParam}&name=${nameParam}`;
   }, [cleanPhone, guestFirstName, createdBooking]);
 
   const welcomeMessage = useMemo(() => {
@@ -994,15 +997,32 @@ Wishing you a serene and memorable Himalayan stay!
                   </div>
 
                   <div>
+                    <label className="text-xs font-bold text-forest-800 block mb-1">
+                      State / UT
+                    </label>
+                    <select
+                      value={guestState}
+                      onChange={(e) => setGuestState(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-sand-300 bg-white font-medium text-forest-950 focus:ring-2 focus:ring-forest-700"
+                    >
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
                       <MapPin className="w-3.5 h-3.5 text-forest-600" />
-                      <span>City / State (Optional)</span>
+                      <span>City / Town (Optional)</span>
                     </label>
                     <input
                       type="text"
                       value={guestCity}
                       onChange={(e) => setGuestCity(e.target.value)}
-                      placeholder="e.g., Kolkata, West Bengal"
+                      placeholder="e.g. Siliguri, Kolkata"
                       className="w-full px-3 py-2 text-xs rounded-xl border border-sand-300 bg-white text-forest-950 focus:ring-2 focus:ring-forest-700"
                     />
                   </div>

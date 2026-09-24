@@ -164,14 +164,14 @@ export default function Navbar({
               Reviews
             </a>
             <Link
-              href="/portal"
+              href="/guest-portal"
               className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
                 scrolled
                   ? 'border-primary-200 text-primary-700 bg-primary-50 hover:bg-primary-100'
                   : 'border-white/30 text-white bg-white/10 hover:bg-white/20'
               }`}
             >
-              My Bookings
+              Guest Portal
             </Link>
           </nav>
 
@@ -340,7 +340,7 @@ export default function Navbar({
 
               {/* 4. Guest Self-Service Portal (My Bookings) */}
               <Link
-                href="/portal"
+                href="/guest-portal"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-between p-3.5 rounded-2xl bg-primary-500/[0.12] hover:bg-primary-500/[0.20] active:bg-primary-500/[0.25] border border-primary-500/30 transition-all group"
               >

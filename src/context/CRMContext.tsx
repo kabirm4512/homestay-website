@@ -41,6 +41,7 @@ import {
   INITIAL_SEASONAL_DATE_RANGES,
   INITIAL_ROOM_SEASONAL_TARIFFS,
 } from '@/lib/crm-data';
+import { generateUniversalBookingId } from '@/lib/booking-id';
 
 interface ToastState {
   id: string;
@@ -138,6 +139,7 @@ interface CRMContextType {
       idDocumentBackUrl?: string;
       address?: string;
       city?: string;
+      state?: string;
       nationality?: string;
       dietaryPreferences?: string;
       hospitalityPreferences?: string;
@@ -1372,6 +1374,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       idDocumentBackUrl?: string;
       address?: string;
       city?: string;
+      state?: string;
       nationality?: string;
       dietaryPreferences?: string;
       hospitalityPreferences?: string;
@@ -1380,7 +1383,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const room = rooms.find((r) => r.id === bookingData.roomId) || rooms[0];
     const guestId = `guest-${Date.now()}`;
     const bookingId = `bk-${Date.now()}`;
-    const bookingReference = `WP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const existingRefs = bookings.map((b) => b.bookingReference);
+    const bookingReference = generateUniversalBookingId(bookingData.checkInDate, existingRefs);
 
     // Calculate nights
     const start = new Date(bookingData.checkInDate);
@@ -1415,6 +1419,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       idDocumentBackUrl: bookingData.guest.idDocumentBackUrl,
       address: bookingData.guest.address,
       city: bookingData.guest.city,
+      state: bookingData.guest.state,
       nationality: bookingData.guest.nationality || 'Indian',
       documentStatus: docStatus,
       dietaryPreferences: bookingData.guest.dietaryPreferences,
