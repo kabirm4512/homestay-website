@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Phone,
   User,
+  X,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { HousekeepingTask, TransportRequest, HousekeepingStatus } from '@/types/crm';
@@ -503,15 +504,33 @@ export default function OperationsHub() {
 
       {/* Driver Assignment & Confirmation Modal */}
       {selectedDispatch && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-sand-200 text-forest-950 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="font-serif font-bold text-base text-forest-950 mb-1 flex items-center space-x-2">
-              <Truck className="w-5 h-5 text-forest-800" />
-              <span>Confirm Dispatch #{selectedDispatch.requestNumber}</span>
-            </h3>
-            <p className="text-xs text-forest-700 mb-4">
-              Assign local vehicle details and dispatch driver for {selectedDispatch.guestName}.
-            </p>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setSelectedDispatch(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-sand-200 text-forest-950 animate-in zoom-in-95 duration-150 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="font-serif font-bold text-base text-forest-950 flex items-center space-x-2">
+                  <Truck className="w-5 h-5 text-forest-800" />
+                  <span>Confirm Dispatch #{selectedDispatch.requestNumber}</span>
+                </h3>
+                <p className="text-xs text-forest-700 mt-0.5">
+                  Assign local vehicle details and dispatch driver for {selectedDispatch.guestName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDispatch(null)}
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-sand-100 hover:bg-sand-200 active:scale-95 text-forest-700 hover:text-forest-950 flex items-center justify-center transition-all cursor-pointer shrink-0 ml-2"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
             <form onSubmit={handleConfirmDispatch} className="space-y-3">
               <div>

@@ -436,9 +436,19 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
                       {/* Reject Form Modal / Inline */}
                       {rejectingOrderId === ord.id && (
                         <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs mb-3 space-y-2">
-                          <label className="text-[11px] font-bold text-rose-900 block">
-                            Rejection Reason (Out of Stock / Unavailable):
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-rose-900 block">
+                              Rejection Reason (Out of Stock / Unavailable):
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setRejectingOrderId(null)}
+                              aria-label="Close rejection"
+                              className="w-5 h-5 rounded-full hover:bg-rose-200/60 text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                           <input
                             type="text"
                             placeholder="e.g. Dish unavailable, contacted guest"

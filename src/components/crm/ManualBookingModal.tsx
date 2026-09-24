@@ -398,12 +398,18 @@ Wishing you a serene and memorable Himalayan stay!
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-forest-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-sand-300 w-full max-w-3xl overflow-hidden my-6 max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-forest-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl border border-sand-300 w-full max-w-3xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="bg-gradient-to-r from-forest-900 via-forest-950 to-forest-900 text-white p-5 sm:p-6 flex items-center justify-between border-b border-forest-800 shrink-0">
+        <div className="bg-gradient-to-r from-forest-900 via-forest-950 to-forest-900 text-white p-4 sm:p-6 flex items-center justify-between border-b border-forest-800 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center justify-center shadow-inner">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center justify-center shadow-inner shrink-0">
               <BedDouble className="w-6 h-6" />
             </div>
             <div>
@@ -416,13 +422,15 @@ Wishing you a serene and memorable Himalayan stay!
                 </span>
               </div>
               <p className="text-xs text-sand-300 mt-0.5">
-                Assign room, configure extra occupants, and share instant self check-in link.
+                Assign room, configure extra occupants, and share instant self check-in link
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-sand-200 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close modal"
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all border border-white/20 shrink-0 cursor-pointer shadow-xs"
           >
             <X className="w-5 h-5" />
           </button>

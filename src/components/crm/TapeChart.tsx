@@ -607,8 +607,10 @@ export default function TapeChart() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedBooking(null)}
-                className="min-h-[44px] min-w-[44px] p-2 rounded-xl hover:bg-forest-800 text-sand-300 hover:text-white flex items-center justify-center transition-colors"
+                aria-label="Close guest details drawer"
+                className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all border border-white/20 shrink-0 cursor-pointer shadow-xs"
               >
                 <X className="w-5 h-5" />
               </button>

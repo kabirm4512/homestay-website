@@ -8,9 +8,7 @@ import {
   User,
   Clock,
   CheckCircle2,
-  Tag,
   CreditCard,
-  Building,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { ExpenseMasterCategory, PaymentMethod } from '@/types/crm';
@@ -51,8 +49,6 @@ export default function QuickExpenseModal({
   const [amount, setAmount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [managerName, setManagerName] = useState<string>('');
-  const [vendorPayee, setVendorPayee] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [timestamp, setTimestamp] = useState<string>('');
 
@@ -61,8 +57,6 @@ export default function QuickExpenseModal({
       setAmount('');
       setSelectedTag(SUGGESTED_TAGS[0]);
       setPaymentMethod('upi');
-      setVendorPayee('');
-      setNotes('');
       const dutyManager = currentUser?.fullName || defaultManagerName || 'Duty Manager';
       setManagerName(dutyManager);
 
@@ -101,8 +95,7 @@ export default function QuickExpenseModal({
       paymentMethod,
       masterCategory: selectedTag.category,
       subTag: selectedTag.label,
-      vendorPayee: vendorPayee.trim() || undefined,
-      description: notes.trim() || `${selectedTag.label} expense`,
+      description: `${selectedTag.label} expense`,
       loggedByName: managerName.trim(),
     };
 
@@ -127,33 +120,41 @@ export default function QuickExpenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-forest-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-sand-300 w-full max-w-lg overflow-hidden my-6 flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-forest-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl border border-sand-300 w-full max-w-lg overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="bg-gradient-to-r from-forest-900 to-forest-950 text-white p-5 flex items-center justify-between border-b border-forest-800">
+        <div className="bg-gradient-to-r from-forest-900 via-forest-950 to-forest-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-forest-800 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-base text-white">
-                Quick Manager Expense Logger
+              <h3 className="font-serif font-bold text-base sm:text-lg text-white">
+                Quick Property Expense Logger
               </h3>
               <p className="text-[11px] text-sand-300">
-                1-tap category selection with auto-timestamp &amp; manager attribution.
+                1-tap category selection with auto-timestamp &amp; manager attribution
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-sand-200 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+            aria-label="Close"
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center cursor-pointer transition-all border border-white/20 shrink-0 shadow-xs"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 text-forest-950">
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-forest-950 overflow-y-auto flex-1">
           {/* 1. Fast 1-Tap Category Pills */}
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-forest-800 block mb-2">
@@ -252,42 +253,12 @@ export default function QuickExpenseModal({
             </div>
           </div>
 
-          {/* 4. Vendor / Payee & Notes (Optional) */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
-                <Building className="w-3.5 h-3.5 text-forest-600" />
-                <span>Vendor / Shop Name (Optional)</span>
-              </label>
-              <input
-                type="text"
-                value={vendorPayee}
-                onChange={(e) => setVendorPayee(e.target.value)}
-                placeholder="e.g. Kalimpong Fresh Bazaar, Bharat Gas Agency"
-                className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-900"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1">
-                Notes / Purpose (Optional)
-              </label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. 5L Fresh cow milk + curd for breakfast"
-                className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white text-forest-900"
-              />
-            </div>
-          </div>
-
           {/* Footer */}
-          <div className="pt-4 border-t border-sand-200 flex items-center justify-between">
+          <div className="pt-3 border-t border-sand-200 flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-forest-600 hover:bg-sand-100 rounded-xl"
+              className="px-4 py-2 text-xs font-bold text-forest-600 hover:bg-sand-100 rounded-xl cursor-pointer"
             >
               Cancel
             </button>

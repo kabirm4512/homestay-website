@@ -40,6 +40,7 @@ import {
   Car,
   Truck,
   ArrowRight,
+  X,
 } from 'lucide-react';
 import { CRMBooking, GuestFolio, MenuItem } from '@/types/crm';
 import { INITIAL_MENU_ITEMS, INITIAL_TRANSFER_ROUTES, INITIAL_RENTAL_VEHICLES } from '@/lib/crm-data';
@@ -1707,9 +1708,10 @@ function GuestPortalContent() {
                     <button
                       type="button"
                       onClick={() => setSelectedCelebration(null)}
-                      className="text-xs text-gray-500 hover:underline cursor-pointer"
+                      aria-label="Close"
+                      className="w-7 h-7 rounded-full bg-sand-200 hover:bg-sand-300 text-forest-700 hover:text-forest-950 flex items-center justify-center transition-all cursor-pointer"
                     >
-                      Cancel
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div>

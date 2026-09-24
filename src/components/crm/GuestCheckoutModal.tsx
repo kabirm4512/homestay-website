@@ -198,29 +198,37 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-sand-300 overflow-hidden my-6 max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-sand-300 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Top Header */}
-        <div className="bg-gradient-to-r from-[#0B1733] via-[#12234D] to-[#25479E] text-white p-5 flex items-center justify-between border-b border-primary-900 shrink-0">
+        <div className="bg-gradient-to-r from-[#0B1733] via-[#12234D] to-[#25479E] text-white p-4 sm:p-5 flex items-center justify-between border-b border-primary-900 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-forest-950 flex items-center justify-center font-bold shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-forest-950 flex items-center justify-center font-bold shadow-xs shrink-0">
               <Receipt className="w-5 h-5 text-forest-950" />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-lg text-white flex items-center space-x-2">
+              <h3 className="font-serif font-bold text-base sm:text-lg text-white flex items-center space-x-2">
                 <span>Guest Checkout &amp; Dues Settlement</span>
                 <span className="text-xs font-sans font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
                   Room {booking.roomNumber}
                 </span>
               </h3>
-              <p className="text-xs text-sand-300">
-                Review all stay bills, verify dues &amp; log collection to Manager profile.
+              <p className="text-[11px] sm:text-xs text-sand-300">
+                Review all stay bills, verify dues &amp; log collection to Manager profile
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl hover:bg-white/10 text-sand-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close checkout modal"
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all border border-white/20 shrink-0 cursor-pointer shadow-xs"
           >
             <X className="w-5 h-5" />
           </button>

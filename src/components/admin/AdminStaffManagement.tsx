@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Sparkles,
   Info,
+  X,
 } from 'lucide-react';
 import { StaffAccount, StaffRole } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
@@ -523,8 +524,14 @@ export default function AdminStaffManagement() {
 
       {/* 5. ADD STAFF MODAL */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-lg w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-forest-900 text-white px-6 py-5 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-forest-800 flex items-center justify-center">
@@ -538,10 +545,12 @@ export default function AdminStaffManagement() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-sand-300 hover:text-white p-1 rounded-lg"
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-sand-200 hover:text-white flex items-center justify-center transition-all cursor-pointer"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -690,8 +699,14 @@ export default function AdminStaffManagement() {
 
       {/* 6. EDIT STAFF MODAL */}
       {editingStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-md w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setEditingStaff(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-md w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-forest-900 text-white px-6 py-5 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-forest-800 flex items-center justify-center">
@@ -703,10 +718,12 @@ export default function AdminStaffManagement() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingStaff(null)}
-                className="text-sand-300 hover:text-white p-1 rounded-lg"
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-sand-200 hover:text-white flex items-center justify-center transition-all cursor-pointer"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -806,8 +823,14 @@ export default function AdminStaffManagement() {
 
       {/* 7. RESET PASSWORD MODAL */}
       {passwordResetStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setPasswordResetStaff(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-sm w-full border border-sand-300 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-forest-900 text-white px-6 py-5 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-forest-800 flex items-center justify-center">
@@ -819,10 +842,12 @@ export default function AdminStaffManagement() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setPasswordResetStaff(null)}
-                className="text-sand-300 hover:text-white p-1 rounded-lg"
+                aria-label="Close"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-sand-200 hover:text-white flex items-center justify-center transition-all cursor-pointer"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -895,8 +920,22 @@ export default function AdminStaffManagement() {
 
       {/* 8. DELETE CONFIRM MODAL */}
       {deleteConfirmStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full border border-sand-300 shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-forest-950/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setDeleteConfirmStaff(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-sm w-full border border-sand-300 shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmStaff(null)}
+              aria-label="Close"
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-sand-100 hover:bg-sand-200 text-forest-700 flex items-center justify-center transition-all cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
@@ -915,14 +954,14 @@ export default function AdminStaffManagement() {
               <button
                 type="button"
                 onClick={() => setDeleteConfirmStaff(null)}
-                className="flex-1 py-2.5 text-xs font-bold text-forest-800 bg-sand-100 hover:bg-sand-200 rounded-xl transition-colors"
+                className="flex-1 py-2.5 text-xs font-bold text-forest-800 bg-sand-100 hover:bg-sand-200 rounded-xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleDeleteAccount}
-                className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 rounded-xl shadow-md transition-colors"
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 rounded-xl shadow-md transition-colors cursor-pointer"
               >
                 Delete User
               </button>
