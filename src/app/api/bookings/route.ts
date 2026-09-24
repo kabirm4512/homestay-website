@@ -37,6 +37,12 @@ export async function POST(request: Request) {
       check_in: body.check_in,
       check_out: body.check_out,
       nights: Number(nights),
+      rooms_count: body.rooms_count ? Number(body.rooms_count) : 1,
+      adults_count: body.adults_count !== undefined ? Number(body.adults_count) : undefined,
+      children_count: body.children_count !== undefined ? Number(body.children_count) : undefined,
+      extra_adults_count: body.extra_adults_count !== undefined ? Number(body.extra_adults_count) : undefined,
+      extra_children_count: body.extra_children_count !== undefined ? Number(body.extra_children_count) : undefined,
+      extra_charges_total: body.extra_charges_total !== undefined ? Number(body.extra_charges_total) : undefined,
       total_price: Number(totalPrice),
       special_requests: body.special_requests || ''
     });

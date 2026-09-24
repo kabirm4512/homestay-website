@@ -13,6 +13,7 @@ import FloatingCTA from '@/components/FloatingCTA';
 import InquiryModal from '@/components/InquiryModal';
 import BookingModal from '@/components/BookingModal';
 import AvailabilityModal from '@/components/AvailabilityModal';
+import { RoomConfig } from '@/components/RoomGuestSelector';
 
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 import {
@@ -102,12 +103,14 @@ export default function HomePage() {
   const [selectedBookingRoom, setSelectedBookingRoom] = useState<Room | null>(null);
   const [bookingDates, setBookingDates] = useState<{ checkIn: string; checkOut: string } | null>(null);
   const [bookingMealPlan, setBookingMealPlan] = useState<'EP' | 'CP' | 'MAP' | 'AP'>('CP');
+  const [bookingRoomsConfig, setBookingRoomsConfig] = useState<RoomConfig[] | undefined>(undefined);
 
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [availabilityDates, setAvailabilityDates] = useState<{
     checkIn?: string;
     checkOut?: string;
     roomsCount?: number;
+    roomsConfig?: RoomConfig[];
     initialStep?: 'form' | 'results';
   }>({
     initialStep: 'form',
@@ -188,13 +191,21 @@ export default function HomePage() {
     setInquiryModalOpen(true);
   };
 
-  const handleBookRoom = (room: Room, dates?: { checkIn: string; checkOut: string }, mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP') => {
+  const handleBookRoom = (
+    room: Room,
+    dates?: { checkIn: string; checkOut: string },
+    mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP',
+    roomsConfig?: RoomConfig[]
+  ) => {
     setSelectedBookingRoom(room);
     if (dates) {
       setBookingDates(dates);
     }
     if (mealPlan) {
       setBookingMealPlan(mealPlan);
+    }
+    if (roomsConfig) {
+      setBookingRoomsConfig(roomsConfig);
     }
     setBookingModalOpen(true);
   };
@@ -203,14 +214,19 @@ export default function HomePage() {
     checkIn?: string;
     checkOut?: string;
     roomsCount?: number;
+    roomsConfig?: RoomConfig[];
     step?: 'form' | 'results';
   }) => {
     setAvailabilityDates({
       checkIn: params?.checkIn,
       checkOut: params?.checkOut,
       roomsCount: params?.roomsCount,
+      roomsConfig: params?.roomsConfig,
       initialStep: params?.step || (params?.checkIn ? 'results' : 'form'),
     });
+    if (params?.roomsConfig) {
+      setBookingRoomsConfig(params.roomsConfig);
+    }
     setAvailabilityModalOpen(true);
   };
 
@@ -235,6 +251,7 @@ export default function HomePage() {
             checkIn: dates.checkIn,
             checkOut: dates.checkOut,
             roomsCount: dates.roomsCount,
+            roomsConfig: dates.roomsConfig,
             step: 'results',
           })
         }
@@ -286,13 +303,15 @@ export default function HomePage() {
         whatsappNumber={siteInfo.whatsapp}
       />
 
-      {/* 10. Direct Booking Modal */}
+      {/* 10. Direct Booking Modal (Goibibo Multi-Room Architecture) */}
       <BookingModal
         isOpen={bookingModalOpen}
         onClose={() => setBookingModalOpen(false)}
         room={selectedBookingRoom}
+        rooms={rooms}
         initialDates={bookingDates}
         initialMealPlan={bookingMealPlan}
+        initialRoomsConfig={bookingRoomsConfig}
         whatsappNumber={siteInfo.whatsapp}
       />
 
@@ -304,6 +323,7 @@ export default function HomePage() {
         initialCheckIn={availabilityDates.checkIn}
         initialCheckOut={availabilityDates.checkOut}
         initialRoomsCount={availabilityDates.roomsCount}
+        initialRoomsConfig={availabilityDates.roomsConfig}
         initialStep={availabilityDates.initialStep}
         onBookRoom={handleBookRoom}
         onOpenInquiry={handleOpenGeneralInquiry}

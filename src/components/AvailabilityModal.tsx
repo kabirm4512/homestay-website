@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Room, Booking } from '@/types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS } from '@/lib/mock-data';
 import DateRangePicker from './DateRangePicker';
+import RoomGuestSelector, { RoomConfig, DEFAULT_ROOM_CONFIG } from './RoomGuestSelector';
 import {
   X,
   Calendar,
@@ -28,8 +29,14 @@ interface AvailabilityModalProps {
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialRoomsCount?: number;
+  initialRoomsConfig?: RoomConfig[];
   initialStep?: 'form' | 'results';
-  onBookRoom: (room: Room, dates?: { checkIn: string; checkOut: string }) => void;
+  onBookRoom: (
+    room: Room,
+    dates?: { checkIn: string; checkOut: string },
+    mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP',
+    roomsConfig?: RoomConfig[]
+  ) => void;
   onOpenInquiry: (initialDates?: { checkIn: string; checkOut: string; guests: number }) => void;
 }
 
@@ -50,6 +57,7 @@ export default function AvailabilityModal({
   initialCheckIn,
   initialCheckOut,
   initialRoomsCount = 1,
+  initialRoomsConfig,
   initialStep = 'form',
   onBookRoom,
   onOpenInquiry,
@@ -108,7 +116,21 @@ export default function AvailabilityModal({
   const [checkOut, setCheckOut] = useState(
     initialCheckOut || getNextDayStr(initialCheckIn || getTodayStr())
   );
-  const [roomsCount, setRoomsCount] = useState(initialRoomsCount || 1);
+  const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>(
+    initialRoomsConfig && initialRoomsConfig.length > 0
+      ? initialRoomsConfig
+      : Array.from({ length: Math.max(1, initialRoomsCount || 1) }, (_, i) => ({
+          roomNumber: i + 1,
+          adults: 2,
+          children: 0,
+          childAges: [],
+        }))
+  );
+
+  const roomsCount = roomsConfig.length;
+  const totalAdults = roomsConfig.reduce((acc, r) => acc + (r.adults || 0), 0);
+  const totalChildren = roomsConfig.reduce((acc, r) => acc + (r.children || 0), 0);
+  const totalGuests = totalAdults + totalChildren;
 
   const [isChecking, setIsChecking] = useState(false);
   const [availabilityResults, setAvailabilityResults] = useState<CategoryAvailability[]>([]);
@@ -200,7 +222,18 @@ export default function AvailabilityModal({
       }
       setCheckIn(effIn);
       setCheckOut(effOut);
-      if (initialRoomsCount) setRoomsCount(initialRoomsCount);
+      if (initialRoomsConfig && initialRoomsConfig.length > 0) {
+        setRoomsConfig(initialRoomsConfig);
+      } else if (initialRoomsCount && initialRoomsCount !== roomsConfig.length) {
+        setRoomsConfig(
+          Array.from({ length: Math.max(1, initialRoomsCount) }, (_, i) => ({
+            roomNumber: i + 1,
+            adults: 2,
+            children: 0,
+            childAges: [],
+          }))
+        );
+      }
 
       const targetStep = initialStep || 'form';
       setStep(targetStep);
@@ -210,7 +243,7 @@ export default function AvailabilityModal({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialCheckIn, initialCheckOut, initialRoomsCount, initialStep]);
+  }, [isOpen, initialCheckIn, initialCheckOut, initialRoomsCount, initialRoomsConfig, initialStep]);
 
   // Handle Check-in change with automatic Check-out advancement
   const handleCheckInChange = (newIn: string) => {
@@ -252,12 +285,12 @@ export default function AvailabilityModal({
 
   const handleSelectRoomToBook = (room: Room) => {
     onClose();
-    onBookRoom(room, { checkIn, checkOut });
+    onBookRoom(room, { checkIn, checkOut }, undefined, roomsConfig);
   };
 
   const handleInquireCategory = (room: Room) => {
     onClose();
-    onOpenInquiry({ checkIn, checkOut, guests: roomsCount * 2 });
+    onOpenInquiry({ checkIn, checkOut, guests: totalGuests });
   };
 
   if (!isOpen) return null;
@@ -327,28 +360,14 @@ export default function AvailabilityModal({
                 />
               </div>
 
-              {/* Number of Rooms Container */}
-              <div className="bg-[#F3F7FF] border border-[#C7D4F5] hover:border-primary-500 rounded-2xl p-4 transition-all focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-600/20">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-primary-900 flex items-center space-x-1.5 select-none">
-                    <Bed className="w-4 h-4 text-primary-600 shrink-0" />
-                    <span>Number of Rooms</span>
-                  </label>
-                  <span className="text-[11px] text-gray-500 font-medium">Estate Capacity: 7 Rooms</span>
-                </div>
-                <select
-                  value={roomsCount}
-                  onChange={(e) => setRoomsCount(Number(e.target.value))}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm sm:text-base font-semibold text-[#0B1733] focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer shadow-xs"
-                >
-                  <option value={1}>1 Room</option>
-                  <option value={2}>2 Rooms</option>
-                  <option value={3}>3 Rooms</option>
-                  <option value={4}>4 Rooms</option>
-                  <option value={5}>5 Rooms</option>
-                  <option value={6}>6 Rooms</option>
-                  <option value={7}>7 Rooms</option>
-                </select>
+              {/* Goibibo-Style Number of Rooms & Guests Container */}
+              <div className="w-full">
+                <RoomGuestSelector
+                  roomsConfig={roomsConfig}
+                  onChange={setRoomsConfig}
+                  variant="modal"
+                  popoverPlacement="bottom"
+                />
               </div>
 
               {/* Trip Summary Chip */}
@@ -360,7 +379,7 @@ export default function AvailabilityModal({
                   </span>
                   <span className="text-gray-400 hidden sm:inline">•</span>
                   <span className="text-gray-700 hidden sm:inline">
-                    {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} selected
+                    {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} · {totalGuests} Guests ({totalAdults} Adults{totalChildren > 0 ? `, ${totalChildren} Child` : ''})
                   </span>
                 </div>
                 <div className="text-[11px] text-primary-800 font-medium hidden xs:inline">
@@ -453,8 +472,8 @@ export default function AvailabilityModal({
                       {stayNights} {stayNights === 1 ? 'Night' : 'Nights'}
                     </span>
                     <span>•</span>
-                    <span>
-                      Requested: {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'}
+                    <span className="bg-white/15 px-2.5 py-0.5 rounded-full text-amber-300 font-bold border border-white/20">
+                      {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} · {totalGuests} Guests ({totalAdults} Adults{totalChildren > 0 ? `, ${totalChildren} Child` : ''})
                     </span>
                   </div>
                 </div>
@@ -505,26 +524,14 @@ export default function AvailabilityModal({
                 <button
                   type="button"
                   onClick={() => setStep('form')}
-                  className="bg-white hover:bg-sand-100 border border-sand-300 rounded-xl px-3 py-1.5 text-xs text-forest-900 font-semibold flex items-center space-x-1.5 cursor-pointer shadow-sm transition-colors"
+                  className="bg-white hover:bg-gray-100 border border-sand-300 rounded-xl px-3 py-1.5 text-xs text-[#0B1733] font-semibold flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
                 >
-                  <Calendar className="w-3.5 h-3.5 text-forest-700" />
+                  <Calendar className="w-3.5 h-3.5 text-primary-600" />
                   <span>{formatDisplayDate(checkIn)} → {formatDisplayDate(checkOut)}</span>
-                  <span className="text-[10px] text-forest-600 underline font-normal ml-1">Edit</span>
+                  <span className="text-gray-400">•</span>
+                  <span>{roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} ({totalGuests} Guests)</span>
+                  <span className="text-[10px] text-primary-700 underline font-bold ml-1">Edit Search</span>
                 </button>
-
-                <select
-                  value={roomsCount}
-                  onChange={(e) => setRoomsCount(Number(e.target.value))}
-                  className="bg-white border border-sand-300 rounded-xl px-2.5 py-1.5 text-xs text-forest-900 font-semibold focus:outline-none cursor-pointer"
-                >
-                  <option value={1}>1 Room</option>
-                  <option value={2}>2 Rooms</option>
-                  <option value={3}>3 Rooms</option>
-                  <option value={4}>4 Rooms</option>
-                  <option value={5}>5 Rooms</option>
-                  <option value={6}>6 Rooms</option>
-                  <option value={7}>All 7 Rooms</option>
-                </select>
               </div>
             </div>
 
@@ -674,7 +681,7 @@ export default function AvailabilityModal({
                           onClick={() => handleSelectRoomToBook(room)}
                           className="bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-[0_3px_10px_rgba(254,110,0,0.3)] transition-all flex items-center space-x-1.5 cursor-pointer"
                         >
-                          <span>Reserve Category</span>
+                          <span>{roomsCount > 1 ? `Reserve ${roomsCount} Rooms` : 'Reserve Category'}</span>
                           <ArrowRight className="w-3.5 h-3.5 text-white" />
                         </button>
                       ) : (

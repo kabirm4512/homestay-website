@@ -55,6 +55,7 @@ export interface Booking {
   check_in: string;
   check_out: string;
   nights: number;
+  rooms_count?: number;
   adults_count?: number;
   children_count?: number;
   extra_adults_count?: number;
@@ -65,6 +66,15 @@ export interface Booking {
   payment_status: 'unpaid' | 'deposit_paid' | 'fully_paid';
   special_requests?: string;
   created_at?: string;
+}
+
+export interface RoomGuestConfig {
+  roomNumber: number;
+  adults: number;
+  children: number;
+  childAges: number[];
+  roomId?: string;
+  roomName?: string;
 }
 
 export interface HeroSlide {

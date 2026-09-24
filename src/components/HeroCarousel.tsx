@@ -13,13 +13,19 @@ import {
   ArrowRight,
   Search,
 } from 'lucide-react';
+import RoomGuestSelector, { RoomConfig, DEFAULT_ROOM_CONFIG } from './RoomGuestSelector';
 
 interface HeroCarouselProps {
   slides: HeroSlide[];
   rooms?: Room[];
   onOpenInquiry: (initialDates?: { checkIn: string; checkOut: string; guests: number }) => void;
   onBookRoom?: (room: Room, dates?: { checkIn: string; checkOut: string }) => void;
-  onCheckAvailability?: (dates: { checkIn: string; checkOut: string; roomsCount: number }) => void;
+  onCheckAvailability?: (dates: {
+    checkIn: string;
+    checkOut: string;
+    roomsCount: number;
+    roomsConfig?: RoomConfig[];
+  }) => void;
 }
 
 export default function HeroCarousel({
@@ -58,7 +64,7 @@ export default function HeroCarousel({
   // Quick search form state
   const [checkIn, setCheckIn] = useState(getTodayStr());
   const [checkOut, setCheckOut] = useState(getTomorrowStr());
-  const [roomsCount, setRoomsCount] = useState(1);
+  const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>(DEFAULT_ROOM_CONFIG);
 
   const nextSlide = useCallback(() => {
     setCurrent((prev) => (prev + 1) % slides.length);
@@ -109,14 +115,24 @@ export default function HeroCarousel({
     }
     if (!checkIn) setCheckIn(effectiveCheckIn);
 
+    const totalGuests = roomsConfig.reduce(
+      (acc, r) => acc + (r.adults || 0) + (r.children || 0),
+      0
+    );
+
     if (onCheckAvailability) {
       onCheckAvailability({
         checkIn: effectiveCheckIn,
         checkOut: effectiveCheckOut,
-        roomsCount,
+        roomsCount: roomsConfig.length,
+        roomsConfig,
       });
     } else {
-      onOpenInquiry({ checkIn: effectiveCheckIn, checkOut: effectiveCheckOut, guests: roomsCount * 2 });
+      onOpenInquiry({
+        checkIn: effectiveCheckIn,
+        checkOut: effectiveCheckOut,
+        guests: totalGuests,
+      });
     }
   };
 
@@ -191,7 +207,13 @@ export default function HeroCarousel({
             <ArrowRight className="w-3.5 h-3.5" />
           </a>
           <button
-            onClick={() => onOpenInquiry({ checkIn, checkOut, guests: roomsCount * 2 })}
+            onClick={() => {
+              const totalGuests = roomsConfig.reduce(
+                (acc, r) => acc + (r.adults || 0) + (r.children || 0),
+                0
+              );
+              onOpenInquiry({ checkIn, checkOut, guests: totalGuests });
+            }}
             className="inline-flex items-center space-x-1.5 sm:space-x-2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-semibold px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-full border border-white/30 transition-colors cursor-pointer text-xs sm:text-base"
           >
             <span>Instant Inquiry</span>
@@ -221,12 +243,6 @@ export default function HeroCarousel({
           >
             <span>🛵 Bike Rentals</span>
           </a>
-          <Link
-            href="/concierge"
-            className="inline-flex items-center space-x-1 bg-black/45 text-white font-medium text-[11px] sm:text-xs px-3 py-1 rounded-full backdrop-blur-md hover:bg-white/20 border border-white/20 transition-all"
-          >
-            <span>☕ Dining</span>
-          </Link>
         </div>
 
         <form
@@ -249,25 +265,14 @@ export default function HeroCarousel({
 
           {/* Rooms and Search Action in 2-column layout on mobile */}
           <div className="grid grid-cols-2 sm:contents gap-2">
-            {/* Number of Rooms Container */}
-            <div className="w-full bg-[#F3F7FF] hover:bg-[#E9EDFA] transition-colors border border-[#C7D4F5] rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2 flex flex-col justify-center focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-600/20">
-              <label className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary-800 flex items-center space-x-1 sm:space-x-1.5 mb-0.5 sm:mb-1 select-none">
-                <Bed className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-primary-600 shrink-0" />
-                <span className="truncate">Rooms</span>
-              </label>
-              <select
-                value={roomsCount}
-                onChange={(e) => setRoomsCount(Number(e.target.value))}
-                className="w-full block min-w-full bg-transparent text-xs sm:text-base font-semibold text-[#101828] focus:outline-none cursor-pointer"
-              >
-                <option value={1}>1 Room</option>
-                <option value={2}>2 Rooms</option>
-                <option value={3}>3 Rooms</option>
-                <option value={4}>4 Rooms</option>
-                <option value={5}>5 Rooms</option>
-                <option value={6}>6 Rooms</option>
-                <option value={7}>All 7 Rooms</option>
-              </select>
+            {/* Goibibo-Style Number of Rooms & Guests Container */}
+            <div className="w-full">
+              <RoomGuestSelector
+                roomsConfig={roomsConfig}
+                onChange={setRoomsConfig}
+                variant="hero"
+                popoverPlacement="top"
+              />
             </div>
 
             {/* Check Availability Action Button in Wizz Orange */}
