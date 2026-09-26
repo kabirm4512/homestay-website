@@ -379,7 +379,7 @@ export default function AvailabilityModal({
         {step === 'form' ? (
           <>
             {/* Header */}
-            <div className="bg-[#0B1733] text-white p-6 sm:p-7 relative shrink-0">
+            <div className="bg-[#142820] text-white p-6 sm:p-7 relative shrink-0">
               <button
                 onClick={onClose}
                 aria-label="Close modal"
@@ -389,20 +389,17 @@ export default function AvailabilityModal({
               </button>
 
               <div className="flex items-center space-x-2 mb-2">
-                <span className="inline-flex items-center space-x-1.5 bg-primary-500/20 text-primary-200 text-[11px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-primary-400/30">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span className="inline-flex items-center space-x-1.5 bg-white/10 text-[#C5A059] text-[11px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-[#C5A059]/30">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
                   <span>DIRECT HOMESTAY BOOKING</span>
                 </span>
-                <span className="text-xs text-gray-300 font-medium">• Live Inventory</span>
+                <span className="text-xs text-[#FAF8F5]/80 font-medium">• Live Inventory</span>
               </div>
 
-              <h3
-                className="text-2xl sm:text-3xl font-bold text-white tracking-tight"
-                style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-              >
+              <h3 className="text-2xl sm:text-3xl font-bold text-white font-serif tracking-tight">
                 Check Room Availability
               </h3>
-              <p className="mt-1.5 text-xs sm:text-sm text-gray-300 max-w-lg leading-relaxed">
+              <p className="mt-1.5 text-xs sm:text-sm text-[#FAF8F5]/80 max-w-lg leading-relaxed">
                 Select your check-in and check-out dates and party details. We will suggest the optimal combination of rooms based on live backend availability.
               </p>
             </div>
@@ -473,7 +470,7 @@ export default function AvailabilityModal({
                 <button
                   type="submit"
                   disabled={isChecking}
-                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-[0.99] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-2xl shadow-[0_4px_16px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-70"
+                  className="w-full bg-[#C85A32] hover:bg-[#B34D28] active:scale-[0.99] text-white font-semibold text-sm sm:text-base py-3.5 px-6 rounded-2xl shadow-[0_4px_16px_rgba(200,90,50,0.3)] transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-70"
                 >
                   {isChecking ? (
                     <>
@@ -508,7 +505,7 @@ export default function AvailabilityModal({
              ========================================================================= */
           <>
             {/* Header */}
-            <div className="bg-[#0B1733] text-white p-5 sm:p-6 relative shrink-0">
+            <div className="bg-[#142820] text-white p-5 sm:p-6 relative shrink-0">
               <button
                 onClick={onClose}
                 aria-label="Close modal"
@@ -522,25 +519,22 @@ export default function AvailabilityModal({
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span>LIVE INVENTORY CHECK</span>
                 </span>
-                <span className="text-xs text-sand-300 font-medium">• Verified Backend Tariffs</span>
+                <span className="text-xs text-[#FAF8F5]/80 font-medium">• Verified Backend Tariffs</span>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3
-                    className="text-2xl sm:text-3xl font-bold text-white tracking-tight"
-                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                  >
+                  <h3 className="text-2xl sm:text-3xl font-bold text-white font-serif tracking-tight">
                     Suggested Room Combinations
                   </h3>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-sand-200">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-[#FAF8F5]/80">
                     <span className="font-semibold text-white">
                       📅 {formatDisplayDate(checkIn)} → {formatDisplayDate(checkOut)}
                     </span>
                     <span>•</span>
                     <span>{stayNights} {stayNights === 1 ? 'Night' : 'Nights'}</span>
                     <span>•</span>
-                    <span className="bg-white/15 px-2.5 py-0.5 rounded-full text-amber-300 font-bold border border-white/20">
+                    <span className="bg-white/15 px-2.5 py-0.5 rounded-full text-[#C5A059] font-bold border border-white/20">
                       {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'} · {totalGuests} Guests ({totalAdults} Adults{totalChildren > 0 ? `, ${totalChildren} Child` : ''})
                     </span>
                   </div>
@@ -549,7 +543,7 @@ export default function AvailabilityModal({
                 {/* Back to Step 1 Button */}
                 <button
                   onClick={() => setStep('form')}
-                  className="inline-flex items-center space-x-1.5 bg-white/15 hover:bg-white/25 text-sand-100 hover:text-white text-xs font-semibold px-3.5 py-2 rounded-xl border border-white/20 transition-all cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 bg-white/15 hover:bg-white/25 text-[#FAF8F5] text-xs font-semibold px-3.5 py-2 rounded-xl border border-white/20 transition-all cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Change Dates / Guests</span>
@@ -558,7 +552,7 @@ export default function AvailabilityModal({
             </div>
 
             {/* Sub-header: Live Status & Interactive Meal Plan Switcher */}
-            <div className="bg-[#F3F7FF] border-b border-[#C7D4F5] px-5 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="bg-[#FAF8F5] border-b border-[#EBE5DA] px-5 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div className="flex items-center space-x-2">
                 {isChecking ? (
                   <div className="inline-flex items-center space-x-2 text-xs font-semibold text-primary-800">
@@ -734,7 +728,7 @@ export default function AvailabilityModal({
                           <button
                             type="button"
                             onClick={() => handleSelectCombination(comb)}
-                            className="bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-[0_3px_12px_rgba(254,110,0,0.3)] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                            className="bg-[#C85A32] hover:bg-[#B34D28] active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-[0_3px_12px_rgba(200,90,50,0.25)] transition-all flex items-center justify-center space-x-2 cursor-pointer"
                           >
                             <span>Book This Combination</span>
                             <ArrowRight className="w-4 h-4 text-white" />
@@ -764,10 +758,7 @@ export default function AvailabilityModal({
                  ========================================================================= */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                  <h4
-                    className="text-base sm:text-lg font-bold text-[#0B1733]"
-                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                  >
+                  <h4 className="text-base sm:text-lg font-bold text-[#142820] font-serif">
                     All Estate Categories & Live Inventory
                   </h4>
                   <span className="text-xs text-gray-500">
@@ -805,16 +796,13 @@ export default function AvailabilityModal({
                         {/* Category Details */}
                         <div className="flex-1 min-w-0 space-y-1.5 w-full text-left">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <h5
-                              className="text-base sm:text-lg font-bold text-[#0B1733] tracking-tight"
-                              style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                            >
+                            <h5 className="text-base sm:text-lg font-bold text-[#142820] font-serif tracking-tight">
                               {room.name}
                             </h5>
 
                             {/* Inventory Status Badge */}
                             {isSoldOut ? (
-                              <span className="inline-flex items-center space-x-1 bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                              <span className="inline-flex items-center space-x-1 bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
                                 <span className="w-2 h-2 rounded-full bg-rose-500" />
                                 <span>Sold Out</span>
                               </span>
@@ -822,8 +810,8 @@ export default function AvailabilityModal({
                               <span
                                 className={`inline-flex items-center space-x-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full border ${
                                   availableCount > 1
-                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
                                 }`}
                               >
                                 <span
@@ -839,16 +827,16 @@ export default function AvailabilityModal({
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                              <Coffee className="w-3 h-3 text-emerald-600" />
+                            <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#142820] bg-[#FAF8F5] border border-[#E5DEC9] px-2 py-0.5 rounded-md">
+                              <Coffee className="w-3 h-3 text-[#C5A059]" />
                               <span>{selectedMealPlan} Plan Active</span>
                             </span>
-                            <p className="text-xs text-gray-500 line-clamp-1">{room.tagline || room.description}</p>
+                            <p className="text-xs text-[#5C6D66] line-clamp-1">{room.tagline || room.description}</p>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-[#5C6D66]">
                             <span className="flex items-center space-x-1">
-                              <Users className="w-3.5 h-3.5 text-primary-600" />
+                              <Users className="w-3.5 h-3.5 text-[#142820]" />
                               <span>
                                 Max {room.capacity_adults} Adults
                                 {room.capacity_children > 0 ? ` + ${room.capacity_children} Child` : ''}
@@ -870,13 +858,13 @@ export default function AvailabilityModal({
                               {room.amenities.slice(0, 3).map((amenity, idx) => (
                                 <span
                                   key={idx}
-                                  className="bg-sand-100 text-gray-800 text-[10px] px-2 py-0.5 rounded font-medium"
+                                  className="bg-[#FAF8F5] text-[#142820] border border-[#EBE5DA] text-[10px] px-2 py-0.5 rounded font-medium"
                                 >
                                   {amenity}
                                 </span>
                               ))}
                               {room.amenities.length > 3 && (
-                                <span className="text-[10px] text-gray-400 self-center">
+                                <span className="text-[10px] text-[#7B8B84] self-center">
                                   +{room.amenities.length - 3} more
                                 </span>
                               )}
@@ -885,17 +873,14 @@ export default function AvailabilityModal({
                         </div>
 
                         {/* Pricing & CTA */}
-                        <div className="w-full md:w-48 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-sand-100">
+                        <div className="w-full md:w-48 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-[#EBE5DA]">
                           <div className="text-left md:text-right">
-                            <div className="text-[11px] text-gray-500">Live Rate ({selectedMealPlan})</div>
-                            <div
-                              className="text-lg sm:text-xl font-bold text-[#0B1733]"
-                              style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                            >
+                            <div className="text-[11px] text-[#7B8B84]">Live Rate ({selectedMealPlan})</div>
+                            <div className="text-lg sm:text-xl font-bold text-[#142820] font-serif">
                               ₹{nightlyRate.toLocaleString()}
-                              <span className="text-xs font-normal text-gray-600"> /night</span>
+                              <span className="text-xs font-normal text-[#7B8B84]"> /night</span>
                             </div>
-                            <div className="text-[11px] text-primary-700 font-medium">
+                            <div className="text-[11px] text-[#C85A32] font-semibold">
                               ₹{totalStayPrice.toLocaleString()} for {stayNights}{' '}
                               {stayNights === 1 ? 'night' : 'nights'}
                             </div>
@@ -905,7 +890,7 @@ export default function AvailabilityModal({
                             <button
                               type="button"
                               onClick={() => handleSelectCategoryToBook(room)}
-                              className="bg-primary-600 hover:bg-primary-700 active:scale-95 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition-all flex items-center space-x-1 cursor-pointer"
+                              className="bg-[#C85A32] hover:bg-[#B34D28] active:scale-95 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-xs transition-all flex items-center space-x-1 cursor-pointer"
                             >
                               <span>Reserve Category</span>
                               <ChevronRight className="w-3.5 h-3.5 text-white" />
@@ -914,7 +899,7 @@ export default function AvailabilityModal({
                             <button
                               type="button"
                               onClick={() => handleInquireCategory(room)}
-                              className="bg-sand-200 hover:bg-sand-300 text-[#0B1733] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                              className="bg-[#FAF8F5] hover:bg-[#F2ECE0] text-[#142820] border border-[#D5CDBD] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
                             >
                               <span>Waitlist</span>
                             </button>
@@ -928,19 +913,16 @@ export default function AvailabilityModal({
 
               {/* Full Estate Buyout Notice */}
               {roomsCount >= 5 && (
-                <div className="bg-[#F3F7FF] border border-[#C7D4F5] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[#0B1733]">
+                <div className="bg-[#FAF8F5] border border-[#EBE5DA] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[#142820]">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                      <Building className="w-5 h-5 text-primary-700" />
+                    <div className="w-10 h-10 rounded-full bg-[#142820]/10 flex items-center justify-center shrink-0">
+                      <Building className="w-5 h-5 text-[#142820]" />
                     </div>
                     <div>
-                      <h5
-                        className="font-bold text-sm text-[#0B1733]"
-                        style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                      >
+                      <h5 className="font-serif font-bold text-sm text-[#142820]">
                         Planning an Exclusive Buyout (All 7 Rooms)?
                       </h5>
-                      <p className="text-xs text-gray-600">
+                      <p className="text-xs text-[#5C6D66]">
                         Enjoy private access to the entire estate, lawns, and dedicated chef for your group.
                       </p>
                     </div>
@@ -951,7 +933,7 @@ export default function AvailabilityModal({
                       onClose();
                       onOpenInquiry({ checkIn, checkOut, guests: 14 });
                     }}
-                    className="whitespace-nowrap bg-[#25479E] hover:bg-[#1A3478] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition-colors cursor-pointer"
+                    className="whitespace-nowrap bg-[#142820] hover:bg-[#233d32] text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     Inquire Villa Buyout
                   </button>

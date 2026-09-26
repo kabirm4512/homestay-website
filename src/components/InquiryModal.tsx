@@ -158,7 +158,7 @@ export default function InquiryModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-sand-200 overflow-hidden my-8">
         {/* Header with Title and Close Button */}
-        <div className="bg-[#0B1733] text-white p-6 sm:p-7 relative">
+        <div className="bg-[#142820] text-white p-6 sm:p-7 relative">
           <button
             onClick={handleResetAndClose}
             aria-label="Close modal"
@@ -167,16 +167,13 @@ export default function InquiryModal({
             <X className="w-5 h-5" />
           </button>
 
-          <span className="inline-flex items-center space-x-1.5 bg-primary-500/20 text-primary-200 text-[10px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-primary-400/30 mb-2">
+          <span className="inline-flex items-center space-x-1.5 bg-white/10 text-[#C5A059] text-[10px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full border border-[#C5A059]/30 mb-2">
             DIRECT HOMESTAY RESERVATION
           </span>
-          <h3
-            className="text-2xl font-bold text-white tracking-tight"
-            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-          >
+          <h3 className="text-2xl font-bold text-white font-serif tracking-tight">
             {selectedRoom ? `Inquire for ${selectedRoom.name}` : 'Check Availability & Rates'}
           </h3>
-          <p className="text-xs sm:text-sm text-gray-300 mt-1 font-light">
+          <p className="text-xs sm:text-sm text-[#FAF8F5]/80 mt-1 font-light">
             Our family host will confirm your dates directly with zero booking commissions.
           </p>
         </div>
@@ -351,7 +348,7 @@ export default function InquiryModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm cursor-pointer"
+                  className="w-full bg-[#C85A32] hover:bg-[#B34D28] text-white font-semibold py-3.5 px-4 rounded-xl shadow-[0_4px_14px_rgba(200,90,50,0.3)] transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm cursor-pointer"
                 >
                   {loading ? (
                     <>

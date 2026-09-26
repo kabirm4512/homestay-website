@@ -1,9 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Outfit, Inter } from 'next/font/google';
+import { Outfit, Inter, Playfair_Display } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { CRMProvider } from '@/context/CRMContext';
 import PWARegister from '@/components/pwa/PWARegister';
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap',
+});
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -18,7 +24,7 @@ const inter = Inter({
 });
 
 export const viewport: Viewport = {
-  themeColor: '#25479E',
+  themeColor: '#142820',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -59,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`scroll-smooth ${outfit.variable} ${inter.variable}`}>
+    <html lang="en" className={`scroll-smooth ${playfair.variable} ${outfit.variable} ${inter.variable}`}>
       <head>
         <Script
           strategy="afterInteractive"
@@ -78,7 +84,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-[#F3F7FF] text-[#101828] font-sans antialiased selection:bg-[#25479E]/15 selection:text-[#25479E]">
+      <body className="min-h-screen bg-[#FAF8F5] text-[#1A1D1A] font-sans antialiased selection:bg-[#C85A32]/20 selection:text-[#C85A32]">
         <CRMProvider>
           <PWARegister />
           {children}

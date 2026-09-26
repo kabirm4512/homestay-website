@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 16, 24, 40;
-  --background-start-rgb: 243, 247, 255;
-  --background-end-rgb: 233, 237, 250;
+  --foreground-rgb: 26, 29, 26;
+  --background-start-rgb: 250, 248, 245;
+  --background-end-rgb: 245, 242, 235;
 }
 
 html {
@@ -16,7 +16,7 @@ html {
 
 body {
   color: rgb(var(--foreground-rgb));
-  background-color: #F3F7FF;
+  background-color: #FAF8F5;
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -25,28 +25,33 @@ body {
   width: 100%;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-outfit), var(--font-inter), sans-serif;
-  letter-spacing: -0.02em;
+h1, h2, h3, h4 {
+  font-family: var(--font-playfair), Georgia, serif;
+  letter-spacing: -0.015em;
 }
 
-/* Custom scrollbar matching Wizz Sapphire Blue */
+h5, h6 {
+  font-family: var(--font-outfit), var(--font-inter), sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Custom scrollbar matching Alpine Forest and Sand */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #E9EDFA;
+  background: #F5F2EB;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #9BB4EE;
+  background: #C7DBD1;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #25479E;
+  background: #142820;
 }
 
 @layer utilities {
@@ -60,37 +65,45 @@ h1, h2, h3, h4, h5, h6 {
     padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
   }
 
-  /* Wizz Holidays Glassmorphism & Surface utilities */
+  /* Luxury Boutique Glass & Surface Utilities */
   .glass-card {
-    background: rgba(255, 255, 255, 0.90);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    box-shadow: 0 10px 30px -5px rgba(37, 71, 158, 0.08);
+    border: 1px solid rgba(236, 230, 216, 0.8);
+    box-shadow: 0 10px 30px -5px rgba(20, 40, 32, 0.05);
   }
 
   .glass-panel {
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    box-shadow: 0 20px 40px -15px rgba(11, 23, 51, 0.10);
+    border: 1px solid rgba(221, 212, 192, 0.9);
+    box-shadow: 0 20px 40px -15px rgba(20, 40, 32, 0.08);
   }
 
-  .wizz-gradient-canvas {
-    background: linear-gradient(180deg, #F3F7FF 0%, #E8F0FE 35%, #F0F4FF 70%, #F8FAFC 100%);
+  .luxury-glass {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 16px 36px -8px rgba(20, 40, 32, 0.12);
   }
 
-  .wizz-hero-gradient {
-    background: linear-gradient(135deg, #0B1733 0%, #12244F 45%, #1F3C86 100%);
+  .alpine-canvas {
+    background: linear-gradient(180deg, #FAF8F5 0%, #F5F2EB 50%, #FAF8F5 100%);
   }
 
-  .wizz-orange-gradient {
-    background: linear-gradient(135deg, #FE6E00 0%, #EA580C 100%);
+  .alpine-hero-gradient {
+    background: linear-gradient(135deg, #142820 0%, #1B342A 50%, #2C5342 100%);
+  }
+
+  .terracotta-gradient {
+    background: linear-gradient(135deg, #C85A32 0%, #B64B25 100%);
   }
 
   .img-enhance {
-    filter: contrast(1.05) saturate(1.08) brightness(1.02);
+    filter: contrast(1.02) saturate(1.03);
   }
 }
 

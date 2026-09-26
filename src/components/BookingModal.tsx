@@ -482,7 +482,7 @@ export default function BookingModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-sand-200 overflow-hidden my-6 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="bg-[#0B1733] text-white p-5 sm:p-6 relative shrink-0">
+        <div className="bg-[#142820] text-white p-5 sm:p-6 relative shrink-0">
           <button
             onClick={handleResetAndClose}
             aria-label="Close modal"
@@ -492,20 +492,17 @@ export default function BookingModal({
           </button>
 
           <div className="flex items-center space-x-2 mb-1.5">
-            <span className="inline-flex items-center space-x-1.5 bg-primary-500/25 text-primary-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-primary-400/30">
-              <Sparkles className="w-3 h-3 text-amber-400" />
+            <span className="inline-flex items-center space-x-1.5 bg-white/10 text-[#C5A059] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#C5A059]/30">
+              <Sparkles className="w-3 h-3 text-[#C5A059]" />
               <span>DIRECT RESERVATION</span>
             </span>
-            <span className="text-xs text-sand-300 font-medium">• Live Backend PMS Tariffs</span>
+            <span className="text-xs text-[#FAF8F5]/80 font-medium">• Live Backend PMS Tariffs</span>
           </div>
 
-          <h3
-            className="font-bold text-xl sm:text-2xl text-white tracking-tight leading-tight"
-            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-          >
+          <h3 className="font-bold text-xl sm:text-2xl text-white font-serif tracking-tight leading-tight">
             {totalRooms > 1 ? `${totalRooms} Rooms Reservation` : room.name}
           </h3>
-          <p className="text-xs text-sand-200 font-light mt-0.5">
+          <p className="text-xs text-[#FAF8F5]/80 font-light mt-0.5">
             {totalRooms > 1
               ? `Multi-Room Group Booking (${totalGuests} Guests · ${totalAdults} Adults${totalChildren > 0 ? `, ${totalChildren} Child` : ''})`
               : room.tagline || 'Boutique Himalayan Mountain Stay · Darjeeling'}
@@ -1064,7 +1061,7 @@ export default function BookingModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold py-3.5 px-4 rounded-2xl shadow-[0_4px_14px_rgba(254,110,0,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+                  className="w-full bg-[#C85A32] hover:bg-[#B34D28] text-white font-semibold py-3.5 px-4 rounded-2xl shadow-[0_4px_14px_rgba(200,90,50,0.3)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
                 >
                   {loading ? (
                     <>

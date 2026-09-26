@@ -26,19 +26,19 @@ interface AboutSectionProps {
 const getIconComponent = (iconName: string) => {
   switch (iconName) {
     case 'Mountain':
-      return <Mountain className="w-5 h-5 text-forest-700" />;
+      return <Mountain className="w-5 h-5 text-[#142820]" />;
     case 'Utensils':
-      return <Utensils className="w-5 h-5 text-forest-700" />;
+      return <Utensils className="w-5 h-5 text-[#142820]" />;
     case 'Flame':
-      return <Flame className="w-5 h-5 text-forest-700" />;
+      return <Flame className="w-5 h-5 text-[#C85A32]" />;
     case 'Wifi':
-      return <Wifi className="w-5 h-5 text-forest-700" />;
+      return <Wifi className="w-5 h-5 text-[#142820]" />;
     case 'HeartHandshake':
-      return <HeartHandshake className="w-5 h-5 text-forest-700" />;
+      return <HeartHandshake className="w-5 h-5 text-[#142820]" />;
     case 'Footprints':
-      return <Footprints className="w-5 h-5 text-forest-700" />;
+      return <Footprints className="w-5 h-5 text-[#142820]" />;
     default:
-      return <Compass className="w-5 h-5 text-forest-700" />;
+      return <Compass className="w-5 h-5 text-[#142820]" />;
   }
 };
 
@@ -126,46 +126,44 @@ export default function AboutSection({ data }: AboutSectionProps) {
   }, [lightboxIndex, closeLightbox, showPrevImage, showNextImage]);
 
   return (
-    <section id="about" className="py-20 sm:py-28 bg-[#faf8f5] relative overflow-hidden">
+    <section id="about" className="py-20 sm:py-28 bg-[#FAF8F5] relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-xs font-bold uppercase tracking-widest text-primary-700 bg-primary-100 px-3.5 py-1 rounded-full inline-block mb-3 shadow-xs">
-            The Homestay Story
+          <span className="text-xs font-bold uppercase tracking-widest text-[#142820] bg-[#142820]/5 border border-[#142820]/10 px-4 py-1.5 rounded-full inline-flex items-center gap-1.5 mb-3 shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-[#C85A32]" />
+            <span>The Homestay Story</span>
           </span>
-          <h2
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#0B1733] tracking-tight leading-tight mb-6"
-            style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-          >
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#142820] font-serif tracking-tight leading-tight mb-4">
             {data.headline}
           </h2>
-          <div className="w-16 h-1 bg-[#FE6E00] mx-auto rounded-full" />
+          <div className="w-16 h-0.5 bg-[#C85A32] mx-auto rounded-full mt-4" />
         </div>
 
         {/* Narrative & Visual Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center mb-20">
           {/* Story Text */}
-          <div className="lg:col-span-6 space-y-6 text-gray-700 leading-relaxed text-base sm:text-lg">
-            <p className="first-letter:text-5xl first-letter:font-bold first-letter:text-primary-700 first-letter:mr-3 first-letter:float-left font-normal">
+          <div className="lg:col-span-6 space-y-6 text-[#4A5752] leading-relaxed text-base sm:text-lg">
+            <p className="first-letter:text-5xl first-letter:font-serif first-letter:font-bold first-letter:text-[#C85A32] first-letter:mr-3 first-letter:float-left font-normal">
               {data.story}
             </p>
-            <p className="font-normal">
+            <p className="font-normal text-[#5C6D66]">
               Unlike commercial hotels, our homestay offers a true pause. Enjoy unhurried
               breakfasts overlooking orchards, take leisurely forest walks, or curl up with a book
               beside our traditional stone fireplace while our local hosts prepare wholesome meals.
             </p>
 
             <div className="pt-2 flex flex-wrap gap-3 sm:gap-4">
-              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-[#142820] font-medium text-xs sm:text-sm bg-white border border-[#EBE5DA] px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-[#C85A32] shrink-0" />
                 <span>Zero Commercial Clutter</span>
               </div>
-              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-[#142820] font-medium text-xs sm:text-sm bg-white border border-[#EBE5DA] px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-[#C85A32] shrink-0" />
                 <span>Dedicated On-Site Host</span>
               </div>
-              <div className="flex items-center space-x-2 text-primary-900 font-medium text-xs sm:text-sm bg-white/90 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs">
-                <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0" />
+              <div className="flex items-center space-x-2 text-[#142820] font-medium text-xs sm:text-sm bg-white border border-[#EBE5DA] px-3.5 py-2 rounded-xl shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-[#C85A32] shrink-0" />
                 <span>Fresh Mountain Water & Air</span>
               </div>
             </div>
@@ -309,13 +307,13 @@ export default function AboutSection({ data }: AboutSectionProps) {
             </div>
 
             {/* Floating Boutique Emblem */}
-            <div className="hidden sm:flex absolute -bottom-4 -left-4 sm:-bottom-5 sm:-left-5 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-sand-200/90 items-center space-x-3 z-10 hover:scale-105 transition-transform duration-300">
-              <div className="w-10 h-10 rounded-xl bg-forest-900 flex items-center justify-center text-sand-300 shadow-sm shrink-0">
-                <Mountain className="w-5 h-5 text-sand-300" />
+            <div className="hidden sm:flex absolute -bottom-4 -left-4 sm:-bottom-5 sm:-left-5 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-[#EBE5DA] items-center space-x-3 z-10 hover:scale-105 transition-transform duration-300">
+              <div className="w-10 h-10 rounded-xl bg-[#142820] flex items-center justify-center text-[#C5A059] shadow-sm shrink-0">
+                <Mountain className="w-5 h-5 text-[#C5A059]" />
               </div>
               <div>
-                <p className="text-xs font-serif font-bold text-forest-950 tracking-wide">100% Authentic Photos</p>
-                <p className="text-[11px] text-forest-700 font-medium">Savera Homestay • Darjeeling</p>
+                <p className="text-xs font-serif font-bold text-[#142820] tracking-wide">100% Authentic Photos</p>
+                <p className="text-[11px] text-[#5C6D66] font-medium">Savera Homestay • Darjeeling</p>
               </div>
             </div>
           </div>
@@ -326,15 +324,15 @@ export default function AboutSection({ data }: AboutSectionProps) {
           {data.highlights.map((highlight, index) => (
             <div
               key={index}
-              className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm hover:shadow-md transition-all duration-200 group"
+              className="bg-white p-6 rounded-2xl border border-[#EBE5DA] shadow-[0_4px_20px_rgba(20,40,32,0.03)] hover:shadow-[0_12px_30px_rgba(20,40,32,0.08)] hover:-translate-y-0.5 transition-all duration-300 group"
             >
-              <div className="w-12 h-12 rounded-xl bg-forest-50 border border-forest-100 flex items-center justify-center mb-4 group-hover:bg-forest-100 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-[#FAF8F5] border border-[#E5DEC9] flex items-center justify-center mb-4 group-hover:bg-[#F2ECE0] transition-colors">
                 {getIconComponent(highlight.icon)}
               </div>
-              <h3 className="font-serif text-lg font-semibold text-forest-950 mb-2">
+              <h3 className="font-serif text-lg font-bold text-[#142820] mb-2 group-hover:text-[#C85A32] transition-colors">
                 {highlight.title}
               </h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <p className="text-sm text-[#5C6D66] leading-relaxed">
                 {highlight.desc}
               </p>
             </div>
@@ -343,13 +341,13 @@ export default function AboutSection({ data }: AboutSectionProps) {
 
         {/* Stats Row */}
         {data.stats && (
-          <div className="bg-forest-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="bg-[#142820] rounded-3xl p-8 sm:p-12 text-white shadow-xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center border border-white/10">
             {data.stats.map((stat, idx) => (
               <div key={idx} className="space-y-1">
-                <div className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-sand-300">
+                <div className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#C5A059]">
                   {stat.value}
                 </div>
-                <div className="text-xs sm:text-sm text-sand-100/80 font-medium tracking-wide">
+                <div className="text-xs sm:text-sm text-[#FAF8F5]/80 font-medium tracking-wide uppercase">
                   {stat.label}
                 </div>
               </div>
