@@ -288,17 +288,19 @@ export default function AdminRooms({
 
   const handleSaveRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name?.trim() || !formData.price_per_night) {
-      showToast('Room name and nightly price are required', 'error');
+    if (!formData.name?.trim()) {
+      showToast('Room name is required', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      const baseRate = Number(formData.price_per_night);
-      const weekendRate = formData.weekend_price ? Number(formData.weekend_price) : baseRate;
-      const extraAdult = Number(formData.extra_adult_charge) || 1200;
-      const extraChild = Number(formData.extra_child_charge) || 600;
+      const targetId = editingRoom?.id || (formData.id || `room-${Date.now()}`);
+      const existingTariffs = roomTariffs[targetId] || editingRoom?.tariffs;
+      const baseRate = editingRoom?.price_per_night || existingTariffs?.regular?.EP || Number(formData.price_per_night) || 4500;
+      const weekendRate = editingRoom?.weekend_price || (existingTariffs?.weekendSurchargePercent ? Math.round(baseRate * (1 + existingTariffs.weekendSurchargePercent / 100)) : baseRate);
+      const extraAdult = editingRoom?.extra_adult_charge ?? existingTariffs?.extraAdultRate ?? 1200;
+      const extraChild = editingRoom?.extra_child_charge ?? existingTariffs?.extraChildRate ?? 600;
 
       // Automatically include any pending image URL entered by the user
       let currentImages = [...(formData.images || [])];
@@ -309,9 +311,8 @@ export default function AdminRooms({
         currentImages = ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'];
       }
 
-      // Keep tariffs in sync
-      const targetId = editingRoom?.id || (formData.id || `room-${Date.now()}`);
-      const existingTariffs = roomTariffs[targetId] || editingRoom?.tariffs || {
+      // Preserve existing tariffs without clashing
+      const updatedTariffs: RoomSeasonalTariffs = existingTariffs || {
         regular: { EP: baseRate, CP: Math.round(baseRate * 1.15), MAP: Math.round(baseRate * 1.35), AP: Math.round(baseRate * 1.55) },
         season: { EP: Math.round(baseRate * 1.3), CP: Math.round(baseRate * 1.45), MAP: Math.round(baseRate * 1.7), AP: Math.round(baseRate * 1.95) },
         offSeason: { EP: Math.round(baseRate * 0.85), CP: Math.round(baseRate * 0.95), MAP: Math.round(baseRate * 1.15), AP: Math.round(baseRate * 1.3) },
@@ -320,19 +321,9 @@ export default function AdminRooms({
         extraChildRate: extraChild,
       };
 
-      const updatedTariffs: RoomSeasonalTariffs = {
-        ...existingTariffs,
-        regular: {
-          ...existingTariffs.regular,
-          EP: baseRate,
-        },
-        extraAdultRate: extraAdult,
-        extraChildRate: extraChild,
-      };
-
       const savedRoom: Room = {
         ...formData,
-        id: editingRoom ? editingRoom.id : (formData.id || `room-${Date.now()}`),
+        id: targetId,
         slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: formData.name.trim(),
         tagline: formData.tagline?.trim() || '',
@@ -1605,7 +1596,7 @@ export default function AdminRooms({
                   {editingRoom ? `Edit: ${editingRoom.name}` : 'Add New Room'}
                 </h3>
                 <p className="text-xs text-forest-200">
-                  Configure room rates, photos, capacity, and amenities
+                  Configure room details, photos, capacity, and amenities
                 </p>
               </div>
               <button
@@ -1671,81 +1662,52 @@ export default function AdminRooms({
                 />
               </div>
 
-              <div className="p-4 bg-sand-50/70 rounded-xl border border-sand-200 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-forest-900 mb-1">
-                      Nightly Base Rate (₹ INR) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      value={formData.price_per_night || ''}
-                      onChange={(e) => setFormData({ ...formData, price_per_night: Number(e.target.value) })}
-                      placeholder="5000"
-                      className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
-                    />
+              {/* Dynamic Seasonal Tariffs Notice Banner (Replaces static price inputs to prevent tariff clashes) */}
+              <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#E5DEC9] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-start space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#142820] text-[#C5A059] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <IndianRupee className="w-4 h-4" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-forest-900 mb-1">
-                      Weekend Rate (₹ INR)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={formData.weekend_price || ''}
-                      onChange={(e) => setFormData({ ...formData, weekend_price: Number(e.target.value) })}
-                      placeholder="5800"
-                      className="w-full px-3.5 py-2.5 bg-white border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950 focus:ring-2 focus:ring-forest-600"
-                    />
+                    <h5 className="font-bold text-xs text-[#142820] flex items-center space-x-2">
+                      <span>Dynamic Seasonal Pricing Active</span>
+                      <span className="text-[10px] font-mono bg-[#E8F2EC] text-[#1E3A2F] border border-[#C5DDCF] px-1.5 py-0.2 rounded font-semibold">
+                        Season &amp; Off-Season Sync
+                      </span>
+                    </h5>
+                    <p className="text-[11px] text-[#5C6D66] mt-0.5 leading-relaxed">
+                      Nightly base rates, seasonal ranges (Peak, Standard, Green season), meal plans (EP, CP, MAP, AP), weekend adjustments, and extra guest surcharges are centrally governed in the <strong>Tariff Matrix</strong> tab to ensure rates never clash.
+                    </p>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-sand-200/70">
-                  <div>
-                    <label className="block text-xs font-semibold text-forest-900 mb-1">
-                      Base Adults Included
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={4}
-                      value={formData.base_adults ?? 2}
-                      onChange={(e) => setFormData({ ...formData, base_adults: Number(e.target.value) })}
-                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-forest-900 mb-1">
-                      Extra Adult Surcharge (₹ / night)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={formData.extra_adult_charge ?? 1200}
-                      onChange={(e) => setFormData({ ...formData, extra_adult_charge: Number(e.target.value) })}
-                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-forest-900 mb-1">
-                      Extra Child Surcharge (₹ / night)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={formData.extra_child_charge ?? 600}
-                      onChange={(e) => setFormData({ ...formData, extra_child_charge: Number(e.target.value) })}
-                      className="w-full px-3.5 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                    />
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseModal();
+                    handleSelectSubTab('tariffs');
+                  }}
+                  className="px-3.5 py-2 bg-[#142820] hover:bg-[#1E3A2F] text-[#FAF8F5] rounded-xl text-xs font-bold shrink-0 cursor-pointer transition-colors shadow-xs flex items-center space-x-1.5"
+                >
+                  <span>Open Tariff Matrix</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#C5A059]" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Room Capacity & Specifications */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-forest-900 mb-1">
+                    Base Adults
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={formData.base_adults ?? 2}
+                    onChange={(e) => setFormData({ ...formData, base_adults: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950 focus:ring-2 focus:ring-forest-600"
+                  />
+                </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-forest-900 mb-1">
                     Adults Max
