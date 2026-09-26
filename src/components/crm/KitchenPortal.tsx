@@ -233,34 +233,34 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-forest-950 via-forest-900 to-forest-800 text-white rounded-3xl p-6 shadow-md border border-forest-800">
+      <div className="bg-gradient-to-r from-[#142820] via-[#1E3A2F] to-[#142820] text-white rounded-3xl p-6 shadow-md border border-[#1E3A2F]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-forest-950 flex items-center justify-center font-bold shadow-md shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] flex items-center justify-center font-bold shadow-md shrink-0">
               <ChefHat className="w-7 h-7" />
             </div>
             <div>
               <h2 className="font-serif font-bold text-xl text-white">
                 Kitchen KDS &amp; Order Inventory Gate
               </h2>
-              <p className="text-xs text-sand-300">
+              <p className="text-xs text-[#A3B899]">
                 Manager stock verification gate, live kitchen queue, batch prep &amp; meal plan mandates.
               </p>
             </div>
           </div>
 
           {/* Quick Sub-Tabs */}
-          <div className="flex items-center space-x-1.5 bg-forest-800/80 p-1.5 rounded-2xl border border-forest-700/60 self-start sm:self-auto overflow-x-auto no-scrollbar">
+          <div className="flex items-center space-x-1.5 bg-[#0F1E18]/80 p-1.5 rounded-2xl border border-[#1E3A2F] self-start sm:self-auto overflow-x-auto no-scrollbar">
             {/* TAB 1: MANAGER APPROVAL GATE */}
             <button
               onClick={() => setActiveTab('approvals')}
               className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'approvals'
-                  ? 'bg-[#FE6E00] text-white shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-700/50'
+                  ? 'bg-[#C85A32] text-white shadow-sm'
+                  : 'text-[#C4D1C9] hover:text-white hover:bg-[#1E3A2F]'
               }`}
             >
-              <ClipboardCheck className="w-3.5 h-3.5" />
+              <ClipboardCheck className="w-3.5 h-3.5 text-[#C5A059]" />
               <span>Manager Approvals</span>
               {unapprovedOrders.length > 0 && (
                 <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-extrabold rounded-full animate-bounce">
@@ -274,13 +274,13 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
               onClick={() => setActiveTab('orders')}
               className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'orders'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-700/50'
+                  ? 'bg-[#C85A32] text-white shadow-sm'
+                  : 'text-[#C4D1C9] hover:text-white hover:bg-[#1E3A2F]'
               }`}
             >
               <span>Live Kitchen KDS</span>
               {activeCookingCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[10px] font-extrabold rounded-full">
+                <span className="px-1.5 py-0.2 bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] text-[10px] font-extrabold rounded-full">
                   {activeCookingCount}
                 </span>
               )}
@@ -291,13 +291,13 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
               onClick={() => setActiveTab('mandate')}
               className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'mandate'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-700/50'
+                  ? 'bg-[#C85A32] text-white shadow-sm'
+                  : 'text-[#C4D1C9] hover:text-white hover:bg-[#1E3A2F]'
               }`}
             >
               <span>Kitchen Mandate</span>
               {pendingCelebrationsCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-[#FE6E00] text-white text-[10px] font-extrabold rounded-full flex items-center space-x-0.5">
+                <span className="px-1.5 py-0.2 bg-[#C5A059] text-[#142820] text-[10px] font-extrabold rounded-full flex items-center space-x-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
                   <span>{pendingCelebrationsCount}</span>
                 </span>
@@ -309,14 +309,77 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
               onClick={() => setActiveTab('menu')}
               className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'menu'
-                  ? 'bg-amber-500 text-forest-950 shadow-sm'
-                  : 'text-sand-200 hover:text-white hover:bg-forest-700/50'
+                  ? 'bg-[#C85A32] text-white shadow-sm'
+                  : 'text-[#C4D1C9] hover:text-white hover:bg-[#1E3A2F]'
               }`}
             >
               <span>Menu Stock</span>
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Chef's Daily Resident Headcount Pulse Bar */}
+      <div className="bg-[#142820] rounded-2xl p-4 border border-[#1E3A2F] text-white shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs uppercase tracking-wider font-bold text-[#C5A059]">
+              Chef&apos;s Daily Resident Headcount &amp; Prep Covers:
+            </span>
+          </div>
+          <div className="flex items-center space-x-2 text-xs text-[#A3B899]">
+            <span>Total In-House: <strong className="text-white font-mono">{mandateStats.totalAdults + mandateStats.totalChildren} Guests</strong> ({mandateStats.totalAdults} Adults{mandateStats.totalChildren > 0 ? `, ${mandateStats.totalChildren} Ch` : ''})</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3">
+          <div className="bg-[#1E3A2F] p-2.5 rounded-xl border border-[#C5A059]/20 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-[#C5A059] block">CP (Breakfast)</span>
+              <span className="text-[11px] text-[#A3B899]">Bed &amp; Breakfast</span>
+            </div>
+            <span className="text-xl font-serif font-bold text-white font-mono">{mandateStats.CP}</span>
+          </div>
+
+          <div className="bg-[#1E3A2F] p-2.5 rounded-xl border border-blue-400/20 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-blue-300 block">MAP (Half Board)</span>
+              <span className="text-[11px] text-[#A3B899]">Breakfast + Dinner</span>
+            </div>
+            <span className="text-xl font-serif font-bold text-white font-mono">{mandateStats.MAP}</span>
+          </div>
+
+          <div className="bg-[#1E3A2F] p-2.5 rounded-xl border border-emerald-400/20 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-emerald-300 block">AP (Full Board)</span>
+              <span className="text-[11px] text-[#A3B899]">All 3 Meals</span>
+            </div>
+            <span className="text-xl font-serif font-bold text-white font-mono">{mandateStats.AP}</span>
+          </div>
+
+          <div className="bg-[#1E3A2F] p-2.5 rounded-xl border border-gray-500/20 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-[#A3B899] block">EP (A La Carte)</span>
+              <span className="text-[11px] text-[#A3B899]">Room Only</span>
+            </div>
+            <span className="text-xl font-serif font-bold text-white font-mono">{mandateStats.EP}</span>
+          </div>
+        </div>
+
+        {mandateStats.dietaryAlerts.length > 0 && (
+          <div className="mt-3 pt-2.5 border-t border-[#1E3A2F] flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-[10px] uppercase font-bold text-amber-300 flex items-center space-x-1">
+              <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+              <span>Dietary Warnings ({mandateStats.dietaryAlerts.length}):</span>
+            </span>
+            {mandateStats.dietaryAlerts.map((d, i) => (
+              <span key={i} className="text-[11px] bg-amber-950/60 border border-amber-800 text-amber-200 px-2 py-0.5 rounded-md font-medium">
+                R{d.roomNumber} ({d.guestName.split(' ')[0]}): {d.alert}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ========================================================

@@ -389,70 +389,80 @@ export default function TapeChart() {
                 setManualBookingDefaultDate(formatDateKey(baseDate));
                 setIsManualBookingModalOpen(true);
               }}
-              className="min-h-[38px] px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-forest-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+              className="min-h-[38px] px-4 py-2 bg-[#C85A32] hover:bg-[#B34D28] active:scale-95 text-white font-bold text-xs rounded-xl shadow-[0_2px_8px_rgba(200,90,50,0.3)] transition-all flex items-center space-x-1.5 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-white stroke-[2.5]" />
               <span>New Manual Reservation</span>
             </button>
           </div>
         </div>
 
         {/* Color Legend Bar */}
-        <div className="mt-4 pt-4 border-t border-sand-200 flex flex-wrap items-center gap-4 text-xs">
-          <span className="text-[11px] uppercase tracking-wider text-forest-600 font-bold">
+        <div className="mt-4 pt-4 border-t border-[#E5DEC9] flex flex-wrap items-center gap-4 text-xs">
+          <span className="text-[11px] uppercase tracking-wider text-[#5C6D66] font-bold">
             Tape Statuses:
           </span>
           <div className="flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-amber-400" />
-            <span className="font-medium text-forest-900">Hold (Tentative)</span>
+            <span className="font-medium text-[#142820]">Hold (Tentative)</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-emerald-500" />
-            <span className="font-medium text-forest-900">Confirmed / Paid</span>
+            <span className="w-3 h-3 rounded-md bg-emerald-600" />
+            <span className="font-medium text-[#142820]">Confirmed / Paid</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-blue-500" />
-            <span className="font-medium text-forest-900">Checked-In (Active Concierge)</span>
+            <span className="w-3 h-3 rounded-md bg-[#142820] text-[#C5A059] flex items-center justify-center text-[9px] font-bold">✓</span>
+            <span className="font-medium text-[#142820]">Checked-In (In-House)</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-rose-500" />
-            <span className="font-medium text-forest-900">Under Maintenance</span>
+            <span className="font-medium text-[#142820]">Under Maintenance</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-sand-200 border border-sand-300" />
-            <span className="font-medium text-forest-700">Available</span>
+            <span className="w-3 h-3 rounded-md bg-[#FAF6EE] border border-[#E5DEC9]" />
+            <span className="font-medium text-[#5C6D66]">Available (Weekend Tinted)</span>
           </div>
         </div>
       </div>
 
       {/* Visual Tape Chart Grid */}
-      <div className="bg-white rounded-3xl shadow-sm border border-sand-200 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border border-[#E5DEC9] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left min-w-[950px]">
             {/* Table Header: Dates (X-axis) */}
             <thead>
-              <tr className="bg-forest-900 text-white border-b border-forest-800">
-                <th className="sticky left-0 z-20 bg-forest-900 px-4 py-3.5 w-64 text-xs font-serif font-bold tracking-wide border-r border-forest-800">
-                  Physical Room & Category
+              <tr className="bg-[#142820] text-white border-b border-[#1E3A2F]">
+                <th className="sticky left-0 z-20 bg-[#142820] px-4 py-3.5 w-64 text-xs font-serif font-bold tracking-wide border-r border-[#1E3A2F]">
+                  Physical Room &amp; Housekeeping
                 </th>
                 {dateColumns.map((d, i) => {
                   const dateKey = formatDateKey(d);
                   const isToday = dateKey === formatDateKey(new Date());
+                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                   return (
                     <th
                       key={i}
-                      className={`px-2.5 py-3 text-center text-xs font-semibold border-r border-forest-800/60 transition-colors ${
-                        isToday ? 'bg-forest-800 text-amber-300 font-bold' : ''
+                      className={`px-2.5 py-3 text-center text-xs font-semibold border-r border-[#1E3A2F]/60 transition-colors ${
+                        isToday
+                          ? 'bg-[#1E3A2F] text-[#C5A059] font-bold'
+                          : isWeekend
+                          ? 'bg-[#172D24] text-amber-200'
+                          : 'bg-[#142820] text-gray-200'
                       }`}
                     >
-                      <div className="text-[10px] uppercase tracking-wider text-sand-300">
-                        {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                      <div className="text-[10px] uppercase tracking-wider text-[#A3B899] flex items-center justify-center space-x-1">
+                        <span>{d.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                        {isWeekend && (
+                          <span className="text-[8px] bg-[#C5A059]/25 text-[#E6C687] px-1 rounded font-bold">
+                            WE
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-mono mt-0.5">
                         {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
                       {isToday && (
-                        <span className="inline-block mt-0.5 px-1.5 py-0.2 bg-amber-400 text-forest-950 text-[9px] font-extrabold rounded-full">
+                        <span className="inline-block mt-0.5 px-1.5 py-0.2 bg-[#C85A32] text-white text-[9px] font-extrabold rounded-full shadow-2xs">
                           TODAY
                         </span>
                       )}
@@ -463,38 +473,58 @@ export default function TapeChart() {
             </thead>
 
             {/* Table Body: 7 Rooms (Y-axis) */}
-            <tbody className="divide-y divide-sand-200">
+            <tbody className="divide-y divide-[#E5DEC9]">
               {filteredRooms.map((room) => {
+                const roomClean = room.currentStatus === 'available';
+                const roomMaintenance = room.currentStatus === 'maintenance';
+                const roomInHouse = room.currentStatus === 'checked_in';
+
                 return (
-                  <tr key={room.id} className="hover:bg-sand-50/50 transition-colors group">
-                    {/* Sticky Room Label */}
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-sand-50/90 px-4 py-3.5 border-r border-sand-200 shadow-xs">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="w-5 h-5 rounded-md bg-forest-100 text-forest-900 text-xs font-mono font-bold flex items-center justify-center">
+                  <tr key={room.id} className="hover:bg-[#FAF8F5]/80 transition-colors group">
+                    {/* Sticky Room Label with Live Housekeeping Dot */}
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-[#FAF8F5] px-4 py-3.5 border-r border-[#E5DEC9] shadow-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center space-x-2.5">
+                          <div className="relative shrink-0">
+                            <span className="w-7 h-7 rounded-lg bg-[#142820] text-[#C5A059] text-xs font-mono font-bold flex items-center justify-center shadow-xs">
                               {room.roomNumber}
                             </span>
-                            <span className="font-serif font-bold text-xs text-forest-950">
+                            {/* Live Housekeeping / Occupancy Dot */}
+                            <span
+                              className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                                roomClean
+                                  ? 'bg-emerald-500'
+                                  : roomMaintenance
+                                  ? 'bg-rose-500 animate-pulse'
+                                  : roomInHouse
+                                  ? 'bg-blue-600'
+                                  : 'bg-amber-400'
+                              }`}
+                              title={`Housekeeping State: ${room.currentStatus.toUpperCase()}`}
+                            />
+                          </div>
+
+                          <div>
+                            <span className="font-serif font-bold text-xs text-[#142820] block leading-tight">
                               {room.name.split(' - ')[1] || room.name}
                             </span>
+                            <span className="text-[10px] text-[#5C6D66] block mt-0.5">
+                              {room.categoryName} • Fl {room.floorLevel}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-forest-600 block mt-0.5">
-                            {room.categoryName} • Fl {room.floorLevel}
-                          </span>
                         </div>
 
                         {/* Room Status Indicator Dropdown */}
                         <select
                           value={room.currentStatus}
                           onChange={(e) => updateRoomStatus(room.id, e.target.value as RoomTapeStatus)}
-                          className="text-[10px] font-bold uppercase rounded-lg border border-sand-300 bg-sand-50 text-forest-800 py-1 px-1.5 focus:ring-1 focus:ring-forest-700"
+                          className="text-[10px] font-bold uppercase rounded-lg border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820] py-1 px-1.5 focus:ring-1 focus:ring-[#142820] shrink-0"
                         >
-                          <option value="available">Available</option>
-                          <option value="checked_in">Checked-In</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="hold">Hold</option>
-                          <option value="maintenance">Maintenance</option>
+                          <option value="available">🟢 Available (Clean)</option>
+                          <option value="checked_in">🔵 In-House</option>
+                          <option value="confirmed">🟡 Confirmed</option>
+                          <option value="hold">🟠 Hold</option>
+                          <option value="maintenance">🔴 Maintenance</option>
                         </select>
                       </div>
                     </td>
@@ -504,12 +534,13 @@ export default function TapeChart() {
                       const dateKey = formatDateKey(d);
                       const booking = getBookingForRoomDate(room.id, dateKey);
                       const isMaintenance = room.currentStatus === 'maintenance';
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
                       if (isMaintenance) {
                         return (
                           <td
                             key={dIdx}
-                            className="px-1 py-1.5 border-r border-sand-200 text-center bg-rose-50/80"
+                            className="px-1 py-1.5 border-r border-[#E5DEC9] text-center bg-rose-50/80"
                           >
                             <div className="h-12 rounded-xl bg-rose-100/90 border border-rose-300 flex flex-col items-center justify-center p-1 text-[10px] text-rose-800">
                               <span className="font-bold">Maintenance</span>
@@ -527,7 +558,7 @@ export default function TapeChart() {
                         return (
                           <td
                             key={dIdx}
-                            className="px-1 py-1.5 border-r border-sand-200"
+                            className="px-1 py-1.5 border-r border-[#E5DEC9]"
                           >
                             <button
                               onClick={() => openGuestDrawer(booking)}
@@ -542,7 +573,7 @@ export default function TapeChart() {
                                   {booking.mealPlan}
                                 </span>
                               </div>
-                              <div className="flex items-center justify-between text-[10px] text-forest-700">
+                              <div className="flex items-center justify-between text-[10px] text-[#142820]">
                                 <span className="text-[9px] opacity-80">
                                   {isStart ? '↳ In' : isEnd ? 'Out ↵' : 'Stay'}
                                 </span>
@@ -555,11 +586,13 @@ export default function TapeChart() {
                         );
                       }
 
-                      // Empty available cell
+                      // Empty available cell with weekend tinting
                       return (
                         <td
                           key={dIdx}
-                          className="px-1 py-1.5 border-r border-sand-200 text-center"
+                          className={`px-1 py-1.5 border-r border-[#E5DEC9] text-center transition-colors ${
+                            isWeekend ? 'bg-[#FAF6EE]/80' : 'bg-white'
+                          }`}
                         >
                           <button
                             type="button"
@@ -568,11 +601,17 @@ export default function TapeChart() {
                               setManualBookingDefaultDate(dateKey);
                               setIsManualBookingModalOpen(true);
                             }}
-                            className="w-full h-12 rounded-xl border border-dashed border-sand-300/90 hover:border-amber-600 hover:bg-amber-50/50 transition-all flex flex-col items-center justify-center cursor-pointer text-[10px] text-forest-600 hover:text-amber-900 group"
-                            title={`Click to manually book Room ${room.roomNumber} on ${dateKey}`}
+                            className={`w-full h-12 rounded-xl border border-dashed text-[11px] transition-all flex flex-col items-center justify-center cursor-pointer group ${
+                              isWeekend
+                                ? 'border-[#E5DEC9] hover:border-[#C85A32] hover:bg-[#FAF8F5] text-[#8C9B90] hover:text-[#C85A32]'
+                                : 'border-[#EBE5DA] hover:border-[#C85A32] hover:bg-[#FAF8F5] text-[#A3B899] hover:text-[#C85A32]'
+                            }`}
+                            title={`Click to book Room ${room.roomNumber} for ${dateKey}`}
                           >
-                            <Plus className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all text-amber-700" />
-                            <span className="text-[9px] font-bold opacity-60 group-hover:opacity-100">Assign</span>
+                            <Plus className="w-3.5 h-3.5 text-transparent group-hover:text-[#C85A32] transition-colors" />
+                            <span className="text-[9px] opacity-80 font-mono group-hover:opacity-100">
+                              {isWeekend ? 'Weekend' : 'Open'}
+                            </span>
                           </button>
                         </td>
                       );

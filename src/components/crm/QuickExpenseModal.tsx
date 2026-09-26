@@ -129,16 +129,16 @@ export default function QuickExpenseModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-forest-900 via-forest-950 to-forest-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-forest-800 shrink-0">
+        <div className="bg-gradient-to-r from-[#142820] via-[#1E3A2F] to-[#142820] text-white p-4 sm:p-5 flex items-center justify-between border-b border-[#1E3A2F] shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] flex items-center justify-center shrink-0 shadow-xs">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-serif font-bold text-base sm:text-lg text-white">
                 Quick Property Expense Logger
               </h3>
-              <p className="text-[11px] text-sand-300">
+              <p className="text-[11px] text-[#A3B899]">
                 1-tap category selection with auto-timestamp &amp; manager attribution
               </p>
             </div>
@@ -154,10 +154,10 @@ export default function QuickExpenseModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-forest-950 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-[#142820] overflow-y-auto flex-1">
           {/* 1. Fast 1-Tap Category Pills */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-forest-800 block mb-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[#142820] block mb-2">
               1. Tap to Select Category Tag *
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -170,12 +170,12 @@ export default function QuickExpenseModal({
                     onClick={() => setSelectedTag(tag)}
                     className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? 'bg-forest-900 text-white border-forest-900 shadow-sm ring-2 ring-amber-400'
-                        : 'bg-sand-50/80 hover:bg-white text-forest-900 border-sand-300'
+                        ? 'bg-[#142820] text-white border-[#142820] shadow-sm ring-2 ring-[#C5A059]'
+                        : 'bg-[#FAF8F5] hover:bg-[#EBE5DA] text-[#142820] border-[#E5DEC9]'
                     }`}
                   >
                     <span className="truncate">{tag.label}</span>
-                    {isSelected && <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 ml-1" />}
+                    {isSelected && <span className="w-2 h-2 rounded-full bg-[#C5A059] shrink-0 ml-1" />}
                   </button>
                 );
               })}
@@ -183,13 +183,13 @@ export default function QuickExpenseModal({
           </div>
 
           {/* 2. Amount Input & Payment Mode */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-50/60 p-4 rounded-2xl border border-amber-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FAF8F5] p-4 rounded-2xl border border-[#E5DEC9]">
             <div>
-              <label className="text-xs font-bold text-amber-950 block mb-1">
+              <label className="text-xs font-bold text-[#142820] block mb-1">
                 Amount Paid (₹) *
               </label>
               <div className="relative">
-                <IndianRupee className="w-4 h-4 text-amber-700 absolute left-3 top-1/2 -translate-y-1/2" />
+                <IndianRupee className="w-4 h-4 text-[#C85A32] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="number"
                   min="1"
@@ -199,20 +199,20 @@ export default function QuickExpenseModal({
                   value={amount}
                   onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : '')}
                   placeholder="e.g. 850"
-                  className="w-full pl-9 pr-3 py-2 text-base font-bold font-mono rounded-xl border border-amber-300 bg-white text-forest-950 focus:ring-2 focus:ring-amber-500"
+                  className="w-full pl-9 pr-3 py-2 text-base font-bold font-mono rounded-xl border border-[#E5DEC9] bg-white text-[#142820] focus:ring-2 focus:ring-[#142820] focus:outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-amber-950 block mb-1 flex items-center space-x-1">
-                <CreditCard className="w-3.5 h-3.5 text-amber-700" />
+              <label className="text-xs font-bold text-[#142820] block mb-1 flex items-center space-x-1">
+                <CreditCard className="w-3.5 h-3.5 text-[#5C6D66]" />
                 <span>Payment Mode</span>
               </label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full text-xs p-2.5 rounded-xl border border-amber-300 bg-white font-medium text-forest-900"
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E5DEC9] bg-white font-medium text-[#142820] focus:ring-2 focus:ring-[#142820] focus:outline-none"
               >
                 <option value="upi">UPI / GPay / PhonePe</option>
                 <option value="cash">Petty Cash</option>
@@ -225,21 +225,21 @@ export default function QuickExpenseModal({
           {/* 3. Auto-Timestamp & Manager Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
-                <Clock className="w-3.5 h-3.5 text-forest-600" />
+              <label className="text-xs font-bold text-[#5C6D66] block mb-1 flex items-center space-x-1">
+                <Clock className="w-3.5 h-3.5 text-[#5C6D66]" />
                 <span>Auto-Timestamp</span>
               </label>
               <input
                 type="text"
                 disabled
                 value={timestamp}
-                className="w-full text-xs p-2.5 rounded-xl border border-sand-200 bg-sand-100/70 font-mono text-forest-700 cursor-not-allowed"
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E5DEC9] bg-[#FAF8F5] font-mono text-[#5C6D66] cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-forest-800 block mb-1 flex items-center space-x-1">
-                <User className="w-3.5 h-3.5 text-forest-600" />
+              <label className="text-xs font-bold text-[#142820] block mb-1 flex items-center space-x-1">
+                <User className="w-3.5 h-3.5 text-[#5C6D66]" />
                 <span>Manager / Paid By *</span>
               </label>
               <input
@@ -248,17 +248,17 @@ export default function QuickExpenseModal({
                 value={managerName}
                 onChange={(e) => setManagerName(e.target.value)}
                 placeholder="Manager Name"
-                className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-medium text-forest-900"
+                className="w-full text-xs p-2.5 rounded-xl border border-[#E5DEC9] bg-white font-medium text-[#142820] focus:ring-2 focus:ring-[#142820] focus:outline-none"
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="pt-3 border-t border-sand-200 flex items-center justify-between">
+          <div className="pt-3 border-t border-[#E5DEC9] flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-forest-600 hover:bg-sand-100 rounded-xl cursor-pointer"
+              className="px-4 py-2 text-xs font-bold text-[#5C6D66] hover:bg-[#FAF8F5] rounded-xl cursor-pointer"
             >
               Cancel
             </button>
@@ -266,7 +266,7 @@ export default function QuickExpenseModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+              className="px-6 py-2.5 bg-[#C85A32] hover:bg-[#B34D28] disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isSubmitting ? 'Logging...' : 'Save & Log Expense'}</span>

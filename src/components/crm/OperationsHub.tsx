@@ -94,32 +94,32 @@ export default function OperationsHub() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="font-serif font-bold text-xl text-forest-950 flex items-center space-x-2">
-              <span>The Operations Hub</span>
-              <span className="text-xs bg-amber-100 text-amber-900 border border-amber-300 font-mono px-2.5 py-0.5 rounded-full font-bold">
+            <h2 className="font-serif font-bold text-xl text-[#142820] flex items-center space-x-2">
+              <span>The Operations &amp; Turnovers Hub</span>
+              <span className="text-xs bg-[#C5A059]/20 text-[#8C6B1F] border border-[#C5A059]/40 font-mono px-2.5 py-0.5 rounded-full font-bold">
                 Today ({todayDateStr})
               </span>
             </h2>
-            <p className="text-xs text-forest-700">
+            <p className="text-xs text-[#5C6D66]">
               Real-time front desk tallies, housekeeping turnovers, and dispatch management.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Check-Ins */}
-          <div className="bg-white rounded-3xl p-5 border border-sand-200 shadow-xs flex items-center justify-between">
+          <div className="bg-white rounded-3xl p-5 border border-[#E5DEC9] shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-700 block">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-800 block">
                 Today&apos;s Arrivals
               </span>
               <div className="flex items-baseline space-x-2 mt-1">
-                <span className="text-3xl font-serif font-bold text-forest-950">
+                <span className="text-3xl font-serif font-bold text-[#142820]">
                   {todayCheckIns.length}
                 </span>
-                <span className="text-xs text-forest-600">Parties</span>
+                <span className="text-xs text-[#5C6D66]">Parties</span>
               </div>
-              <p className="text-[11px] text-forest-600 mt-1">
+              <p className="text-[11px] text-[#5C6D66] mt-1">
                 {todayCheckIns.filter((b) => b.tapeStatus === 'checked_in').length} of {todayCheckIns.length} Arrived
               </p>
             </div>
@@ -129,19 +129,19 @@ export default function OperationsHub() {
           </div>
 
           {/* Card 2: Check-Outs */}
-          <div className="bg-white rounded-3xl p-5 border border-sand-200 shadow-xs flex items-center justify-between">
+          <div className="bg-white rounded-3xl p-5 border border-[#E5DEC9] shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-[11px] uppercase tracking-wider font-bold text-rose-700 block">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-rose-800 block">
                 Today&apos;s Departures
               </span>
               <div className="flex items-baseline space-x-2 mt-1">
-                <span className="text-3xl font-serif font-bold text-forest-950">
+                <span className="text-3xl font-serif font-bold text-[#142820]">
                   {todayCheckOuts.length}
                 </span>
-                <span className="text-xs text-forest-600">Rooms</span>
+                <span className="text-xs text-[#5C6D66]">Rooms</span>
               </div>
-              <p className="text-[11px] text-forest-600 mt-1">
-                {todayCheckOuts.filter((b) => b.tapeStatus === 'available').length} Cleared & Billed
+              <p className="text-[11px] text-[#5C6D66] mt-1">
+                {todayCheckOuts.filter((b) => b.tapeStatus === 'available').length} Cleared &amp; Billed
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-700 flex items-center justify-center">
@@ -150,54 +150,75 @@ export default function OperationsHub() {
           </div>
 
           {/* Card 3: In-House Stay-Overs */}
-          <div className="bg-white rounded-3xl p-5 border border-sand-200 shadow-xs flex items-center justify-between">
+          <div className="bg-white rounded-3xl p-5 border border-[#E5DEC9] shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-[11px] uppercase tracking-wider font-bold text-blue-700 block">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-[#142820] block">
                 In-House Stay-Overs
               </span>
               <div className="flex items-baseline space-x-2 mt-1">
-                <span className="text-3xl font-serif font-bold text-forest-950">
+                <span className="text-3xl font-serif font-bold text-[#142820]">
                   {todayStayOvers.length}
                 </span>
-                <span className="text-xs text-forest-600">Active Suites</span>
+                <span className="text-xs text-[#5C6D66]">Active Suites</span>
               </div>
-              <p className="text-[11px] text-forest-600 mt-1">
+              <p className="text-[11px] text-[#5C6D66] mt-1">
                 Digital Concierge Active
               </p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#1E3A2F]/10 text-[#142820] flex items-center justify-center">
               <BedDouble className="w-6 h-6" />
+            </div>
+          </div>
+
+          {/* Card 4: Housekeeping Turnovers */}
+          <div className="bg-white rounded-3xl p-5 border border-[#E5DEC9] shadow-xs flex items-center justify-between">
+            <div>
+              <span className="text-[11px] uppercase tracking-wider font-bold text-[#C85A32] block">
+                Turnovers In Prep
+              </span>
+              <div className="flex items-baseline space-x-2 mt-1">
+                <span className="text-3xl font-serif font-bold text-[#142820]">
+                  {pendingHousekeepingCount}
+                </span>
+                <span className="text-xs text-[#5C6D66]">Rooms</span>
+              </div>
+              <p className="text-[11px] text-[#5C6D66] mt-1">
+                {housekeepingTasks.filter((t) => t.status === 'completed').length} Clean &amp; Ready
+              </p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-[#C85A32]/10 text-[#C85A32] flex items-center justify-center">
+              <Sparkles className="w-6 h-6" />
             </div>
           </div>
         </div>
 
         {/* Front Desk Live Arrivals Queue */}
-        <div className="mt-4 bg-white rounded-3xl p-5 border border-sand-200 shadow-xs">
-          <h3 className="font-serif font-bold text-sm text-forest-950 mb-3 flex items-center space-x-2">
-            <Users className="w-4 h-4 text-forest-700" />
+        <div className="mt-4 bg-white rounded-3xl p-5 border border-[#E5DEC9] shadow-xs">
+          <h3 className="font-serif font-bold text-sm text-[#142820] mb-3 flex items-center space-x-2">
+            <Users className="w-4 h-4 text-[#142820]" />
             <span>Today&apos;s Active Guest Roster</span>
           </h3>
 
-          <div className="divide-y divide-sand-100">
+          <div className="divide-y divide-[#E5DEC9]">
             {bookings.slice(0, 4).map((bk) => (
               <div key={bk.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-xl bg-sand-100 text-forest-900 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#FAF8F5] border border-[#E5DEC9] text-[#142820] font-mono font-bold text-xs flex items-center justify-center shrink-0">
                     R{bk.roomNumber}
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-forest-950">
+                      <span className="text-xs font-bold text-[#142820]">
                         {bk.guest.fullName}
                       </span>
-                      <span className="text-[10px] bg-sand-200/80 text-forest-800 px-2 py-0.5 rounded-full font-mono">
+                      <span className="text-[10px] bg-[#C5A059]/20 text-[#8C6B1F] border border-[#C5A059]/40 px-2 py-0.5 rounded-full font-mono font-bold">
                         Plan: {bk.mealPlan}
                       </span>
-                      <span className="text-[10px] text-forest-600 hidden sm:inline">
+                      <span className="text-[10px] text-[#5C6D66] hidden sm:inline">
                         • {bk.roomName}
                       </span>
                     </div>
-                    <p className="text-[11px] text-forest-600">
+                    <p className="text-[11px] text-[#5C6D66]">
                       Stay: {bk.checkInDate} → {bk.checkOutDate} ({bk.totalNights} nights)
                     </p>
                   </div>
@@ -207,17 +228,17 @@ export default function OperationsHub() {
                   {bk.tapeStatus !== 'checked_in' ? (
                     <button
                       onClick={() => checkInRoom(bk.id)}
-                      className="min-h-[44px] px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1"
+                      className="min-h-[44px] px-3.5 py-1.5 bg-[#142820] hover:bg-[#1E3A2F] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1"
                     >
-                      <LogIn className="w-3.5 h-3.5" />
+                      <LogIn className="w-3.5 h-3.5 text-[#C5A059]" />
                       <span>Check-In</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => checkOutRoom(bk.id)}
-                      className="min-h-[44px] px-3.5 py-1.5 bg-sand-100 hover:bg-sand-200 text-forest-900 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1"
+                      className="min-h-[44px] px-3.5 py-1.5 bg-[#FAF8F5] hover:bg-[#EBE5DA] border border-[#E5DEC9] text-[#142820] text-xs font-bold rounded-xl transition-colors flex items-center space-x-1"
                     >
-                      <LogOut className="w-3.5 h-3.5 text-forest-700" />
+                      <LogOut className="w-3.5 h-3.5 text-[#C85A32]" />
                       <span>Check-Out</span>
                     </button>
                   )}
@@ -229,20 +250,20 @@ export default function OperationsHub() {
       </div>
 
       {/* SECTION 2: Housekeeping Turnover & Interactive Checklists */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-sand-200 shadow-xs">
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E5DEC9] shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <div className="flex items-center space-x-2">
-              <Sparkles className="w-5 h-5 text-amber-600" />
-              <h3 className="font-serif font-bold text-lg text-forest-950">
-                Housekeeping Turnovers & Room Status
+              <Sparkles className="w-5 h-5 text-[#C85A32]" />
+              <h3 className="font-serif font-bold text-lg text-[#142820]">
+                Housekeeping Turnovers &amp; Sanitization Checklists
               </h3>
             </div>
-            <p className="text-xs text-forest-700 mt-0.5">
-              Turnover schedule: Deep Clean vs. Light Refresh with interactive sanitization checklist.
+            <p className="text-xs text-[#5C6D66] mt-0.5">
+              Turnover schedule: Deep Clean vs. Light Refresh with 48px touch-friendly sanitization checklists.
             </p>
           </div>
-          <span className="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-900 rounded-full border border-amber-200 self-start sm:self-auto">
+          <span className="text-xs font-bold px-3 py-1 bg-[#C5A059]/20 text-[#8C6B1F] border border-[#C5A059]/40 rounded-full self-start sm:self-auto">
             {pendingHousekeepingCount} Turnovers in Progress
           </span>
         </div>
@@ -300,38 +321,46 @@ export default function OperationsHub() {
                 </div>
 
                 {/* Interactive Checklist */}
-                <div className="space-y-2 bg-sand-100/50 p-3.5 rounded-xl border border-sand-200 text-xs">
-                  <span className="text-[10px] uppercase font-bold text-forest-600 block mb-1">
-                    Room Prep Checklist:
+                <div className="space-y-2 bg-[#FAF8F5] p-3.5 rounded-2xl border border-[#E5DEC9] text-xs">
+                  <span className="text-[10px] uppercase font-bold text-[#5C6D66] block mb-1">
+                    Room Sanitization &amp; Prep Checklist:
                   </span>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* Linens */}
                     <button
                       onClick={() => toggleHousekeepingCheck(task.id, 'linens_changed')}
-                      className="min-h-[44px] flex items-center space-x-2 text-left p-1.5 rounded-lg hover:bg-white transition-colors"
+                      className={`min-h-[48px] flex items-center space-x-2.5 text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                        task.checklist.linens_changed
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                          : 'bg-white border-[#E5DEC9] text-[#142820] hover:bg-[#FAF8F5]'
+                      }`}
                     >
                       {task.checklist.linens_changed ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <CheckSquare className="w-5 h-5 text-emerald-600 shrink-0" />
                       ) : (
-                        <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Square className="w-5 h-5 text-gray-400 shrink-0" />
                       )}
-                      <span className={task.checklist.linens_changed ? 'line-through text-gray-500' : 'text-forest-900 font-medium'}>
-                        Fresh Linens & Duvet
+                      <span className={task.checklist.linens_changed ? 'line-through opacity-75' : ''}>
+                        Fresh Linens &amp; Duvet
                       </span>
                     </button>
 
                     {/* Toiletries */}
                     <button
                       onClick={() => toggleHousekeepingCheck(task.id, 'toiletries_restocked')}
-                      className="min-h-[44px] flex items-center space-x-2 text-left p-1.5 rounded-lg hover:bg-white transition-colors"
+                      className={`min-h-[48px] flex items-center space-x-2.5 text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                        task.checklist.toiletries_restocked
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                          : 'bg-white border-[#E5DEC9] text-[#142820] hover:bg-[#FAF8F5]'
+                      }`}
                     >
                       {task.checklist.toiletries_restocked ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <CheckSquare className="w-5 h-5 text-emerald-600 shrink-0" />
                       ) : (
-                        <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Square className="w-5 h-5 text-gray-400 shrink-0" />
                       )}
-                      <span className={task.checklist.toiletries_restocked ? 'line-through text-gray-500' : 'text-forest-900 font-medium'}>
+                      <span className={task.checklist.toiletries_restocked ? 'line-through opacity-75' : ''}>
                         Organic Toiletries
                       </span>
                     </button>
@@ -339,30 +368,38 @@ export default function OperationsHub() {
                     {/* Fireplace */}
                     <button
                       onClick={() => toggleHousekeepingCheck(task.id, 'fireplace_prepped')}
-                      className="min-h-[44px] flex items-center space-x-2 text-left p-1.5 rounded-lg hover:bg-white transition-colors"
+                      className={`min-h-[48px] flex items-center space-x-2.5 text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                        task.checklist.fireplace_prepped
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                          : 'bg-white border-[#E5DEC9] text-[#142820] hover:bg-[#FAF8F5]'
+                      }`}
                     >
                       {task.checklist.fireplace_prepped ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <CheckSquare className="w-5 h-5 text-emerald-600 shrink-0" />
                       ) : (
-                        <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Square className="w-5 h-5 text-gray-400 shrink-0" />
                       )}
-                      <span className={task.checklist.fireplace_prepped ? 'line-through text-gray-500' : 'text-forest-900 font-medium'}>
-                        Firewood & Kindle
+                      <span className={task.checklist.fireplace_prepped ? 'line-through opacity-75' : ''}>
+                        Firewood &amp; Kindle
                       </span>
                     </button>
 
                     {/* Balcony */}
                     <button
                       onClick={() => toggleHousekeepingCheck(task.id, 'balcony_cleaned')}
-                      className="min-h-[44px] flex items-center space-x-2 text-left p-1.5 rounded-lg hover:bg-white transition-colors"
+                      className={`min-h-[48px] flex items-center space-x-2.5 text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                        task.checklist.balcony_cleaned
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                          : 'bg-white border-[#E5DEC9] text-[#142820] hover:bg-[#FAF8F5]'
+                      }`}
                     >
                       {task.checklist.balcony_cleaned ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <CheckSquare className="w-5 h-5 text-emerald-600 shrink-0" />
                       ) : (
-                        <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Square className="w-5 h-5 text-gray-400 shrink-0" />
                       )}
-                      <span className={task.checklist.balcony_cleaned ? 'line-through text-gray-500' : 'text-forest-900 font-medium'}>
-                        Balcony Swept
+                      <span className={task.checklist.balcony_cleaned ? 'line-through opacity-75' : ''}>
+                        Balcony Swept &amp; Seating
                       </span>
                     </button>
                   </div>

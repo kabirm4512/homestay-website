@@ -203,23 +203,23 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-sand-300 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-[#E5DEC9] overflow-hidden my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Header */}
-        <div className="bg-gradient-to-r from-[#0B1733] via-[#12234D] to-[#25479E] text-white p-4 sm:p-5 flex items-center justify-between border-b border-primary-900 shrink-0">
+        <div className="bg-gradient-to-r from-[#142820] via-[#1E3A2F] to-[#142820] text-white p-4 sm:p-5 flex items-center justify-between border-b border-[#1E3A2F] shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-forest-950 flex items-center justify-center font-bold shadow-xs shrink-0">
-              <Receipt className="w-5 h-5 text-forest-950" />
+            <div className="w-10 h-10 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] flex items-center justify-center font-bold shadow-xs shrink-0">
+              <Receipt className="w-5 h-5 text-[#C5A059]" />
             </div>
             <div>
               <h3 className="font-serif font-bold text-base sm:text-lg text-white flex items-center space-x-2">
                 <span>Guest Checkout &amp; Dues Settlement</span>
-                <span className="text-xs font-sans font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                <span className="text-xs font-sans font-bold px-2 py-0.5 rounded-full bg-[#C5A059]/20 text-[#C5A059] border border-[#C5A059]/30">
                   Room {booking.roomNumber}
                 </span>
               </h3>
-              <p className="text-[11px] sm:text-xs text-sand-300">
+              <p className="text-[11px] sm:text-xs text-[#A3B899]">
                 Review all stay bills, verify dues &amp; log collection to Manager profile
               </p>
             </div>
@@ -235,29 +235,29 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-forest-950">
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-[#142820]">
           {/* Guest Stay Brief */}
-          <div className="bg-sand-50/80 p-4 rounded-2xl border border-sand-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-[#FAF8F5] p-4 rounded-2xl border border-[#E5DEC9] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div>
-              <span className="text-[10px] text-forest-600 uppercase font-bold block">Guest Name</span>
-              <span className="font-bold text-forest-950 text-sm">{booking.guest.fullName}</span>
-              <span className="text-[11px] text-forest-600 block">{booking.guest.phone}</span>
+              <span className="text-[10px] text-[#5C6D66] uppercase font-bold block">Guest Name</span>
+              <span className="font-bold text-[#142820] text-sm">{booking.guest.fullName}</span>
+              <span className="text-[11px] text-[#5C6D66] block">{booking.guest.phone}</span>
             </div>
             <div>
-              <span className="text-[10px] text-forest-600 uppercase font-bold block">Room &amp; Plan</span>
-              <span className="font-bold text-forest-950">Room {booking.roomNumber}</span>
-              <span className="text-[11px] text-forest-600 block">{booking.mealPlan} Plan</span>
+              <span className="text-[10px] text-[#5C6D66] uppercase font-bold block">Room &amp; Plan</span>
+              <span className="font-bold text-[#142820]">Room {booking.roomNumber}</span>
+              <span className="text-[11px] text-[#5C6D66] block">{booking.mealPlan} Plan</span>
             </div>
             <div>
-              <span className="text-[10px] text-forest-600 uppercase font-bold block">Dates of Stay</span>
-              <span className="font-bold text-forest-950">
+              <span className="text-[10px] text-[#5C6D66] uppercase font-bold block">Dates of Stay</span>
+              <span className="font-bold text-[#142820]">
                 {booking.checkInDate} → {booking.checkOutDate}
               </span>
-              <span className="text-[11px] text-forest-600 block">{booking.totalNights} Nights</span>
+              <span className="text-[11px] text-[#5C6D66] block">{booking.totalNights} Nights</span>
             </div>
             <div>
-              <span className="text-[10px] text-forest-600 uppercase font-bold block">Folio Reference</span>
-              <span className="font-mono font-bold text-forest-950">
+              <span className="text-[10px] text-[#5C6D66] uppercase font-bold block">Folio Reference</span>
+              <span className="font-mono font-bold text-[#142820]">
                 {folio?.folioNumber || `FOL-${booking.roomNumber}`}
               </span>
               <span
@@ -622,20 +622,173 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
               <div className="flex items-center justify-center space-x-3 pt-2">
                 <button
                   onClick={handlePrintFolio}
-                  className="px-4 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-900 font-bold text-xs flex items-center space-x-1.5 shadow-2xs hover:bg-emerald-50 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-white border border-[#E5DEC9] text-[#142820] font-bold text-xs flex items-center space-x-1.5 shadow-2xs hover:bg-[#FAF8F5] cursor-pointer"
                 >
-                  <Printer className="w-4 h-4 text-emerald-700" />
+                  <Printer className="w-4 h-4 text-[#C5A059]" />
                   <span>Print Final Invoice</span>
                 </button>
                 <button
                   onClick={onClose}
-                  className="px-5 py-2 rounded-xl bg-emerald-700 text-white font-bold text-xs shadow hover:bg-emerald-600 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#142820] text-white font-bold text-xs shadow hover:bg-[#1E3A2F] cursor-pointer"
                 >
                   Done &amp; Close
                 </button>
               </div>
             </div>
           )}
+
+          {/* Official Printable Luxury Homestay Tax Invoice (Formatted for A4 / Letter Print) */}
+          <div id="savera-printable-invoice" className="hidden print:block p-8 bg-white text-black font-sans">
+            {/* Letterhead */}
+            <div className="border-b-2 border-[#142820] pb-4 mb-6 flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-[#142820] uppercase font-serif">
+                  Savera Boutique Homestay
+                </h1>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  Lava - Rishyap Hilltop Ridge, Kalimpong District, West Bengal - 734319
+                </p>
+                <p className="text-xs text-gray-600">
+                  GSTIN: 19AAAFS8821Q1Z8 • Phone: +91 98320 44556 • reservations@saverahomestay.in
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">
+                  Official Guest Tax Invoice
+                </span>
+                <span className="text-base font-mono font-bold block text-[#142820]">
+                  {folio?.folioNumber || `INV-${booking.bookingReference}`}
+                </span>
+                <span className="text-xs text-gray-600">
+                  Date: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+
+            {/* Guest & Stay Meta Grid */}
+            <div className="grid grid-cols-2 gap-4 pb-4 mb-6 border-b border-gray-200 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-500 block">Billed To:</span>
+                <span className="font-bold text-sm block">{booking.guest.fullName}</span>
+                <span>Contact: {booking.guest.phone}</span>
+                {booking.guest.city && <span className="block">Location: {booking.guest.city}</span>}
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-gray-500 block">Reservation Details:</span>
+                <span className="font-semibold block">Room {booking.roomNumber} ({booking.roomName})</span>
+                <span>Stay: {booking.checkInDate} to {booking.checkOutDate} ({booking.totalNights} Nights)</span>
+                <span className="block">Meal Plan: {booking.mealPlan}</span>
+              </div>
+            </div>
+
+            {/* Itemized Table */}
+            <table className="w-full text-left text-xs mb-6 border-collapse">
+              <thead>
+                <tr className="border-b-2 border-gray-300 text-gray-700">
+                  <th className="py-2 font-bold uppercase text-[10px]">Description</th>
+                  <th className="py-2 font-bold uppercase text-[10px]">Category</th>
+                  <th className="py-2 text-right font-bold uppercase text-[10px]">Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                <tr>
+                  <td className="py-2.5">
+                    Room Stay ({booking.totalNights} nights @ ₹{booking.roomRatePerNight.toLocaleString('en-IN')})
+                  </td>
+                  <td className="py-2.5 text-gray-600">Room Accommodation</td>
+                  <td className="py-2.5 text-right font-mono font-semibold">
+                    ₹{(booking.totalNights * booking.roomRatePerNight).toLocaleString('en-IN')}
+                  </td>
+                </tr>
+                {(booking.totalExtraCharges || 0) > 0 && (
+                  <tr>
+                    <td className="py-2.5">Extra Guest &amp; Rollaway Charges</td>
+                    <td className="py-2.5 text-gray-600">Extra Occupancy</td>
+                    <td className="py-2.5 text-right font-mono font-semibold">
+                      ₹{booking.totalExtraCharges?.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                )}
+                {relatedFoodOrders.map((ord) => (
+                  <tr key={ord.id}>
+                    <td className="py-2.5">
+                      F&amp;B Order #{ord.orderNumber}: {ord.items?.map((i) => `${i.quantity}x ${i.itemName || (i as any).name}`).join(', ')}
+                    </td>
+                    <td className="py-2.5 text-gray-600">Dining &amp; Beverages</td>
+                    <td className="py-2.5 text-right font-mono font-semibold">
+                      ₹{ord.totalAmount.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                ))}
+                {billBreakdown.specialCharges.map((chg, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2.5">{chg.title}</td>
+                    <td className="py-2.5 text-gray-600">Experiences &amp; Add-ons</td>
+                    <td className="py-2.5 text-right font-mono font-semibold">₹{chg.amount.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+                {relatedDispatches.map((disp) => (
+                  <tr key={disp.id}>
+                    <td className="py-2.5">
+                      {disp.serviceType === 'point_to_point' ? 'Transfer' : 'Rental'}: {disp.routeTitle || disp.rentalVehicleName}
+                    </td>
+                    <td className="py-2.5 text-gray-600">Transport &amp; Transfers</td>
+                    <td className="py-2.5 text-right font-mono font-semibold">₹{disp.quotedPrice.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Tax & Reconciliation Summary */}
+            <div className="border-t-2 border-gray-300 pt-4 flex justify-end">
+              <div className="w-64 space-y-1.5 text-xs">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal:</span>
+                  <span className="font-mono">
+                    ₹{((folio?.totalRoomCharges || 0) + (folio?.totalFbCharges || 0) + (folio?.totalAddonCharges || 0)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>CGST (2.5%):</span>
+                  <span className="font-mono">₹{Math.round((folio?.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>SGST (2.5%):</span>
+                  <span className="font-mono">₹{Math.round((folio?.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between font-bold text-sm text-[#142820] pt-1 border-t border-gray-200">
+                  <span>Grand Total:</span>
+                  <span className="font-mono">₹{(folio?.netPayable || booking.totalRoomAmount).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800 font-semibold">
+                  <span>Advance Received:</span>
+                  <span className="font-mono">- ₹{(folio?.totalPaid || booking.advancePaid || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-gray-800 font-semibold">
+                  <span>Departure Settlement:</span>
+                  <span className="font-mono">₹{collectionAmount.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between font-bold text-sm text-emerald-900 bg-emerald-50 p-2 rounded border border-emerald-200">
+                  <span>Balance Due:</span>
+                  <span className="font-mono">₹0.00 (Fully Settled)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Signatures & Seal */}
+            <div className="mt-12 pt-6 border-t border-gray-300 flex justify-between items-end text-xs text-gray-600">
+              <div className="text-center w-48">
+                <div className="h-10 border-b border-gray-400 mb-1" />
+                <span>Guest Signature</span>
+              </div>
+              <div className="text-center w-56">
+                <div className="h-10 border-b border-gray-400 mb-1 flex items-end justify-center pb-1 font-mono text-[10px] text-gray-700">
+                  {activeManager.fullName} (Duty Manager)
+                </div>
+                <span>Authorized Signatory &amp; Stamp</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

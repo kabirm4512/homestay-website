@@ -141,17 +141,17 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
   return (
     <div className="space-y-6">
       {/* Top Banner & KPI Stat Summary */}
-      <div className="bg-gradient-to-r from-[#0B1733] via-[#12234D] to-[#25479E] text-white rounded-3xl p-6 shadow-md border border-[#1E2D4A]">
+      <div className="bg-gradient-to-r from-[#142820] via-[#1E3A2F] to-[#142820] text-white rounded-3xl p-6 shadow-md border border-[#1E3A2F]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-forest-950 flex items-center justify-center font-bold shadow-xs shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] flex items-center justify-center font-bold shadow-xs shrink-0">
               <CalendarDays className="w-7 h-7" />
             </div>
             <div>
               <h2 className="font-serif font-bold text-xl text-white">
                 Master Bookings &amp; Stays Roster
               </h2>
-              <p className="text-xs text-sand-300">
+              <p className="text-xs text-[#A3B899]">
                 Detailed audit list with check-in/out dates, advance paid, due balance, food bills, transfers &amp; celebrations.
               </p>
             </div>
@@ -160,7 +160,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
           {onOpenManualBooking && (
             <button
               onClick={onOpenManualBooking}
-              className="px-4 py-2 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 self-start md:self-auto cursor-pointer"
+              className="px-4 py-2 bg-[#C85A32] hover:bg-[#B34D28] text-white font-bold text-xs rounded-xl shadow-[0_2px_8px_rgba(200,90,50,0.3)] transition-all flex items-center space-x-1.5 self-start md:self-auto cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>+ Manual Booking</span>
@@ -171,25 +171,25 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
         {/* 4 Summary Pill Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
-            <span className="text-[10px] uppercase font-bold text-sand-300 block">Total Stays</span>
+            <span className="text-[10px] uppercase font-bold text-[#A3B899] block">Total Stays</span>
             <span className="text-2xl font-serif font-bold text-white block mt-0.5">{bookings.length}</span>
             <span className="text-[11px] text-emerald-300 font-medium">All Reservations</span>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
-            <span className="text-[10px] uppercase font-bold text-sand-300 block">Currently In-House</span>
-            <span className="text-2xl font-serif font-bold text-amber-300 block mt-0.5">{stats.inHouse}</span>
+            <span className="text-[10px] uppercase font-bold text-[#A3B899] block">Currently In-House</span>
+            <span className="text-2xl font-serif font-bold text-[#C5A059] block mt-0.5">{stats.inHouse}</span>
             <span className="text-[11px] text-sand-300 font-medium">Active Room Keys</span>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
-            <span className="text-[10px] uppercase font-bold text-sand-300 block">Arriving Today</span>
-            <span className="text-2xl font-serif font-bold text-sky-300 block mt-0.5">{stats.arriving}</span>
+            <span className="text-[10px] uppercase font-bold text-[#A3B899] block">Arriving Today</span>
+            <span className="text-2xl font-serif font-bold text-amber-300 block mt-0.5">{stats.arriving}</span>
             <span className="text-[11px] text-sand-300 font-medium">Expected Check-Ins</span>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
-            <span className="text-[10px] uppercase font-bold text-sand-300 block">Outstanding Dues</span>
+            <span className="text-[10px] uppercase font-bold text-[#A3B899] block">Outstanding Dues</span>
             <span className="text-2xl font-serif font-bold text-rose-300 block mt-0.5">
               ₹{stats.totalDuesAmount.toLocaleString('en-IN')}
             </span>
@@ -199,16 +199,16 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-sand-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-2xl border border-[#E5DEC9] shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search Input */}
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-forest-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#8C9B90] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search by guest name, phone, room # or booking reference..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs border border-sand-300 rounded-xl focus:ring-2 focus:ring-[#25479E] focus:outline-none bg-sand-50/50"
+            className="w-full pl-9 pr-4 py-2 text-xs border border-[#E5DEC9] rounded-xl focus:ring-2 focus:ring-[#142820] focus:outline-none bg-[#FAF8F5]"
           />
         </div>
 
@@ -218,8 +218,8 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'all'
-                ? 'bg-forest-900 text-sand-100 shadow-xs'
-                : 'bg-sand-100 text-forest-700 hover:bg-sand-200'
+                ? 'bg-[#142820] text-white shadow-xs'
+                : 'bg-[#FAF8F5] text-[#5C6D66] border border-[#E5DEC9] hover:bg-[#EBE5DA]'
             }`}
           >
             All Bookings ({bookings.length})
@@ -229,8 +229,8 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
             onClick={() => setStatusFilter('in_house')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'in_house'
-                ? 'bg-[#25479E] text-white shadow-xs'
-                : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                ? 'bg-[#1E3A2F] text-[#C5A059] border border-[#C5A059]/40 shadow-xs'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
             }`}
           >
             In-House ({stats.inHouse})
@@ -241,7 +241,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'arriving'
                 ? 'bg-amber-500 text-forest-950 shadow-xs'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
             }`}
           >
             Arriving Today ({stats.arriving})
@@ -252,7 +252,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'dues'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
             }`}
           >
             Pending Dues ({stats.withDues})
@@ -263,7 +263,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               statusFilter === 'checked_out'
                 ? 'bg-emerald-700 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                : 'bg-sand-100 text-[#5C6D66] border border-[#E5DEC9] hover:bg-[#EBE5DA]'
             }`}
           >
             Checked-Out ({stats.checkedOut})
