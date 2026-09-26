@@ -137,9 +137,11 @@ export default function BookingModal({
       if (initialMealPlan) {
         setMealPlan(initialMealPlan);
       }
-      if (initialDates) {
-        if (initialDates.checkIn) setCheckIn(initialDates.checkIn);
-        if (initialDates.checkOut) setCheckOut(initialDates.checkOut);
+      if (initialDates && initialDates.checkIn) {
+        const effIn = initialDates.checkIn;
+        const effOut = (!initialDates.checkOut || initialDates.checkOut <= effIn) ? getNextDayStr(effIn) : initialDates.checkOut;
+        setCheckIn(effIn);
+        setCheckOut(effOut);
       } else {
         const today = getTodayStr();
         setCheckIn(today);

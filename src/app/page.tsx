@@ -178,6 +178,12 @@ export default function HomePage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  const [stayDates, setStayDates] = useState<{ checkIn: string; checkOut: string }>(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    return { checkIn: today, checkOut: tomorrow };
+  });
+
   const handleOpenGeneralInquiry = (initialDates?: { checkIn: string; checkOut: string; guests: number }) => {
     setSelectedInquiryRoom(null);
     if (initialDates) {
@@ -186,8 +192,11 @@ export default function HomePage() {
     setInquiryModalOpen(true);
   };
 
-  const handleEnquireRoom = (room: Room) => {
+  const handleEnquireRoom = (room: Room, dates?: { checkIn: string; checkOut: string }) => {
     setSelectedInquiryRoom(room);
+    if (dates) {
+      setSearchDates({ checkIn: dates.checkIn, checkOut: dates.checkOut, guests: 2 });
+    }
     setInquiryModalOpen(true);
   };
 
@@ -200,6 +209,7 @@ export default function HomePage() {
     setSelectedBookingRoom(room);
     if (dates) {
       setBookingDates(dates);
+      setStayDates(dates);
     }
     if (mealPlan) {
       setBookingMealPlan(mealPlan);
@@ -217,9 +227,11 @@ export default function HomePage() {
     roomsConfig?: RoomConfig[];
     step?: 'form' | 'results';
   }) => {
+    const effIn = params?.checkIn || stayDates.checkIn;
+    const effOut = params?.checkOut || stayDates.checkOut;
     setAvailabilityDates({
-      checkIn: params?.checkIn,
-      checkOut: params?.checkOut,
+      checkIn: effIn,
+      checkOut: effOut,
       roomsCount: params?.roomsCount,
       roomsConfig: params?.roomsConfig,
       initialStep: params?.step || (params?.checkIn ? 'results' : 'form'),
@@ -246,25 +258,28 @@ export default function HomePage() {
         rooms={rooms}
         onOpenInquiry={handleOpenGeneralInquiry}
         onBookRoom={handleBookRoom}
-        onCheckAvailability={(dates) =>
+        onCheckAvailability={(dates) => {
+          setStayDates({ checkIn: dates.checkIn, checkOut: dates.checkOut });
           handleOpenAvailability({
             checkIn: dates.checkIn,
             checkOut: dates.checkOut,
             roomsCount: dates.roomsCount,
             roomsConfig: dates.roomsConfig,
             step: 'results',
-          })
-        }
+          });
+        }}
       />
 
       {/* 3. About Section */}
       <AboutSection data={aboutData} />
 
-      {/* 4. Rooms & Rates Grid */}
+      {/* 4. Rooms & Rates Grid with Live Dynamic Pricing */}
       <RoomsSection
         rooms={rooms}
         onBookRoom={handleBookRoom}
         onEnquireRoom={handleEnquireRoom}
+        initialDates={stayDates}
+        onDatesChange={setStayDates}
       />
 
       {/* 5. Himalayan Travel, Transfers & Bike Rentals (Upsell & Seasonal Tariffs) */}

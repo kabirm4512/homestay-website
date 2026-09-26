@@ -152,6 +152,18 @@ export default function DateRangePicker({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Enforce invariant: checkOut must be strictly after checkIn
+  useEffect(() => {
+    if (checkIn && (!checkOut || checkOut <= checkIn)) {
+      const validOut = addDays(checkIn, 1);
+      onChange({
+        checkIn,
+        checkOut: validOut,
+        nights: 1,
+      });
+    }
+  }, [checkIn, checkOut, onChange]);
+
   // Sync internal month when checkIn changes externally
   useEffect(() => {
     if (checkIn) {
@@ -246,7 +258,7 @@ export default function DateRangePicker({
           }, 200);
         }
       } else {
-        // User clicked an earlier date while picking check-out -> adjust check-in
+        // User clicked an earlier date or same date while picking check-out -> adjust check-in
         const newOut = addDays(dateStr, 1);
         onChange({
           checkIn: dateStr,
@@ -260,10 +272,11 @@ export default function DateRangePicker({
 
   // Quick Preset Handlers
   const applyPreset = (newIn: string, newOut: string) => {
+    const safeOut = (!newOut || newOut <= newIn) ? addDays(newIn, 1) : newOut;
     onChange({
       checkIn: newIn,
-      checkOut: newOut,
-      nights: calculateNights(newIn, newOut),
+      checkOut: safeOut,
+      nights: calculateNights(newIn, safeOut),
     });
     const d = parseISODate(newIn);
     setCurrentMonthDate(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -397,7 +410,9 @@ export default function DateRangePicker({
     );
   };
 
-  const nightsCount = calculateNights(checkIn, checkOut);
+  const effectiveIn = checkIn || todayStr;
+  const effectiveOut = (!checkOut || checkOut <= effectiveIn) ? addDays(effectiveIn, 1) : checkOut;
+  const nightsCount = Math.max(1, calculateNights(effectiveIn, effectiveOut));
 
   // Month 2 for 2-month desktop layout
   const nextMonthDate = new Date(
@@ -434,10 +449,10 @@ export default function DateRangePicker({
               <span className="text-[9px] sm:text-[10px] text-gray-500 font-medium hidden xs:inline sm:inline">1:00 PM</span>
             </div>
             <div className="text-xs sm:text-base font-bold text-forest-950 truncate">
-              {checkIn ? formatHumanDate(checkIn, 'short') : 'Select Arrival'}
+              {effectiveIn ? formatHumanDate(effectiveIn, 'short') : 'Select Arrival'}
             </div>
             <div className="text-[10px] sm:text-[11px] text-forest-700/80 mt-0.5 font-medium truncate">
-              {checkIn ? formatHumanDate(checkIn, 'weekday') : 'Choose date'}
+              {effectiveIn ? formatHumanDate(effectiveIn, 'weekday') : 'Choose date'}
             </div>
           </button>
 
@@ -459,17 +474,15 @@ export default function DateRangePicker({
                 <CalendarIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-forest-700 shrink-0" />
                 <span>Check-out</span>
               </span>
-              {nightsCount > 0 && (
-                <span className="bg-forest-900 text-sand-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full shrink-0">
-                  {nightsCount} {nightsCount === 1 ? 'Nt' : 'Nts'}
-                </span>
-              )}
+              <span className="bg-forest-900 text-sand-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full shrink-0">
+                {nightsCount} {nightsCount === 1 ? 'Nt' : 'Nts'}
+              </span>
             </div>
             <div className="text-xs sm:text-base font-bold text-forest-950 truncate">
-              {checkOut ? formatHumanDate(checkOut, 'short') : 'Select Departure'}
+              {effectiveOut ? formatHumanDate(effectiveOut, 'short') : 'Select Departure'}
             </div>
             <div className="text-[10px] sm:text-[11px] text-forest-700/80 mt-0.5 font-medium truncate">
-              {checkOut ? formatHumanDate(checkOut, 'weekday') : 'Min 1 night'}
+              {effectiveOut ? formatHumanDate(effectiveOut, 'weekday') : 'Min 1 night'}
             </div>
           </button>
         </div>

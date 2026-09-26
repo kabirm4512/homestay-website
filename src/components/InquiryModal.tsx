@@ -73,11 +73,14 @@ export default function InquiryModal({
       setRoomId(rooms[0].id);
     }
 
-    if (initialDates) {
-      if (initialDates.checkIn) setCheckIn(initialDates.checkIn);
-      if (initialDates.checkOut) setCheckOut(initialDates.checkOut);
+    if (initialDates && initialDates.checkIn) {
+      const effIn = initialDates.checkIn;
+      const effOut = (!initialDates.checkOut || initialDates.checkOut <= effIn) ? getNextDayStr(effIn) : initialDates.checkOut;
+      setCheckIn(effIn);
+      setCheckOut(effOut);
       if (initialDates.guests) setGuestsCount(initialDates.guests);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom, rooms, initialDates, roomId]);
 
   if (!isOpen) return null;

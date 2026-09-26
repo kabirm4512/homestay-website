@@ -232,8 +232,10 @@ export default function HeroCarousel({
               checkIn={checkIn}
               checkOut={checkOut}
               onChange={(range) => {
-                setCheckIn(range.checkIn);
-                setCheckOut(range.checkOut);
+                const safeIn = range.checkIn || getTodayStr();
+                const safeOut = (!range.checkOut || range.checkOut <= safeIn) ? getNextDayStr(safeIn) : range.checkOut;
+                setCheckIn(safeIn);
+                setCheckOut(safeOut);
               }}
               popoverPosition="top"
               showPresets={true}

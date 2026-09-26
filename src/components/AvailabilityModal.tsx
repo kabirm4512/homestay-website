@@ -112,11 +112,20 @@ export default function AvailabilityModal({
     }
   };
 
+  const getSafeDates = (inStr?: string, outStr?: string) => {
+    const today = getTodayStr();
+    const effIn = inStr || today;
+    let effOut = outStr;
+    if (!effOut || effOut <= effIn) {
+      effOut = getNextDayStr(effIn);
+    }
+    return { effIn, effOut };
+  };
+
+  const initialSafeDates = getSafeDates(initialCheckIn, initialCheckOut);
   const [step, setStep] = useState<'form' | 'results'>(initialStep || 'form');
-  const [checkIn, setCheckIn] = useState(initialCheckIn || getTodayStr());
-  const [checkOut, setCheckOut] = useState(
-    initialCheckOut || getNextDayStr(initialCheckIn || getTodayStr())
-  );
+  const [checkIn, setCheckIn] = useState(initialSafeDates.effIn);
+  const [checkOut, setCheckOut] = useState(initialSafeDates.effOut);
   const [selectedMealPlan, setSelectedMealPlan] = useState<MealPlan>('CP');
   const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>(
     initialRoomsConfig && initialRoomsConfig.length > 0
@@ -268,11 +277,7 @@ export default function AvailabilityModal({
   // Sync initial props when opened
   useEffect(() => {
     if (isOpen) {
-      const effIn = initialCheckIn || getTodayStr();
-      let effOut = initialCheckOut;
-      if (!effOut || effOut <= effIn) {
-        effOut = getNextDayStr(effIn);
-      }
+      const { effIn, effOut } = getSafeDates(initialCheckIn, initialCheckOut);
       setCheckIn(effIn);
       setCheckOut(effOut);
 
@@ -317,12 +322,9 @@ export default function AvailabilityModal({
   // Trigger Live Check and transition to results
   const handleFormCheckAvailability = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const effIn = checkIn || getTodayStr();
-    let effOut = checkOut;
-    if (!effOut || effOut <= effIn) {
-      effOut = getNextDayStr(effIn);
-      setCheckOut(effOut);
-    }
+    const { effIn, effOut } = getSafeDates(checkIn, checkOut);
+    setCheckIn(effIn);
+    setCheckOut(effOut);
     setStep('results');
     runLiveCheck(effIn, effOut, roomsConfig);
   };
@@ -411,22 +413,22 @@ export default function AvailabilityModal({
                 checkIn={checkIn}
                 checkOut={checkOut}
                 onChange={(range) => {
-                  setCheckIn(range.checkIn);
-                  setCheckOut(range.checkOut);
+                  const { effIn, effOut } = getSafeDates(range.checkIn, range.checkOut);
+                  setCheckIn(effIn);
+                  setCheckOut(effOut);
                 }}
               />
 
               {/* Multi-Room & Guest Selector */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
-                  Rooms & Guests Configuration
+                <label className="block text-xs font-bold uppercase tracking-wider text-forest-900 mb-1.5">
+                  Rooms &amp; Guests Configuration
                 </label>
                 <RoomGuestSelector
                   roomsConfig={roomsConfig}
                   onChange={(newConfig) => setRoomsConfig(newConfig)}
                   maxRooms={7}
                   variant="modal"
-                  popoverPlacement="bottom"
                 />
               </div>
 

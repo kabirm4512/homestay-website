@@ -1,27 +1,75 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Room } from '@/types';
-import { RoomSeasonalTariffs } from '@/types/crm';
-import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
-import { normalizeCategoryId } from '@/lib/tariff-calculator';
-import { Users, Bed, Maximize2, Check, ArrowRight, MessageSquare, Sparkles, ChevronLeft, ChevronRight, Coffee, Utensils } from 'lucide-react';
+import { RoomSeasonalTariffs, SeasonalDateRange } from '@/types/crm';
+import { INITIAL_ROOM_SEASONAL_TARIFFS, INITIAL_SEASONAL_DATE_RANGES } from '@/lib/crm-data';
+import { calculateDynamicTariff, DynamicTariffResult } from '@/lib/tariff-calculator';
+import DateRangePicker, { addDays, formatHumanDate, calculateNights } from './DateRangePicker';
+import {
+  Users,
+  Bed,
+  Maximize2,
+  Check,
+  ArrowRight,
+  MessageSquare,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Coffee,
+  Utensils,
+  Calendar,
+  CalendarDays,
+  ShieldCheck,
+  Flame,
+  Info,
+} from 'lucide-react';
 
 interface RoomsSectionProps {
   rooms: Room[];
-  onBookRoom: (room: Room, dates?: { checkIn: string; checkOut: string }, mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP') => void;
-  onEnquireRoom: (room: Room) => void;
+  onBookRoom: (
+    room: Room,
+    dates?: { checkIn: string; checkOut: string },
+    mealPlan?: 'EP' | 'CP' | 'MAP' | 'AP'
+  ) => void;
+  onEnquireRoom: (room: Room, dates?: { checkIn: string; checkOut: string }) => void;
+  initialDates?: { checkIn: string; checkOut: string };
+  onDatesChange?: (dates: { checkIn: string; checkOut: string }) => void;
 }
 
-export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: RoomsSectionProps) {
+export default function RoomsSection({
+  rooms,
+  onBookRoom,
+  onEnquireRoom,
+  initialDates,
+  onDatesChange,
+}: RoomsSectionProps) {
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTomorrowStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  // Travel Stay Dates state
+  const [checkIn, setCheckIn] = useState<string>(initialDates?.checkIn || getTodayStr());
+  const [checkOut, setCheckOut] = useState<string>(() => {
+    const defaultIn = initialDates?.checkIn || getTodayStr();
+    if (initialDates?.checkOut && initialDates.checkOut > defaultIn) {
+      return initialDates.checkOut;
+    }
+    return getTomorrowStr();
+  });
+
   // Store current image index per room
   const [activeImageIndices, setActiveImageIndices] = useState<Record<string, number>>({});
   // Store selected meal plan per room ('CP' by default)
   const [selectedPlans, setSelectedPlans] = useState<Record<string, 'EP' | 'CP' | 'MAP' | 'AP'>>({});
   // Store state for expanding detailed tariff view per room
   const [expandedTariffs, setExpandedTariffs] = useState<Record<string, boolean>>({});
-  // Live tariffs from backend PMS
+  // Live tariffs & seasonal dates from backend PMS
   const [liveTariffs, setLiveTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
+  const [liveSeasonalRanges, setLiveSeasonalRanges] = useState<SeasonalDateRange[]>(INITIAL_SEASONAL_DATE_RANGES);
 
   useEffect(() => {
     async function loadTariffs() {
@@ -29,14 +77,90 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
         const res = await fetch('/api/tariffs');
         if (res.ok) {
           const json = await res.json();
-          if (json.success && json.data?.tariffs) {
-            setLiveTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
+          if (json.success && json.data) {
+            if (json.data.tariffs) {
+              setLiveTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
+            }
+            if (Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
+              setLiveSeasonalRanges(json.data.seasonalDateRanges);
+            }
           }
         }
       } catch {}
     }
     loadTariffs();
   }, []);
+
+  // Sync with external initial dates if changed
+  useEffect(() => {
+    if (initialDates?.checkIn) {
+      setCheckIn(initialDates.checkIn);
+      const safeOut = (!initialDates.checkOut || initialDates.checkOut <= initialDates.checkIn)
+        ? addDays(initialDates.checkIn, 1)
+        : initialDates.checkOut;
+      setCheckOut(safeOut);
+    }
+  }, [initialDates?.checkIn, initialDates?.checkOut]);
+
+  const handleDatesChange = (range: { checkIn: string; checkOut: string; nights: number }) => {
+    const safeIn = range.checkIn || getTodayStr();
+    const safeOut = (!range.checkOut || range.checkOut <= safeIn) ? addDays(safeIn, 1) : range.checkOut;
+    setCheckIn(safeIn);
+    setCheckOut(safeOut);
+    if (onDatesChange) {
+      onDatesChange({ checkIn: safeIn, checkOut: safeOut });
+    }
+  };
+
+  const stayNights = Math.max(1, calculateNights(checkIn, checkOut));
+
+  // Determine active season badge based on selected dates
+  const activeSeasonInfo = useMemo(() => {
+    let hasPeak = false;
+    let hasOffSeason = false;
+    let matchedSeasonName = '';
+
+    const start = new Date(checkIn + 'T00:00:00');
+    const curr = new Date(start);
+    for (let i = 0; i < stayNights; i++) {
+      const dStr = curr.toISOString().split('T')[0];
+      for (const range of liveSeasonalRanges) {
+        if (dStr >= range.startDate && dStr <= range.endDate) {
+          if (range.seasonType === 'season') {
+            hasPeak = true;
+            matchedSeasonName = range.name;
+          } else if (range.seasonType === 'off_season') {
+            hasOffSeason = true;
+            matchedSeasonName = range.name;
+          }
+        }
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    if (hasPeak) {
+      return {
+        type: 'season' as const,
+        badge: '🔥 Peak Holiday Season Rate',
+        label: matchedSeasonName || 'High Demand Holiday Season',
+        colorClass: 'bg-amber-100 text-amber-900 border-amber-300',
+      };
+    }
+    if (hasOffSeason) {
+      return {
+        type: 'off_season' as const,
+        badge: '🌿 Green Season Special Tariff',
+        label: matchedSeasonName || 'Monsoon / Value Season',
+        colorClass: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+      };
+    }
+    return {
+      type: 'regular' as const,
+      badge: '🌲 Standard Season Rate',
+      label: 'Direct host rates with signature organic breakfast',
+      colorClass: 'bg-[#142820]/10 text-[#142820] border-[#142820]/20',
+    };
+  }, [checkIn, stayNights, liveSeasonalRanges]);
 
   const nextImage = (roomId: string, total: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -58,18 +182,93 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
     <section id="rooms" className="py-20 sm:py-28 bg-[#FAF8F5] relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div className="text-center max-w-3xl mx-auto mb-12">
           <span className="text-xs font-bold uppercase tracking-widest text-[#142820] bg-[#142820]/5 border border-[#142820]/10 px-4 py-1.5 rounded-full inline-flex items-center gap-1.5 mb-3 shadow-xs">
             <Sparkles className="w-3.5 h-3.5 text-[#C85A32]" />
             <span>Handcrafted Accommodations</span>
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#142820] font-serif tracking-tight leading-tight mb-4">
-            Suites & Mountain Residencies
+            Suites &amp; Mountain Residencies
           </h2>
           <p className="text-[#5C6D66] text-base sm:text-lg font-normal leading-relaxed">
-            Each private sanctuary is crafted with Himalayan cedar, sweeping valley balconies, and warm bespoke comforts. Reserve with our signature farmhouse breakfast.
+            Each private sanctuary is crafted with Himalayan cedar, sweeping valley balconies, and warm bespoke comforts. Live tariffs recalculate dynamically as you choose your travel dates.
           </p>
           <div className="w-16 h-0.5 bg-[#C85A32] mx-auto rounded-full mt-6" />
+        </div>
+
+        {/* Live Stay Dates & Seasonal Tariff Selector Bar */}
+        <div className="mb-14 max-w-4xl mx-auto bg-white rounded-3xl p-4 sm:p-6 shadow-[0_8px_30px_rgba(20,40,32,0.06)] border border-[#E5DEC9]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE5DA] mb-4">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#C85A32] flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#C85A32]" />
+                <span>Live PMS Pricing by Date</span>
+              </span>
+              <h3 className="text-base sm:text-lg font-bold text-[#142820] font-serif">
+                Select Stay Dates to View Live Rates
+              </h3>
+            </div>
+            {/* Active Season Pill */}
+            <div className={`self-start sm:self-center px-3 py-1 rounded-full text-xs font-bold border flex items-center space-x-1.5 ${activeSeasonInfo.colorClass}`}>
+              <span>{activeSeasonInfo.badge}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div className="md:col-span-2">
+              <DateRangePicker
+                checkIn={checkIn}
+                checkOut={checkOut}
+                onChange={handleDatesChange}
+                popoverPosition="bottom"
+                showPresets={true}
+              />
+            </div>
+
+            {/* Quick helper pills */}
+            <div className="flex flex-col justify-center space-y-2 bg-[#FAF8F5] p-3 rounded-2xl border border-[#EBE5DA]">
+              <div className="text-xs text-[#5C6D66] font-medium flex items-center justify-between">
+                <span>Selected Stay:</span>
+                <span className="font-bold text-[#142820] bg-white px-2.5 py-0.5 rounded-full border border-[#E5DEC9]">
+                  {stayNights} {stayNights === 1 ? 'Night' : 'Nights'}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleDatesChange({ checkIn: getTodayStr(), checkOut: addDays(getTodayStr(), 1), nights: 1 })}
+                  className="text-[11px] font-semibold text-[#142820] bg-white hover:bg-[#F2ECE0] border border-[#E5DEC9] px-2.5 py-1 rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  Tonight (1 Nt)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatesChange({ checkIn: getTodayStr(), checkOut: addDays(getTodayStr(), 2), nights: 2 })}
+                  className="text-[11px] font-semibold text-[#142820] bg-white hover:bg-[#F2ECE0] border border-[#E5DEC9] px-2.5 py-1 rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  2 Nights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const day = today.getDay();
+                    const daysUntilFri = (5 - day + 7) % 7 || 7;
+                    const fri = new Date(today);
+                    fri.setDate(today.getDate() + daysUntilFri);
+                    const sun = new Date(fri);
+                    sun.setDate(fri.getDate() + 2);
+                    const friStr = fri.toISOString().split('T')[0];
+                    const sunStr = sun.toISOString().split('T')[0];
+                    handleDatesChange({ checkIn: friStr, checkOut: sunStr, nights: 2 });
+                  }}
+                  className="text-[11px] font-semibold text-[#C85A32] bg-[#C85A32]/10 hover:bg-[#C85A32]/20 border border-[#C85A32]/30 px-2.5 py-1 rounded-xl transition-all cursor-pointer shadow-2xs"
+                >
+                  This Weekend
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Room Cards Grid */}
@@ -80,31 +279,46 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
               : ['/images/hero/deluxe-bedroom-suite.jpg'];
             const currentImgIndex = activeImageIndices[room.id] || 0;
 
-            // Compute exact meal plan rates matching backend PMS
-            const catKey = normalizeCategoryId(room.id);
-            const tariffsObj =
-              liveTariffs[room.id] ||
-              liveTariffs[catKey] ||
-              room.tariffs ||
-              INITIAL_ROOM_SEASONAL_TARIFFS[room.id] ||
-              INITIAL_ROOM_SEASONAL_TARIFFS[catKey];
-
-            const canonicalRegular = tariffsObj?.regular || {
-              EP: 4500,
-              CP: 5200,
-              MAP: 6200,
-              AP: 7200,
-            };
-
-            const planRates: Record<'EP' | 'CP' | 'MAP' | 'AP', number> = {
-              EP: canonicalRegular.EP,
-              CP: canonicalRegular.CP,
-              MAP: canonicalRegular.MAP,
-              AP: canonicalRegular.AP,
+            // Compute dynamic live rates matching backend PMS for selected travel dates
+            const dynamicResults: Record<'EP' | 'CP' | 'MAP' | 'AP', DynamicTariffResult> = {
+              EP: calculateDynamicTariff({
+                roomId: room.id,
+                checkIn,
+                checkOut,
+                mealPlan: 'EP',
+                tariffsMap: liveTariffs,
+                seasonalDateRanges: liveSeasonalRanges,
+              }),
+              CP: calculateDynamicTariff({
+                roomId: room.id,
+                checkIn,
+                checkOut,
+                mealPlan: 'CP',
+                tariffsMap: liveTariffs,
+                seasonalDateRanges: liveSeasonalRanges,
+              }),
+              MAP: calculateDynamicTariff({
+                roomId: room.id,
+                checkIn,
+                checkOut,
+                mealPlan: 'MAP',
+                tariffsMap: liveTariffs,
+                seasonalDateRanges: liveSeasonalRanges,
+              }),
+              AP: calculateDynamicTariff({
+                roomId: room.id,
+                checkIn,
+                checkOut,
+                mealPlan: 'AP',
+                tariffsMap: liveTariffs,
+                seasonalDateRanges: liveSeasonalRanges,
+              }),
             };
 
             const activePlan = selectedPlans[room.id] || 'CP';
-            const currentRate = planRates[activePlan];
+            const activeResult = dynamicResults[activePlan];
+            const currentRate = activeResult.avgRatePerNight;
+            const totalStayPrice = activeResult.totalAmount;
             const isTariffOpen = !!expandedTariffs[room.id];
 
             return (
@@ -271,6 +485,7 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                       <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#FAF8F5] rounded-2xl border border-[#E8E2D5]">
                         {(['EP', 'CP', 'MAP', 'AP'] as const).map((plan) => {
                           const isSelected = activePlan === plan;
+                          const planRate = dynamicResults[plan].avgRatePerNight;
                           return (
                             <button
                               key={plan}
@@ -284,7 +499,7 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
                             >
                               <div className="text-xs leading-tight font-semibold">{plan}</div>
                               <div className={`text-[10px] leading-tight mt-0.5 ${isSelected ? 'text-[#C5A059]' : 'text-[#7B8B84]'}`}>
-                                ₹{planRates[plan].toLocaleString()}
+                                ₹{planRate.toLocaleString()}
                               </div>
                             </button>
                           );
@@ -304,72 +519,86 @@ export default function RoomsSection({ rooms, onBookRoom, onEnquireRoom }: Rooms
 
                       {/* Collapsible Tariff Comparison Table */}
                       {isTariffOpen && (
-                        <div className="mt-2 p-3 bg-white border border-[#E8E2D5] rounded-2xl text-xs space-y-1.5 animate-fade-in shadow-xs">
-                          <div className="text-[11px] font-bold text-[#142820] uppercase tracking-wider border-b border-[#EBE5DA] pb-1">
-                            Season Tariff Breakdown
+                        <div className="mt-2.5 p-3.5 bg-white border border-[#E8E2D5] rounded-2xl text-xs space-y-2 animate-fade-in shadow-xs">
+                          <div className="flex items-center justify-between border-b border-[#EBE5DA] pb-1.5">
+                            <span className="text-[11px] font-bold text-[#142820] uppercase tracking-wider">
+                              Daily Rate Breakdown ({stayNights} {stayNights === 1 ? 'Night' : 'Nights'})
+                            </span>
+                            <span className="text-[10px] text-[#C85A32] font-semibold">{activePlan} Plan</span>
                           </div>
-                          <div className="flex justify-between items-center text-[#5C6D66]">
-                            <span>EP (Room Only):</span>
-                            <span className="font-semibold text-[#142820]">₹{planRates.EP.toLocaleString()} / night</span>
+                          <div className="space-y-1">
+                            {activeResult.breakdown.map((item, bIdx) => (
+                              <div key={bIdx} className="flex justify-between items-center text-[#5C6D66]">
+                                <span>{formatHumanDate(item.date, 'full')}:</span>
+                                <span className="font-semibold text-[#142820]">
+                                  ₹{item.amount.toLocaleString()} ({item.rateName})
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                          <div className="flex justify-between items-center text-[#5C6D66]">
-                            <span>CP (Breakfast Included):</span>
-                            <span className="font-semibold text-[#C85A32]">₹{planRates.CP.toLocaleString()} / night</span>
+                          <div className="pt-2 border-t border-[#EBE5DA] flex justify-between font-bold text-[#142820]">
+                            <span>Total for {stayNights} {stayNights === 1 ? 'Night' : 'Nights'}:</span>
+                            <span className="text-[#C85A32] text-sm">₹{totalStayPrice.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between items-center text-[#5C6D66]">
-                            <span>MAP (Breakfast + Dinner):</span>
-                            <span className="font-semibold text-[#142820]">₹{planRates.MAP.toLocaleString()} / night</span>
-                          </div>
-                          <div className="flex justify-between items-center text-[#5C6D66]">
-                            <span>AP (All 3 Meals Included):</span>
-                            <span className="font-semibold text-[#142820]">₹{planRates.AP.toLocaleString()} / night</span>
-                          </div>
-                          {room.tariffs?.season && (
-                            <div className="pt-1.5 border-t border-[#EBE5DA] text-[11px] text-[#7B8B84]">
-                              Peak Holiday Season: EP ₹{room.tariffs.season.EP} • CP ₹{room.tariffs.season.CP}
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* Prominent Price & Weekend Display */}
+                    {/* Prominent Price & Stay Total Display */}
                     <div className="flex items-baseline justify-between mb-4">
                       <div>
-                        <span className="text-xs uppercase tracking-wider text-[#7B8B84] block font-medium">
-                          {activePlan} Nightly Rate
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs uppercase tracking-wider text-[#7B8B84] block font-medium">
+                            {activePlan} Nightly Rate
+                          </span>
+                          {activeSeasonInfo.type === 'season' && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md">
+                              Peak Rate
+                            </span>
+                          )}
+                          {activeSeasonInfo.type === 'off_season' && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md">
+                              Special Value
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-baseline space-x-1">
                           <span className="text-3xl font-bold text-[#142820] font-serif">
                             ₹{currentRate.toLocaleString()}
                           </span>
                           <span className="text-xs text-[#7B8B84]">/ night</span>
                         </div>
+                        {stayNights > 1 && (
+                          <span className="text-xs font-semibold text-[#C85A32] block mt-0.5">
+                            Total: ₹{totalStayPrice.toLocaleString()} for {stayNights} nights
+                          </span>
+                        )}
                         <span className="text-[11px] text-[#5C6D66] block mt-0.5 font-medium">
                           Base {room.base_adults || 2} Adults {room.extra_adult_charge ? `· Extra Adult: +₹${room.extra_adult_charge}` : ''}
                         </span>
                       </div>
-                      {room.weekend_price && (
-                        <div className="text-right">
-                          <span className="text-xs text-[#7B8B84] block font-medium">Weekend</span>
-                          <span className="text-xs font-semibold text-[#142820]">
-                            ₹{room.weekend_price.toLocaleString()} / night
-                          </span>
-                        </div>
-                      )}
+                      <div className="text-right">
+                        <span className="text-[10px] text-[#7B8B84] block font-medium uppercase">Dates</span>
+                        <span className="text-xs font-semibold text-[#142820] block">
+                          {formatHumanDate(checkIn, 'short')} → {formatHumanDate(checkOut, 'short')}
+                        </span>
+                        <span className="text-[10px] text-[#5C6D66] block">
+                          ({stayNights} {stayNights === 1 ? 'night' : 'nights'})
+                        </span>
+                      </div>
                     </div>
 
                     {/* Dual Action Buttons: Book and Enquire */}
                     <div className="grid grid-cols-2 gap-3">
                       <button
-                        onClick={() => onBookRoom(room, undefined, activePlan)}
+                        onClick={() => onBookRoom(room, { checkIn, checkOut }, activePlan)}
                         className="w-full bg-[#C85A32] hover:bg-[#B34D28] text-white text-sm font-semibold py-3 px-3 rounded-2xl shadow-[0_4px_14px_rgba(200,90,50,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
                         <span>Reserve Suite</span>
                         <ArrowRight className="w-4 h-4 text-white" />
                       </button>
                       <button
-                        onClick={() => onEnquireRoom(room)}
+                        onClick={() => onEnquireRoom(room, { checkIn, checkOut })}
                         className="w-full bg-[#FAF8F5] hover:bg-[#F2ECE0] text-[#142820] border border-[#D5CDBD] text-sm font-semibold py-3 px-3 rounded-2xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
                         <MessageSquare className="w-4 h-4 text-[#142820]" />
