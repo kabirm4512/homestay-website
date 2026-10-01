@@ -10,7 +10,6 @@ import {
   TransportRequest,
   HousekeepingTask,
   Expense,
-  StaffAccount,
   SeasonalDateRange,
   RoomSeasonalTariffs,
 } from '@/types/crm';
@@ -1426,18 +1425,6 @@ export const INITIAL_FOOD_ORDERS: any[] = [];
 
 export const INITIAL_EXPENSES: Expense[] = [];
 
-export const INITIAL_STAFF_ACCOUNTS: StaffAccount[] = [
-  {
-    id: 'staff-admin',
-    email: 'admin@saverahomestay.com',
-    password: 'admin123',
-    fullName: 'Savera Admin (Owner)',
-    phone: '+91 81012 98882',
-    role: 'admin',
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z',
-  },
-];
 
 
 export const INITIAL_SEASONAL_DATE_RANGES: SeasonalDateRange[] = [

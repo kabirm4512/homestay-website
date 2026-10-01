@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   StaffRole,
   PhysicalRoom,
@@ -26,22 +26,39 @@ import {
   Guest,
   ManagerActivityLog,
 } from '@/types/crm';
-import {
-  INITIAL_PHYSICAL_ROOMS,
-  INITIAL_BOOKINGS,
-  INITIAL_FOLIOS,
-  INITIAL_MENU_ITEMS,
-  INITIAL_FOOD_ORDERS,
-  INITIAL_DISPATCH_REQUESTS,
-  INITIAL_HOUSEKEEPING_TASKS,
-  INITIAL_EXPENSES,
-  INITIAL_TRANSFER_ROUTES,
-  INITIAL_RENTAL_VEHICLES,
-  INITIAL_STAFF_ACCOUNTS,
-  INITIAL_SEASONAL_DATE_RANGES,
-  INITIAL_ROOM_SEASONAL_TARIFFS,
-} from '@/lib/crm-data';
 import { generateUniversalBookingId } from '@/lib/booking-id';
+import {
+  calculateDynamicTariff as calculateCanonicalTariff,
+  DynamicTariffResult,
+  resolveRoomTariffs,
+  resolveSeasonForNight,
+  nightsBetween,
+} from '@/lib/tariff-calculator';
+import { fetchLiveTariffs, parseTariffResponse, publishLiveTariffs } from '@/lib/live-tariffs';
+import { adminPostJson } from '@/lib/admin-api';
+import { recalculateFolioTotals, apportionTax, accommodationGstForTotal } from '@/lib/folio';
+import { DEFAULT_GST_CONFIG, GstConfig } from '@/lib/gst';
+import { rentalRate, transferRate } from '@/lib/transport-pricing';
+
+type SyncCollectionName =
+  | 'physicalRooms'
+  | 'crmBookings'
+  | 'folios'
+  | 'foodOrders'
+  | 'dispatchRequests'
+  | 'housekeepingTasks'
+  | 'expenses'
+  | 'menuItems'
+  | 'transferRoutes'
+  | 'rentalVehicles'
+  | 'activityLogs';
+
+interface ClientSyncOp {
+  collection: SyncCollectionName;
+  op: 'upsert' | 'delete';
+  id: string;
+  record?: Record<string, unknown>;
+}
 
 interface ToastState {
   id: string;
@@ -64,6 +81,10 @@ interface CRMContextType {
   rentalVehicles: RentalVehicle[];
   seasonalDateRanges: SeasonalDateRange[];
   roomTariffs: Record<string, RoomSeasonalTariffs>;
+  /** 'ready' once live tariffs have loaded from the server; prices must not be shown/saved before. */
+  tariffsStatus: 'loading' | 'ready' | 'error';
+  /** GST rules from /api/tariffs (configurable on the server). */
+  gstConfig: GstConfig;
   toast: ToastState | null;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 
@@ -78,10 +99,11 @@ interface CRMContextType {
     checkItem: 'linens_changed' | 'toiletries_restocked' | 'fireplace_prepped' | 'balcony_cleaned'
   ) => void;
   updateHousekeepingStatus: (taskId: string, status: 'pending' | 'in_progress' | 'inspected' | 'completed') => void;
-  createFoodOrder: (order: Omit<FoodOrder, 'id' | 'orderNumber' | 'createdAt'>) => FoodOrder;
+  /** Placed and priced on the server; resolves null if it could not be placed. */
+  createFoodOrder: (order: Omit<FoodOrder, 'id' | 'orderNumber' | 'createdAt'>) => Promise<FoodOrder | null>;
   updateFoodOrderStatus: (orderId: string, status: FoodOrderStatus) => void;
   toggleMenuItemAvailability: (itemId: string) => void;
-  createTransportRequest: (request: Omit<TransportRequest, 'id' | 'requestNumber' | 'createdAt' | 'homestayCommission'>) => TransportRequest;
+  createTransportRequest: (request: Omit<TransportRequest, 'id' | 'requestNumber' | 'createdAt' | 'homestayCommission'>) => Promise<TransportRequest | null>;
   confirmDispatchRequest: (
     requestId: string,
     details: { assignedDriverName: string; assignedDriverPhone: string; vehiclePlateNumber: string; vendorCost?: number }
@@ -129,6 +151,8 @@ interface CRMContextType {
     isManualRate?: boolean;
     advancePaid?: number;
     advancePaymentMethod?: PaymentMethod;
+    gstAmount?: number;
+    sourceBookingId?: string;
     guest: {
       fullName: string;
       phone: string;
@@ -170,9 +194,11 @@ interface CRMContextType {
 
   // Seasonal Pricing & Dynamic Tariffs
   addSeasonalRange: (range: Omit<SeasonalDateRange, 'id'>) => SeasonalDateRange;
-  updateSeasonalRange: (id: string, updates: Partial<SeasonalDateRange>) => void;
-  deleteSeasonalRange: (id: string) => void;
-  updateRoomTariffs: (roomId: string, tariffs: RoomSeasonalTariffs) => void;
+  updateSeasonalRange: (id: string, updates: Partial<SeasonalDateRange>) => Promise<boolean>;
+  deleteSeasonalRange: (id: string) => Promise<boolean>;
+  /** Saves to the server first; resolves true only when the live site will see the change. */
+  updateRoomTariffs: (roomId: string, tariffs: RoomSeasonalTariffs) => Promise<boolean>;
+  /** Canonical engine (same as website & server). Returns null when the stay cannot be priced. */
   calculateDynamicTariff: (
     roomId: string,
     checkIn: string,
@@ -180,19 +206,7 @@ interface CRMContextType {
     mealPlan?: MealPlan,
     adultsCount?: number,
     childrenCount?: number
-  ) => {
-    totalAmount: number;
-    baseAmount: number;
-    extraAdultsCount: number;
-    extraAdultRate: number;
-    extraAdultsCharge: number;
-    extraChildrenCount: number;
-    extraChildRate: number;
-    extraChildrenCharge: number;
-    nights: number;
-    avgRatePerNight: number;
-    breakdown: { date: string; rateName: string; seasonType: 'season' | 'off_season' | 'regular'; amount: number }[];
-  };
+  ) => DynamicTariffResult | null;
   getSeasonForDate: (dateStr: string) => {
     seasonType: 'season' | 'off_season' | 'regular';
     seasonName: string;
@@ -227,67 +241,40 @@ interface CRMContextType {
   updateStaffAccount: (id: string, updates: Partial<StaffAccount>) => Promise<void>;
   deleteStaffAccount: (id: string) => Promise<{ success: boolean; error?: string }>;
   authenticateStaff: (identifier: string, password: string) => Promise<{ success: boolean; user?: StaffAccount; error?: string }>;
+  /** 'checking' until the server has said whether a staff member is signed in. */
+  authStatus: 'checking' | 'signed_in' | 'signed_out';
+  signOut: () => Promise<void>;
+  changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   // Fresh Start / Operational Data Reset
   resetAllOperationalData: () => void;
 }
 
-export function recalculateFolioTotals(
-  folio: GuestFolio,
-  charges: FolioCharge[],
-  payments: FolioPayment[] = folio.payments
-): GuestFolio {
-  const roomCharges = charges
-    .filter((c) => c.category === 'room_tariff' && c.chargeStatus !== 'void')
-    .reduce((sum, c) => sum + c.amount, 0);
-  const fbCharges = charges
-    .filter((c) => c.category === 'food_beverage' && c.chargeStatus !== 'void')
-    .reduce((sum, c) => sum + c.amount, 0);
-  const addonCharges = charges
-    .filter((c) => ['transport_transfer', 'vehicle_rental', 'laundry', 'miscellaneous'].includes(c.category) && c.chargeStatus !== 'void')
-    .reduce((sum, c) => sum + c.amount, 0);
-
-  const totalSubtotal = roomCharges + fbCharges + addonCharges - folio.discountAmount;
-  const tax = Math.round(totalSubtotal * 0.05 * 10) / 10; // 5% GST
-  const netPayable = totalSubtotal + tax;
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const balanceDue = Math.max(0, netPayable - totalPaid);
-  const isSettled = balanceDue <= 0 && netPayable > 0;
-
-  return {
-    ...folio,
-    charges,
-    payments,
-    totalRoomCharges: roomCharges,
-    totalFbCharges: fbCharges,
-    totalAddonCharges: addonCharges,
-    totalTax: tax,
-    netPayable,
-    totalPaid,
-    balanceDue,
-    status: isSettled ? 'settled' : folio.status === 'settled' && balanceDue > 0 ? 'open' : folio.status,
-    settledAt: isSettled ? (folio.settledAt || new Date().toISOString()) : folio.settledAt,
-  };
-}
+// Folio arithmetic (incl. GST) is shared with the server.
+export { recalculateFolioTotals };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
 
 export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<StaffRole>('admin');
-  const [rooms, setRooms] = useState<PhysicalRoom[]>(INITIAL_PHYSICAL_ROOMS);
-  const [bookings, setBookings] = useState<CRMBooking[]>(INITIAL_BOOKINGS);
-  const [folios, setFolios] = useState<GuestFolio[]>(INITIAL_FOLIOS);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
-  const [foodOrders, setFoodOrders] = useState<FoodOrder[]>(INITIAL_FOOD_ORDERS);
-  const [dispatchRequests, setDispatchRequests] = useState<TransportRequest[]>(INITIAL_DISPATCH_REQUESTS);
-  const [housekeepingTasks, setHousekeepingTasks] = useState<HousekeepingTask[]>(INITIAL_HOUSEKEEPING_TASKS);
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
-  const [transferRoutes, setTransferRoutes] = useState<TransferRoute[]>(INITIAL_TRANSFER_ROUTES);
-  const [rentalVehicles, setRentalVehicles] = useState<RentalVehicle[]>(INITIAL_RENTAL_VEHICLES);
-  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[]>(INITIAL_SEASONAL_DATE_RANGES);
-  const [roomTariffs, setRoomTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
-  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>(INITIAL_STAFF_ACCOUNTS);
+  const [rooms, setRooms] = useState<PhysicalRoom[]>([]);
+  const [bookings, setBookings] = useState<CRMBooking[]>([]);
+  const [folios, setFolios] = useState<GuestFolio[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [foodOrders, setFoodOrders] = useState<FoodOrder[]>([]);
+  const [dispatchRequests, setDispatchRequests] = useState<TransportRequest[]>([]);
+  const [housekeepingTasks, setHousekeepingTasks] = useState<HousekeepingTask[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [transferRoutes, setTransferRoutes] = useState<TransferRoute[]>([]);
+  const [rentalVehicles, setRentalVehicles] = useState<RentalVehicle[]>([]);
+  // Live pricing data: always loaded from the server (GET /api/tariffs); never seeded or cached locally.
+  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[]>([]);
+  const [roomTariffs, setRoomTariffs] = useState<Record<string, RoomSeasonalTariffs>>({});
+  const [tariffsStatus, setTariffsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [gstConfig, setGstConfig] = useState<GstConfig>(DEFAULT_GST_CONFIG);
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>([]);
   const [currentUser, setCurrentUserState] = useState<StaffAccount | null>(null);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'signed_in' | 'signed_out'>('checking');
   const [managerActivityLogs, setManagerActivityLogs] = useState<ManagerActivityLog[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -299,406 +286,278 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }, 4000);
   }, []);
 
-  // Sync to/from localStorage for persistence across reloads
-  useEffect(() => {
-    try {
-      // Automatic data version check for fresh start
-      const FRESH_DATA_VERSION = 'wp_v2026_clean_fresh_start';
-      const storedVersion = localStorage.getItem('wp_crm_version_key');
-      if (storedVersion !== FRESH_DATA_VERSION) {
-        localStorage.removeItem('wp_crm_bookings');
-        localStorage.removeItem('wp_crm_folios');
-        localStorage.removeItem('wp_crm_expenses');
-        localStorage.removeItem('wp_crm_food_orders');
-        localStorage.removeItem('wp_crm_dispatch');
-        localStorage.removeItem('wp_crm_housekeeping');
-        localStorage.removeItem('wp_crm_rooms');
-        localStorage.removeItem('homestay_bookings');
-        localStorage.removeItem('homestay_inquiries');
-        localStorage.setItem('wp_crm_version_key', FRESH_DATA_VERSION);
-      }
+  // =========================================================================
+  // Server sync engine
+  // -------------------------------------------------------------------------
+  // The server (Postgres) is the only source of truth. Staff devices load the
+  // working set from /api/crm/state, and every local change is diffed record by
+  // record and sent to /api/crm/mutate (permission-checked and audited there).
+  // The server's copy of each saved record is applied back to state, and state is
+  // refreshed every few seconds so all devices stay in step. Guests (QR concierge,
+  // portal) never write these collections; they use the guest APIs instead.
+  // =========================================================================
+  const isStaffRef = useRef(false);
+  const pendingOpsRef = useRef(0);
+  const opQueueRef = useRef<ClientSyncOp[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
 
-      const savedRole = localStorage.getItem('wp_crm_role') as StaffRole;
-      if (savedRole && ['admin', 'manager', 'kitchen_staff'].includes(savedRole)) {
-        setRoleState(savedRole);
-      }
-      const savedRooms = localStorage.getItem('wp_crm_rooms');
-      if (savedRooms) setRooms(JSON.parse(savedRooms));
+  const settersRef = useRef<Record<SyncCollectionName, React.Dispatch<React.SetStateAction<any[]>>>>({
+    physicalRooms: setRooms as React.Dispatch<React.SetStateAction<any[]>>,
+    crmBookings: setBookings as React.Dispatch<React.SetStateAction<any[]>>,
+    folios: setFolios as React.Dispatch<React.SetStateAction<any[]>>,
+    foodOrders: setFoodOrders as React.Dispatch<React.SetStateAction<any[]>>,
+    dispatchRequests: setDispatchRequests as React.Dispatch<React.SetStateAction<any[]>>,
+    housekeepingTasks: setHousekeepingTasks as React.Dispatch<React.SetStateAction<any[]>>,
+    expenses: setExpenses as React.Dispatch<React.SetStateAction<any[]>>,
+    menuItems: setMenuItems as React.Dispatch<React.SetStateAction<any[]>>,
+    transferRoutes: setTransferRoutes as React.Dispatch<React.SetStateAction<any[]>>,
+    rentalVehicles: setRentalVehicles as React.Dispatch<React.SetStateAction<any[]>>,
+    activityLogs: setManagerActivityLogs as React.Dispatch<React.SetStateAction<any[]>>,
+  });
 
-      const savedBookings = localStorage.getItem('wp_crm_bookings');
-      if (savedBookings) {
-        try {
-          const parsedBk = JSON.parse(savedBookings);
-          setBookings(parsedBk);
-          // Sync client-side bookings to server so mobile guests can log in immediately
-          if (Array.isArray(parsedBk) && parsedBk.length > 0) {
-            fetch('/api/checkin', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ syncBookings: parsedBk }),
-            }).catch(() => null);
-          }
-        } catch {}
-      }
-
-      const savedHousekeeping = localStorage.getItem('wp_crm_housekeeping');
-      if (savedHousekeeping) setHousekeepingTasks(JSON.parse(savedHousekeeping));
-
-      const savedMenuItems = localStorage.getItem('wp_crm_menu_items');
-      if (savedMenuItems) {
-        try {
-          const parsed = JSON.parse(savedMenuItems);
-          if (Array.isArray(parsed) && parsed.length >= 50) {
-            setMenuItems(parsed);
-          } else {
-            setMenuItems(INITIAL_MENU_ITEMS);
-            localStorage.setItem('wp_crm_menu_items', JSON.stringify(INITIAL_MENU_ITEMS));
-          }
-        } catch {
-          setMenuItems(INITIAL_MENU_ITEMS);
-        }
-      } else {
-        localStorage.setItem('wp_crm_menu_items', JSON.stringify(INITIAL_MENU_ITEMS));
-      }
-
-      const savedOrders = localStorage.getItem('wp_crm_food_orders');
-      if (savedOrders) setFoodOrders(JSON.parse(savedOrders));
-
-      const savedDispatch = localStorage.getItem('wp_crm_dispatch');
-      if (savedDispatch) setDispatchRequests(JSON.parse(savedDispatch));
-
-      const savedExpenses = localStorage.getItem('wp_crm_expenses');
-      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
-
-      const savedFolios = localStorage.getItem('wp_crm_folios');
-      if (savedFolios) setFolios(JSON.parse(savedFolios));
-
-      const savedRoutes = localStorage.getItem('wp_crm_transfer_routes');
-      if (savedRoutes) setTransferRoutes(JSON.parse(savedRoutes));
-
-      const savedVehicles = localStorage.getItem('wp_crm_rental_vehicles');
-      if (savedVehicles) setRentalVehicles(JSON.parse(savedVehicles));
-
-      const savedRanges = localStorage.getItem('wp_crm_seasonal_ranges');
-      if (savedRanges) setSeasonalDateRanges(JSON.parse(savedRanges));
-
-      const savedTariffs = localStorage.getItem('wp_crm_room_tariffs');
-      if (savedTariffs) setRoomTariffs(JSON.parse(savedTariffs));
-
-      const savedLogs = localStorage.getItem('wp_crm_activity_logs');
-      if (savedLogs) {
-        try {
-          setManagerActivityLogs(JSON.parse(savedLogs));
-        } catch {}
-      }
-
-      // Hydrate from server disk store if available without stomping local changes
-      try {
-        fetch('/api/tariffs')
-          .then((r) => r.json())
-          .then((json) => {
-            if (json?.success && json.data) {
-              if (json.data.tariffs && Object.keys(json.data.tariffs).length > 0) {
-                setRoomTariffs((prev) => ({ ...json.data.tariffs, ...prev }));
-              }
-              if (!savedRanges && Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
-                setSeasonalDateRanges(json.data.seasonalDateRanges);
-              }
-            }
-          })
-          .catch(() => null);
-
-        fetch('/api/addons')
-          .then((r) => r.json())
-          .then((json) => {
-            if (json?.success && json.data) {
-              if (!savedMenuItems && Array.isArray(json.data.menuItems) && json.data.menuItems.length > 0) {
-                setMenuItems(json.data.menuItems);
-                try {
-                  localStorage.setItem('wp_crm_menu_items', JSON.stringify(json.data.menuItems));
-                } catch {}
-              }
-              if (!savedRoutes && Array.isArray(json.data.transferRoutes) && json.data.transferRoutes.length > 0) {
-                setTransferRoutes(json.data.transferRoutes);
-                try {
-                  localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(json.data.transferRoutes));
-                } catch {}
-              }
-              if (!savedVehicles && Array.isArray(json.data.rentalVehicles) && json.data.rentalVehicles.length > 0) {
-                setRentalVehicles(json.data.rentalVehicles);
-                try {
-                  localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(json.data.rentalVehicles));
-                } catch {}
-              }
-            }
-          })
-          .catch(() => null);
-
-        fetch('/api/checkin')
-          .then((r) => r.json())
-          .then((json) => {
-            if (json?.success) {
-              if (Array.isArray(json.rooms) && json.rooms.length > 0) {
-                setRooms((prev) => {
-                  const serverRoomsMap = new Map<string, PhysicalRoom>(json.rooms.map((r: PhysicalRoom) => [r.id, r]));
-                  const merged = prev.map((r) => {
-                    const serverR = serverRoomsMap.get(r.id);
-                    return serverR ? { ...r, currentStatus: serverR.currentStatus, housekeeping: serverR.housekeeping } : r;
-                  });
-                  try {
-                    localStorage.setItem('wp_crm_rooms', JSON.stringify(merged));
-                  } catch {}
-                  return merged;
-                });
-              }
-              if (Array.isArray(json.bookings) && json.bookings.length > 0) {
-                setBookings((prev) => {
-                  const serverBookingsMap = new Map<string, CRMBooking>(json.bookings.map((b: CRMBooking) => [b.id, b]));
-                  const updatedPrev = prev.map((b) => {
-                    const serverB = serverBookingsMap.get(b.id);
-                    if (serverB) {
-                      return {
-                        ...b,
-                        tapeStatus: serverB.tapeStatus || b.tapeStatus,
-                        bookingStatus: serverB.bookingStatus || b.bookingStatus,
-                        checkedInAt: serverB.checkedInAt || b.checkedInAt,
-                        checkedOutAt: serverB.checkedOutAt || b.checkedOutAt,
-                      };
-                    }
-                    return b;
-                  });
-                  const prevIds = new Set(prev.map((b) => b.id));
-                  const newFromServer = json.bookings.filter((b: CRMBooking) => !prevIds.has(b.id));
-                  const merged = [...updatedPrev, ...newFromServer];
-                  try {
-                    localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
-                  } catch {}
-                  return merged;
-                });
-              }
-            }
-          })
-          .catch(() => null);
-
-        fetch('/api/orders?orders=true')
-          .then((r) => r.json())
-          .then((json) => {
-            if (json?.success && Array.isArray(json.orders)) {
-              setFoodOrders((prev) => {
-                const existingMap = new Map(prev.map((o) => [o.id, o]));
-                json.orders.forEach((serverOrd: FoodOrder) => {
-                  existingMap.set(serverOrd.id, serverOrd);
-                });
-                const merged = Array.from(existingMap.values()).sort(
-                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
-                try {
-                  localStorage.setItem('wp_crm_food_orders', JSON.stringify(merged));
-                } catch {}
-                return merged;
-              });
-            }
-          })
-          .catch(() => null);
-      } catch {}
-
-      const savedStaff = localStorage.getItem('wp_crm_staff_accounts');
-      if (savedStaff) {
-        const parsed = JSON.parse(savedStaff);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Filter out legacy hardcoded demo accounts ('staff-2' and 'staff-3') if present
-          const cleanedStaff = parsed.filter(
-            (acc: StaffAccount) => acc.id !== 'staff-2' && acc.id !== 'staff-3'
-          );
-          // Ensure at least one active admin account is present
-          const hasAdmin = cleanedStaff.some((acc: StaffAccount) => acc.role === 'admin' && acc.isActive);
-          const finalStaff = hasAdmin ? cleanedStaff : [...INITIAL_STAFF_ACCOUNTS, ...cleanedStaff];
-          setStaffAccounts(finalStaff);
-          localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(finalStaff));
-        } else {
-          setStaffAccounts(INITIAL_STAFF_ACCOUNTS);
-          localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(INITIAL_STAFF_ACCOUNTS));
-        }
-      } else {
-        setStaffAccounts(INITIAL_STAFF_ACCOUNTS);
-      }
-
-      const savedUser = localStorage.getItem('wp_crm_current_user');
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        if (parsedUser.id === 'staff-2' || parsedUser.id === 'staff-3') {
-          localStorage.removeItem('wp_crm_current_user');
-          localStorage.removeItem('homestay_admin_token');
-          localStorage.removeItem('homestay_admin_user');
-          localStorage.removeItem('savera_admin_session');
-        } else {
-          setCurrentUserState(parsedUser);
-        }
-      } else {
-        const sessionRaw = localStorage.getItem('savera_admin_session');
-        if (sessionRaw) {
-          try {
-            const parsedSession = JSON.parse(sessionRaw);
-            if (parsedSession && (!parsedSession.expiresAt || parsedSession.expiresAt > Date.now())) {
-              setCurrentUserState(parsedSession);
-            }
-          } catch {}
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    const handleStorage = (e: StorageEvent) => {
-      try {
-        if (e.key === 'wp_crm_bookings' && e.newValue) {
-          setBookings(JSON.parse(e.newValue));
-        }
-        if (e.key === 'wp_crm_folios' && e.newValue) {
-          setFolios(JSON.parse(e.newValue));
-        }
-        if (e.key === 'wp_crm_rooms' && e.newValue) {
-          setRooms(JSON.parse(e.newValue));
-        }
-        if (e.key === 'wp_crm_food_orders' && e.newValue) {
-          setFoodOrders(JSON.parse(e.newValue));
-        }
-        if (e.key === 'wp_crm_activity_logs' && e.newValue) {
-          setManagerActivityLogs(JSON.parse(e.newValue));
-        }
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
-    // 5-second polling interval for live server orders (cross-device kitchen sync) and room/booking statuses
-    const pollInterval = setInterval(() => {
-      fetch('/api/orders?orders=true')
-        .then((r) => r.json())
-        .then((json) => {
-          if (json?.success && Array.isArray(json.orders)) {
-            setFoodOrders((prev) => {
-              const existingMap = new Map(prev.map((o) => [o.id, o]));
-              let hasChanges = false;
-              json.orders.forEach((serverOrd: FoodOrder) => {
-                const existing = existingMap.get(serverOrd.id);
-                if (!existing) {
-                  hasChanges = true;
-                  existingMap.set(serverOrd.id, serverOrd);
-                } else if (existing.status !== serverOrd.status) {
-                  hasChanges = true;
-                  existingMap.set(serverOrd.id, { ...existing, status: serverOrd.status });
-                }
-              });
-              if (!hasChanges) return prev;
-              const merged = Array.from(existingMap.values()).sort(
-                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-              try {
-                localStorage.setItem('wp_crm_food_orders', JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
-          }
-        })
-        .catch(() => null);
-
-      // Keep physical rooms and booking statuses live across devices
-      fetch('/api/checkin')
-        .then((r) => r.json())
-        .then((json) => {
-          if (json?.success) {
-            if (Array.isArray(json.rooms) && json.rooms.length > 0) {
-              setRooms((prev) => {
-                const serverRoomsMap = new Map<string, PhysicalRoom>(json.rooms.map((r: PhysicalRoom) => [r.id, r]));
-                let changed = false;
-                const merged = prev.map((r) => {
-                  const s = serverRoomsMap.get(r.id);
-                  if (s && (s.currentStatus !== r.currentStatus || s.housekeeping !== r.housekeeping)) {
-                    changed = true;
-                    return { ...r, currentStatus: s.currentStatus, housekeeping: s.housekeeping };
-                  }
-                  return r;
-                });
-                if (changed) {
-                  try {
-                    localStorage.setItem('wp_crm_rooms', JSON.stringify(merged));
-                  } catch {}
-                  return merged;
-                }
-                return prev;
-              });
-            }
-            if (Array.isArray(json.bookings) && json.bookings.length > 0) {
-              setBookings((prev) => {
-                const serverBookingsMap = new Map<string, CRMBooking>(json.bookings.map((b: CRMBooking) => [b.id, b]));
-                let changed = false;
-                const updatedPrev = prev.map((b) => {
-                  const s = serverBookingsMap.get(b.id);
-                  if (s && (s.tapeStatus !== b.tapeStatus || s.bookingStatus !== b.bookingStatus)) {
-                    changed = true;
-                    return {
-                      ...b,
-                      tapeStatus: s.tapeStatus || b.tapeStatus,
-                      bookingStatus: s.bookingStatus || b.bookingStatus,
-                      checkedInAt: s.checkedInAt || b.checkedInAt,
-                      checkedOutAt: s.checkedOutAt || b.checkedOutAt,
-                    };
-                  }
-                  return b;
-                });
-                const prevIds = new Set(prev.map((b) => b.id));
-                const newFromServer = json.bookings.filter((b: CRMBooking) => !prevIds.has(b.id));
-                if (newFromServer.length > 0) {
-                  changed = true;
-                }
-                if (changed) {
-                  const merged = [...updatedPrev, ...newFromServer];
-                  try {
-                    localStorage.setItem('wp_crm_bookings', JSON.stringify(merged));
-                  } catch {}
-                  return merged;
-                }
-                return prev;
-              });
-            }
-          }
-        })
-        .catch(() => null);
-    }, 5000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      clearInterval(pollInterval);
-    };
+  /** Puts the server's copy of a record into state (no sync back). */
+  const applyServerRecord = useCallback((collection: SyncCollectionName, id: string, record: unknown, deleted?: boolean) => {
+    const setter = settersRef.current[collection];
+    if (!setter) return;
+    setter((prev: any[]) => {
+      if (deleted) return prev.filter((x) => x.id !== id);
+      const exists = prev.some((x) => x.id === id);
+      return exists ? prev.map((x) => (x.id === id ? record : x)) : [record, ...prev];
+    });
   }, []);
 
+  const applyState = useCallback((state: Record<string, any>) => {
+    if (Array.isArray(state.physicalRooms)) setRooms(state.physicalRooms);
+    if (Array.isArray(state.crmBookings)) setBookings(state.crmBookings);
+    if (Array.isArray(state.folios)) setFolios(state.folios);
+    if (Array.isArray(state.foodOrders)) setFoodOrders(state.foodOrders);
+    if (Array.isArray(state.dispatchRequests)) setDispatchRequests(state.dispatchRequests);
+    if (Array.isArray(state.housekeepingTasks)) setHousekeepingTasks(state.housekeepingTasks);
+    if (Array.isArray(state.expenses)) setExpenses(state.expenses);
+    if (Array.isArray(state.menuItems)) setMenuItems(state.menuItems);
+    if (Array.isArray(state.transferRoutes)) setTransferRoutes(state.transferRoutes);
+    if (Array.isArray(state.rentalVehicles)) setRentalVehicles(state.rentalVehicles);
+    if (Array.isArray(state.activityLogs)) setManagerActivityLogs(state.activityLogs);
+    if (state.tariffs && Array.isArray(state.seasonalDateRanges)) {
+      setRoomTariffs(state.tariffs);
+      setSeasonalDateRanges(state.seasonalDateRanges);
+      setTariffsStatus('ready');
+    }
+  }, []);
+
+  const handleSignedOut = useCallback(() => {
+    isStaffRef.current = false;
+    setCurrentUserState(null);
+    setAuthStatus('signed_out');
+    setBookings([]);
+    setFolios([]);
+    setFoodOrders([]);
+    setDispatchRequests([]);
+    setHousekeepingTasks([]);
+    setExpenses([]);
+    setManagerActivityLogs([]);
+    setStaffAccounts([]);
+  }, []);
+
+  const refreshState = useCallback(async () => {
+    if (!isStaffRef.current) return;
+    try {
+      const res = await fetch('/api/crm/state', { cache: 'no-store' });
+      if (res.status === 401) {
+        handleSignedOut();
+        return;
+      }
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success && json.state && pendingOpsRef.current === 0) applyState(json.state);
+    } catch {
+      // offline: keep what we have; the next poll retries
+    }
+  }, [applyState, handleSignedOut]);
+
+  const flushOps = useCallback(async () => {
+    flushTimerRef.current = null;
+    const raw = opQueueRef.current.splice(0);
+    if (raw.length === 0) return;
+    // Last change per record wins (state updaters can run twice in development)
+    const latest = new Map<string, ClientSyncOp>();
+    for (const op of raw) latest.set(`${op.collection}:${op.id}`, op);
+    const ops = Array.from(latest.values());
+
+    pendingOpsRef.current += 1;
+    let firstError: string | null = null;
+    try {
+      for (let i = 0; i < ops.length; i += 50) {
+        const res = await fetch('/api/crm/mutate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ops: ops.slice(i, i + 50) }),
+        });
+        const json = await res.json().catch(() => null);
+        if (res.status === 401) {
+          firstError = 'Your session has expired. Please sign in again; the last change was not saved.';
+          handleSignedOut();
+          break;
+        }
+        if (!res.ok || !json?.success) {
+          firstError = json?.error || (res.status === 413 ? 'That upload is too large to save.' : 'Could not save to the server.');
+          continue;
+        }
+        for (const r of json.results as { collection: SyncCollectionName; id: string; ok: boolean; record?: unknown; deleted?: boolean; error?: string }[]) {
+          if (r.ok) applyServerRecord(r.collection, r.id, r.record, r.deleted);
+          else if (!firstError) firstError = r.error || 'A change could not be saved.';
+        }
+      }
+    } catch {
+      firstError = 'You appear to be offline. The last change was not saved to the server.';
+    } finally {
+      pendingOpsRef.current -= 1;
+    }
+    if (firstError) {
+      showToastRef.current(firstError, 'error');
+      await refreshState(); // put the screen back in step with what was actually saved
+    }
+  }, [applyServerRecord, handleSignedOut, refreshState]);
+
+  /** Diffs a collection before/after a local change and queues the record-level writes. */
+  const queueSync = useCallback(
+    (collection: SyncCollectionName, prev: { id: string }[], next: { id: string }[]) => {
+      if (!isStaffRef.current) return;
+      const before = new Map(prev.map((r) => [r.id, r]));
+      const after = new Map(next.map((r) => [r.id, r]));
+      after.forEach((rec, id) => {
+        const old = before.get(id);
+        if (!old || JSON.stringify(old) !== JSON.stringify(rec)) {
+          opQueueRef.current.push({ collection, op: 'upsert', id, record: rec as unknown as Record<string, unknown> });
+        }
+      });
+      before.forEach((_rec, id) => {
+        if (!after.has(id)) opQueueRef.current.push({ collection, op: 'delete', id });
+      });
+      if (opQueueRef.current.length > 0 && !flushTimerRef.current) {
+        flushTimerRef.current = setTimeout(() => void flushOps(), 0);
+      }
+    },
+    [flushOps]
+  );
+
+  /** Public catalogue for guest devices (menu, transfers, rentals, room list). */
+  const loadPublicCatalog = useCallback(async () => {
+    try {
+      const [addonsRes, roomsRes] = await Promise.all([
+        fetch('/api/addons', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch('/api/physical-rooms', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      ]);
+      if (addonsRes?.success && addonsRes.data) {
+        if (Array.isArray(addonsRes.data.menuItems)) setMenuItems(addonsRes.data.menuItems);
+        if (Array.isArray(addonsRes.data.transferRoutes)) setTransferRoutes(addonsRes.data.transferRoutes);
+        if (Array.isArray(addonsRes.data.rentalVehicles)) setRentalVehicles(addonsRes.data.rentalVehicles);
+      }
+      if (roomsRes?.success && Array.isArray(roomsRes.data)) setRooms(roomsRes.data);
+    } catch {}
+  }, []);
+
+  const loadStaffAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/staff', { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success && Array.isArray(json.staff)) setStaffAccounts(json.staff);
+    } catch {}
+  }, []);
+
+  const startStaffSession = useCallback(
+    async (user: StaffAccount) => {
+      // Load the staff working set BEFORE showing the staff screens, so they never render
+      // with the public (partial) room list a signed-out visitor gets.
+      isStaffRef.current = !user.mustChangePassword;
+      if (!user.mustChangePassword) await refreshState();
+      setCurrentUserState(user);
+      setRoleState(user.role);
+      setAuthStatus('signed_in');
+      if (!user.mustChangePassword && user.role === 'admin') await loadStaffAccounts();
+    },
+    [refreshState, loadStaffAccounts]
+  );
+
+  // Initial load: who is signed in? Then load the right data.
+  useEffect(() => {
+    try {
+      // Remove the old insecure session keys. Old front-desk DATA is left in place until an
+      // admin moves it to the server (see LegacyDataMigration); only the plain-text passwords
+      // in the old staff list are stripped now.
+      ['wp_crm_current_user', 'wp_crm_role', 'savera_admin_session', 'homestay_admin_token', 'homestay_admin_user'].forEach((k) =>
+        localStorage.removeItem(k)
+      );
+      const oldStaff = localStorage.getItem('wp_crm_staff_accounts');
+      if (oldStaff && oldStaff.includes('"password"')) {
+        const list = JSON.parse(oldStaff);
+        if (Array.isArray(list)) {
+          localStorage.setItem(
+            'wp_crm_staff_accounts',
+            JSON.stringify(list.map(({ password: _pw, ...rest }: { password?: string }) => rest))
+          );
+        }
+      }
+    } catch {}
+
+    let cancelled = false;
+    fetchLiveTariffs(true)
+      .then((live) => {
+        if (cancelled) return;
+        setRoomTariffs(live.tariffs);
+        setSeasonalDateRanges(live.seasonalDateRanges);
+        setGstConfig(live.gstConfig);
+        setTariffsStatus('ready');
+      })
+      .catch(() => !cancelled && setTariffsStatus('error'));
+
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then(async (json) => {
+        if (cancelled) return;
+        if (json?.success && json.user) {
+          await startStaffSession(json.user as StaffAccount);
+        } else {
+          setAuthStatus('signed_out');
+          await loadPublicCatalog();
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAuthStatus('signed_out');
+        void loadPublicCatalog();
+      });
+
+    // Keep every staff device in step (and pick up guest orders, check-ins, alerts)
+    const poll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (pendingOpsRef.current === 0) void refreshState();
+    }, 8000);
+    const onFocus = () => void refreshState();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      window.removeEventListener('focus', onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Admin-only UI preview of another role's screens (server permissions still follow the account). */
   const setRole = useCallback((newRole: StaffRole) => {
     setRoleState(newRole);
-    try {
-      localStorage.setItem('wp_crm_role', newRole);
-    } catch {
-      // ignore
-    }
-    showToast(`Switched active role to ${newRole.replace('_', ' ').toUpperCase()}`, 'info');
+    showToast(`Previewing the ${newRole.replace('_', ' ').toUpperCase()} view`, 'info');
   }, [showToast]);
 
   const updateRoomStatus = (roomId: string, status: RoomTapeStatus) => {
     setRooms((prev) => {
       const updated = prev.map((r) => (r.id === roomId ? { ...r, currentStatus: status } : r));
       try {
-        localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
+        queueSync('physicalRooms', prev, updated);
       } catch {}
       return updated;
     });
-    try {
-      fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_room_status', roomId, status }),
-      }).catch(() => null);
-    } catch {}
     showToast(`Room status updated to ${status}`);
   };
 
@@ -720,7 +579,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return b;
       });
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
       } catch {}
       return updated;
     });
@@ -749,7 +608,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return task;
       });
       try {
-        localStorage.setItem('wp_crm_housekeeping', JSON.stringify(updated));
+        queueSync('housekeepingTasks', prev, updated);
       } catch {}
       return updated;
     });
@@ -768,7 +627,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return task;
       });
       try {
-        localStorage.setItem('wp_crm_housekeeping', JSON.stringify(updated));
+        queueSync('housekeepingTasks', prev, updated);
       } catch {}
       return updated;
     });
@@ -792,7 +651,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       });
 
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {
         // ignore
       }
@@ -817,7 +676,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       });
 
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {
         // ignore
       }
@@ -844,7 +703,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setFolios((prev) => {
       const updated = prev.map((f) => (f.id === folioId ? { ...f, status: 'settled' as const, settledAt: new Date().toISOString() } : f));
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
@@ -852,64 +711,36 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   // QR Food Order Creation
-  const createFoodOrder = (orderData: Omit<FoodOrder, 'id' | 'orderNumber' | 'createdAt'>): FoodOrder => {
-    const orderNumber = `ORD-${1000 + foodOrders.length + 1}`;
-    const newOrder: FoodOrder = {
-      ...orderData,
-      id: `ord-${Date.now()}`,
-      orderNumber,
-      status: orderData.status || 'pending_manager_approval',
-      createdAt: new Date().toISOString(),
-    };
-
-    setFoodOrders((prev) => {
-      const updated = [newOrder, ...prev];
-      try {
-        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-      return updated;
-    });
-
-    // Automatically post line charge to guest folio as "pending"
-    if (orderData.folioId) {
-      addFolioCharge(orderData.folioId, {
-        folioId: orderData.folioId,
-        category: 'food_beverage',
-        chargeStatus: 'pending',
-        title: `Food Order #${orderNumber} (${orderData.items.map((i) => `${i.quantity}x ${i.itemName}`).join(', ')})`,
-        amount: orderData.totalAmount,
-        sourceReferenceType: 'food_order',
-        sourceReferenceId: newOrder.id,
-      });
-    }
-
-    // Sync to backend server so other staff devices and kitchen immediately receive it
+  /**
+   * In-room dining order (QR concierge / staff). Placed on the server, which prices it
+   * from the live menu, posts the folio charge and alerts the front desk.
+   */
+  const createFoodOrder = async (orderData: Omit<FoodOrder, 'id' | 'orderNumber' | 'createdAt'>): Promise<FoodOrder | null> => {
     try {
-      fetch('/api/orders', {
+      const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'food_order',
-          orderNumber,
           bookingId: orderData.bookingId,
-          roomNumber: orderData.roomNumber,
-          guestName: orderData.guestName || 'Guest',
-          items: orderData.items.map((i) => ({
-            name: i.itemName,
-            price: i.unitPrice,
-            quantity: i.quantity,
-          })),
-          totalAmount: orderData.totalAmount,
+          items: orderData.items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, itemNotes: i.itemNotes })),
           notes: orderData.specialInstructions,
-          chargeCategory: 'food_beverage',
         }),
-      }).catch(() => null);
-    } catch {}
-
-    showToast(`Food Order ${orderNumber} placed & sent to Manager Approval Gate!`);
-    return newOrder;
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success || !json.order) {
+        showToast(json?.error || 'Could not place the order. Please try again or call reception.', 'error');
+        return null;
+      }
+      const order = json.order as FoodOrder;
+      applyServerRecord('foodOrders', order.id, order);
+      if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+      showToast(`Food Order ${order.orderNumber} placed & sent to Manager Approval Gate!`);
+      return order;
+    } catch {
+      showToast('You appear to be offline. The order was not placed.', 'error');
+      return null;
+    }
   };
 
   const logManagerActivity = (activity: Omit<ManagerActivityLog, 'id' | 'timestamp'>): ManagerActivityLog => {
@@ -921,7 +752,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setManagerActivityLogs((prev) => {
       const updated = [newEntry, ...prev].slice(0, 200);
       try {
-        localStorage.setItem('wp_crm_activity_logs', JSON.stringify(updated));
+        queueSync('activityLogs', prev, updated);
       } catch {}
       return updated;
     });
@@ -943,7 +774,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return ord;
       });
       try {
-        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
+        queueSync('foodOrders', prev, updated);
       } catch {}
       return updated;
     });
@@ -960,15 +791,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       notes: `Approved order #${targetOrder?.orderNumber} after inventory stock verification. Released to kitchen.`,
     });
 
-    fetch('/api/orders', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId,
-        status: 'accepted_kitchen',
-        managerInfo: { id: managerInfo.id, name: managerInfo.name },
-      }),
-    }).catch(() => null);
 
     showToast(`Order approved by ${managerInfo.name} & released to live kitchen orders!`);
   };
@@ -986,7 +808,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return ord;
       });
       try {
-        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
+        queueSync('foodOrders', prev, updated);
       } catch {}
       return updated;
     });
@@ -1002,7 +824,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return recalculateFolioTotals(fol, newCharges);
       });
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
@@ -1019,15 +841,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       notes: `Rejected order #${targetOrder?.orderNumber}. Reason: ${reason}`,
     });
 
-    fetch('/api/orders', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId,
-        status: 'cancelled',
-        managerInfo: { id: managerInfo.id, name: managerInfo.name, notes: reason },
-      }),
-    }).catch(() => null);
 
     showToast(`Order rejected and folio charge voided.`);
   };
@@ -1041,7 +854,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return ord;
       });
       try {
-        localStorage.setItem('wp_crm_food_orders', JSON.stringify(updated));
+        queueSync('foodOrders', prev, updated);
       } catch {
         // ignore
       }
@@ -1049,15 +862,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Notify backend server for real-time sync across all staff tablets
-    try {
-      fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status }),
-      }).catch(() => null);
-    } catch {}
 
     // If order delivered or accepted, confirm the folio charge to posted; if cancelled, void and recalculate!
+    // The server also posts/voids the folio charge when an order's status changes;
+    // kitchen accounts only change the order itself.
+    if (currentUser?.role === 'kitchen_staff') {
+      showToast(`Order status updated to ${status.replace('_', ' ')}`);
+      return;
+    }
     if (['accepted_kitchen', 'preparing', 'delivered'].includes(status)) {
       setFolios((prev) => {
         const updated = prev.map((fol) => ({
@@ -1067,7 +879,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           ),
         }));
         try {
-          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+          queueSync('folios', prev, updated);
         } catch {}
         return updated;
       });
@@ -1082,7 +894,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           return recalculateFolioTotals(fol, newCharges);
         });
         try {
-          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+          queueSync('folios', prev, updated);
         } catch {}
         return updated;
       });
@@ -1102,7 +914,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return item;
       });
       try {
-        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+        queueSync('menuItems', prev, updated);
       } catch {}
       const targetItem = prev.find((i) => i.id === itemId);
       showToast(`${targetItem?.name || 'Item'} is now ${nextStatus ? 'IN STOCK' : 'OUT OF STOCK'}`);
@@ -1111,47 +923,42 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   // QR Transport / Dispatch creation
-  const createTransportRequest = (
+  /** Transfer / rental request (QR concierge / staff), priced and recorded on the server. */
+  const createTransportRequest = async (
     requestData: Omit<TransportRequest, 'id' | 'requestNumber' | 'createdAt' | 'homestayCommission'>
-  ): TransportRequest => {
-    const requestNumber = `DSP-${500 + dispatchRequests.length + 1}`;
-    const vendorCost = requestData.vendorCost || Math.round(requestData.quotedPrice * 0.75);
-    const homestayCommission = requestData.quotedPrice - vendorCost;
-
-    const newRequest: TransportRequest = {
-      ...requestData,
-      id: `dsp-${Date.now()}`,
-      requestNumber,
-      vendorCost,
-      homestayCommission,
-      createdAt: new Date().toISOString(),
-    };
-
-    setDispatchRequests((prev) => {
-      const updated = [newRequest, ...prev];
-      try {
-        localStorage.setItem('wp_crm_dispatch', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-      return updated;
-    });
-
-    // Automatically post to Folio as pending
-    if (requestData.folioId) {
-      addFolioCharge(requestData.folioId, {
-        folioId: requestData.folioId,
-        category: requestData.serviceType === 'point_to_point' ? 'transport_transfer' : 'vehicle_rental',
-        chargeStatus: 'pending',
-        title: `${requestData.serviceType === 'point_to_point' ? 'Transfer' : 'Rental'}: ${requestData.routeTitle || requestData.rentalVehicleName} (#${requestNumber})`,
-        amount: requestData.quotedPrice,
-        sourceReferenceType: 'transport_request',
-        sourceReferenceId: newRequest.id,
+  ): Promise<TransportRequest | null> => {
+    try {
+      const res = await fetch('/api/guest/transport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: requestData.bookingId,
+          serviceType: requestData.serviceType,
+          routeId: requestData.routeId,
+          vehicleTier: requestData.vehicleTier,
+          modifiers: (requestData.selectedModifiers || []).map((m) => m.name),
+          rentalVehicleId: requestData.rentalVehicleId,
+          pickupDatetime: requestData.pickupDatetime,
+          returnDatetime: requestData.returnDatetime,
+          pickupLocation: requestData.pickupLocation,
+          destinationNotes: requestData.destinationNotes,
+          guestContactPhone: requestData.guestContactPhone,
+        }),
       });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success || !json.request) {
+        showToast(json?.error || 'Could not submit the transport request.', 'error');
+        return null;
+      }
+      const request = json.request as TransportRequest;
+      applyServerRecord('dispatchRequests', request.id, request);
+      if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+      showToast(`Transport Request ${request.requestNumber} submitted! Awaiting Manager dispatch.`);
+      return request;
+    } catch {
+      showToast('You appear to be offline. The request was not sent.', 'error');
+      return null;
     }
-
-    showToast(`Transport Request ${requestNumber} submitted! Awaiting Manager dispatch.`);
-    return newRequest;
   };
 
   const confirmDispatchRequest = (
@@ -1175,7 +982,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return req;
       });
       try {
-        localStorage.setItem('wp_crm_dispatch', JSON.stringify(updated));
+        queueSync('dispatchRequests', prev, updated);
       } catch {
         // ignore
       }
@@ -1191,7 +998,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
@@ -1203,7 +1010,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setDispatchRequests((prev) => {
       const updated = prev.map((req) => (req.id === requestId ? { ...req, dispatchStatus: 'cancelled' as DispatchStatus } : req));
       try {
-        localStorage.setItem('wp_crm_dispatch', JSON.stringify(updated));
+        queueSync('dispatchRequests', prev, updated);
       } catch {}
       return updated;
     });
@@ -1219,7 +1026,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return recalculateFolioTotals(fol, newCharges);
       });
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
@@ -1238,7 +1045,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setExpenses((prev) => {
       const updated = [newExpense, ...prev];
       try {
-        localStorage.setItem('wp_crm_expenses', JSON.stringify(updated));
+        queueSync('expenses', prev, updated);
       } catch {
         // ignore
       }
@@ -1252,7 +1059,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setExpenses((prev) => {
       const updated = prev.filter((e) => e.id !== expenseId);
       try {
-        localStorage.setItem('wp_crm_expenses', JSON.stringify(updated));
+        queueSync('expenses', prev, updated);
       } catch {
         // ignore
       }
@@ -1283,7 +1090,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           : b
       );
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
       } catch {}
       return updated;
     });
@@ -1291,24 +1098,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setRooms((prev) => {
       const updated = prev.map((r) => (r.id === bk.roomId ? { ...r, currentStatus: 'checked_in' as const } : r));
       try {
-        localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
+        queueSync('physicalRooms', prev, updated);
       } catch {}
       return updated;
     });
 
-    try {
-      fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_in',
-          bookingId: bk.id,
-          roomId: bk.roomId,
-          roomNumber: bk.roomNumber,
-          managerInfo: { id: mgrId, name: mgrName },
-        }),
-      }).catch(() => null);
-    } catch {}
 
     logManagerActivity({
       managerId: mgrId,
@@ -1369,7 +1163,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             : f
         );
         try {
-          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+          queueSync('folios', prev, updated);
         } catch {}
         return updated;
       });
@@ -1391,7 +1185,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           : b
       );
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
       } catch {}
       return updated;
     });
@@ -1404,23 +1198,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           : r
       );
       try {
-        localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
+        queueSync('physicalRooms', prev, updated);
       } catch {}
       return updated;
     });
 
-    try {
-      fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_out',
-          bookingId: bk.id,
-          roomId: bk.roomId,
-          roomNumber: bk.roomNumber,
-        }),
-      }).catch(() => null);
-    } catch {}
 
     // 5. Create housekeeping turnover task
     const newTask: HousekeepingTask = {
@@ -1445,7 +1227,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setHousekeepingTasks((prev) => {
       const updated = [newTask, ...prev];
       try {
-        localStorage.setItem('wp_crm_housekeeping', JSON.stringify(updated));
+        queueSync('housekeepingTasks', prev, updated);
       } catch {}
       return updated;
     });
@@ -1502,6 +1284,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     isManualRate?: boolean;
     advancePaid?: number;
     advancePaymentMethod?: PaymentMethod;
+    /** GST on the room charges (from the shared GST rules); computed here if omitted. */
+    gstAmount?: number;
+    /** Website request this booking fulfils. */
+    sourceBookingId?: string;
     guest: {
       fullName: string;
       phone: string;
@@ -1519,23 +1305,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     };
   }): CRMBooking => {
     const room = rooms.find((r) => r.id === bookingData.roomId) || rooms[0];
-    const guestId = `guest-${Date.now()}`;
-    const bookingId = `bk-${Date.now()}`;
+    const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const guestId = `guest-${uid()}`;
+    const bookingId = `bk-${uid()}`;
     const existingRefs = bookings.map((b) => b.bookingReference);
     const bookingReference = generateUniversalBookingId(bookingData.checkInDate, existingRefs);
 
-    // Calculate nights
-    const start = new Date(bookingData.checkInDate);
-    const end = new Date(bookingData.checkOutDate);
-    const diffTime = Math.max(0, end.getTime() - start.getTime());
-    const totalNights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    // Calculate nights (IST calendar dates)
+    const totalNights = Math.max(1, nightsBetween(bookingData.checkInDate, bookingData.checkOutDate) ?? 1);
 
     // Extra person charges calculation
     const extraAdultsCount = Math.max(0, (bookingData.adultsCount || 2) - 2);
     const extraChildrenCount = Math.max(0, bookingData.childrenCount || 0);
-    const tariffs = roomTariffs[room.id] || INITIAL_ROOM_SEASONAL_TARIFFS[room.id];
-    const extraAdultRate = bookingData.extraAdultChargePerNight ?? tariffs?.extraAdultRate ?? 1200;
-    const extraChildRate = bookingData.extraChildChargePerNight ?? tariffs?.extraChildRate ?? 600;
+    const tariffs = resolveRoomTariffs(room.id, roomTariffs);
+    const extraAdultRate = bookingData.extraAdultChargePerNight ?? tariffs?.extraAdultRate ?? 0;
+    const extraChildRate = bookingData.extraChildChargePerNight ?? tariffs?.extraChildRate ?? 0;
     const extraAdultsTotal = extraAdultsCount * extraAdultRate * totalNights;
     const extraChildrenTotal = extraChildrenCount * extraChildRate * totalNights;
     const totalExtraCharges = extraAdultsTotal + extraChildrenTotal;
@@ -1605,8 +1389,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Auto-create Folio with itemized stay charges
-    const folioId = `fol-${Date.now()}`;
-    const folioNumber = `FOL-2026-${room.roomNumber}${Math.floor(10 + Math.random() * 90)}`;
+    const folioId = `fol-${uid()}`;
+    const folioNumber = `FOL-${new Date().getFullYear()}-${room.roomNumber}-${uid().slice(0, 4).toUpperCase()}`;
     const chargesList: FolioCharge[] = [];
 
     // Base Room Charge
@@ -1665,9 +1449,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         paymentMethod: bookingData.advancePaymentMethod || 'upi',
         receiptNotes: 'Advance deposit on manual booking reservation',
         collectedAt: new Date().toISOString(),
-        collectedByName: role === 'admin' ? 'Administrator' : 'Duty Manager',
+        collectedByName: currentUser?.fullName || 'Duty Manager',
+        collectedById: currentUser?.id,
       });
     }
+
+    // GST on accommodation: per-night slab (₹7,500 line) via the shared rules
+    const roomGst = bookingData.gstAmount ?? accommodationGstForTotal(totalRoomAmount, totalNights, gstConfig);
+    const taxedCharges = apportionTax(chargesList, roomGst, gstConfig);
+    newBooking.gstAmount = roomGst;
+    if (bookingData.sourceBookingId) newBooking.sourceBookingId = bookingData.sourceBookingId;
 
     const initialFolio: GuestFolio = recalculateFolioTotals(
       {
@@ -1687,35 +1478,29 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         netPayable: totalRoomAmount,
         totalPaid: bookingData.advancePaid || 0,
         balanceDue: Math.max(0, totalRoomAmount - (bookingData.advancePaid || 0)),
-        charges: chargesList,
+        charges: taxedCharges,
         payments,
       },
-      chargesList,
-      payments
+      taxedCharges,
+      payments,
+      gstConfig
     );
 
     // Update state & persistence
     setBookings((prev) => {
       const updated = [newBooking, ...prev];
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
       } catch {}
       return updated;
     });
 
     // Sync new reservation to server so guest can immediately log in from mobile device
-    try {
-      fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ crmBooking: newBooking, folio: initialFolio }),
-      }).catch(() => null);
-    } catch {}
 
     setFolios((prev) => {
       const updated = [initialFolio, ...prev];
       try {
-        localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+        queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
@@ -1724,7 +1509,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setRooms((prev) => {
       const updated = prev.map((r) => (r.id === room.id ? { ...r, currentStatus: bookingData.status } : r));
       try {
-        localStorage.setItem('wp_crm_rooms', JSON.stringify(updated));
+        queueSync('physicalRooms', prev, updated);
       } catch {}
       return updated;
     });
@@ -1764,14 +1549,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       });
 
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
         const updatedTarget = updated.find((b) => b.id === bookingId);
         if (updatedTarget) {
-          fetch('/api/checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ crmBooking: updatedTarget }),
-          }).catch(() => null);
         }
       } catch {}
       return updated;
@@ -1784,7 +1564,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           fol.bookingId === bookingId ? { ...fol, guestName: guestUpdates.fullName! } : fol
         );
         try {
-          localStorage.setItem('wp_crm_folios', JSON.stringify(updated));
+          queueSync('folios', prev, updated);
         } catch {}
         return updated;
       });
@@ -1812,14 +1592,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return b;
       });
       try {
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
+        queueSync('crmBookings', prev, updated);
         const updatedTarget = updated.find((b) => b.id === bookingId);
         if (updatedTarget) {
-          fetch('/api/checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ crmBooking: updatedTarget }),
-          }).catch(() => null);
         }
       } catch {}
       return updated;
@@ -1827,168 +1602,145 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     showToast(`Guest document verification marked as ${status.toUpperCase()}`);
   };
 
-  // Staff Account & Authentication Actions
-  const setCurrentUser = useCallback((user: StaffAccount | null) => {
-    setCurrentUserState(user);
+  // Staff Account & Authentication Actions (server-side accounts; nothing secret in the browser)
+  const signOut = useCallback(async () => {
     try {
-      if (user) {
-        localStorage.setItem('wp_crm_current_user', JSON.stringify(user));
-        setRoleState(user.role);
-        localStorage.setItem('wp_crm_role', user.role);
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    handleSignedOut();
+    void loadPublicCatalog();
+  }, [handleSignedOut, loadPublicCatalog]);
 
-        // Keep savera_admin_session active and valid
-        const existingSessionRaw = localStorage.getItem('savera_admin_session');
-        const session = existingSessionRaw ? { ...JSON.parse(existingSessionRaw), ...user } : {
-          ...user,
-          token: `token-${user.id}-${Date.now()}`,
-          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-        };
-        if (!session.expiresAt || session.expiresAt < Date.now()) {
-          session.expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        }
-        localStorage.setItem('savera_admin_session', JSON.stringify(session));
-      } else {
-        localStorage.removeItem('wp_crm_current_user');
-        localStorage.removeItem('savera_admin_session');
-        localStorage.removeItem('homestay_admin_token');
-        localStorage.removeItem('homestay_admin_user');
+  const setCurrentUser = useCallback(
+    (user: StaffAccount | null) => {
+      if (!user) {
+        void signOut();
+        return;
       }
-    } catch {
-      // ignore
-    }
-  }, []);
+      setCurrentUserState(user);
+      setRoleState(user.role);
+    },
+    [signOut]
+  );
 
   const addStaffAccount = async (accountData: Omit<StaffAccount, 'id' | 'createdAt'>): Promise<StaffAccount> => {
-    const newAccount: StaffAccount = {
-      ...accountData,
-      id: `staff-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setStaffAccounts((prev) => {
-      const updated = [...prev, newAccount];
-      try {
-        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
-      } catch {}
-      return updated;
+    const res = await fetch('/api/staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: accountData.email,
+        fullName: accountData.fullName,
+        phone: accountData.phone || undefined,
+        role: accountData.role,
+        password: accountData.password,
+      }),
     });
-    showToast(`Staff member "${newAccount.fullName}" added as ${newAccount.role.replace('_', ' ').toUpperCase()}`);
-    return newAccount;
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      const message = json?.error || 'Could not create the staff account.';
+      showToast(message, 'error');
+      throw new Error(message);
+    }
+    const created = json.staff as StaffAccount;
+    setStaffAccounts((prev) => [...prev, created]);
+    showToast(`Login created for "${created.fullName}" (${created.role.replace('_', ' ').toUpperCase()}). They must set a new password at first sign-in.`);
+    return created;
   };
 
   const updateStaffAccount = async (id: string, updates: Partial<StaffAccount>): Promise<void> => {
-    setStaffAccounts((prev) => {
-      const updated = prev.map((acc) => (acc.id === id ? { ...acc, ...updates } : acc));
-      try {
-        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
-      } catch {}
-      return updated;
+    const res = await fetch(`/api/staff/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: updates.fullName,
+        email: updates.email,
+        phone: updates.phone,
+        role: updates.role,
+        isActive: updates.isActive,
+        newPassword: updates.password || undefined,
+      }),
     });
-
-    if (currentUser?.id === id) {
-      setCurrentUserState((prev) => (prev ? { ...prev, ...updates } : null));
-      try {
-        const stored = localStorage.getItem('wp_crm_current_user');
-        if (stored) {
-          localStorage.setItem('wp_crm_current_user', JSON.stringify({ ...JSON.parse(stored), ...updates }));
-        }
-        const sessionRaw = localStorage.getItem('savera_admin_session');
-        if (sessionRaw) {
-          localStorage.setItem('savera_admin_session', JSON.stringify({ ...JSON.parse(sessionRaw), ...updates }));
-        }
-      } catch {}
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      const message = json?.error || 'Could not update the staff account.';
+      showToast(message, 'error');
+      throw new Error(message);
     }
-    showToast('Staff profile updated successfully');
+    const saved = json.staff as StaffAccount;
+    setStaffAccounts((prev) => prev.map((acc) => (acc.id === id ? saved : acc)));
+    if (currentUser?.id === id) setCurrentUserState(saved);
+    showToast(updates.password ? 'Password reset. The user must choose a new one at next sign-in.' : 'Staff profile updated successfully');
   };
 
   const deleteStaffAccount = async (id: string): Promise<{ success: boolean; error?: string }> => {
     const target = staffAccounts.find((a) => a.id === id);
-    if (!target) return { success: false, error: 'Staff account not found' };
-
-    if (currentUser?.id === id) {
-      showToast('Cannot delete your own active account while logged in.', 'error');
-      return { success: false, error: 'Cannot delete your own active account.' };
+    const res = await fetch(`/api/staff/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      const error = json?.error || 'Could not delete the staff account.';
+      showToast(error, 'error');
+      return { success: false, error };
     }
-
-    if (target.role === 'admin') {
-      const activeAdmins = staffAccounts.filter((a) => a.role === 'admin' && a.id !== id && a.isActive);
-      if (activeAdmins.length === 0) {
-        showToast('Cannot delete the last active administrator account.', 'error');
-        return { success: false, error: 'At least one active admin account is required.' };
-      }
-    }
-
-    setStaffAccounts((prev) => {
-      const updated = prev.filter((acc) => acc.id !== id);
-      try {
-        localStorage.setItem('wp_crm_staff_accounts', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-    showToast(`Account for "${target.fullName}" removed`);
+    setStaffAccounts((prev) => prev.filter((acc) => acc.id !== id));
+    showToast(`Account for "${target?.fullName || 'staff member'}" removed`);
     return { success: true };
   };
 
-  const authenticateStaff = useCallback(async (
-    identifier: string,
-    password: string
-  ): Promise<{ success: boolean; user?: StaffAccount; error?: string }> => {
-    const cleanId = identifier.trim().toLowerCase();
-    const found = staffAccounts.find(
-      (acc) =>
-        (acc.email.toLowerCase() === cleanId ||
-          acc.fullName.toLowerCase() === cleanId ||
-          (acc.role === 'admin' && (cleanId === 'info.saverahomestay@gmail.com' || cleanId === 'admin'))) &&
-        acc.password === password
-    );
+  const authenticateStaff = useCallback(
+    async (identifier: string, password: string): Promise<{ success: boolean; user?: StaffAccount; error?: string }> => {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: identifier.trim(), password }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success || !json.user) {
+          return { success: false, error: json?.error || 'Invalid email or password. Please check your credentials.' };
+        }
+        const user = json.user as StaffAccount;
+        await startStaffSession(user);
+        if (!user.mustChangePassword) showToast(`Signed in as ${user.fullName} (${user.role.replace('_', ' ').toUpperCase()})`);
+        return { success: true, user };
+      } catch {
+        return { success: false, error: 'Could not reach the server. Please check your connection.' };
+      }
+    },
+    [startStaffSession, showToast]
+  );
 
-    if (!found) {
-      return { success: false, error: 'Invalid email or password. Please check your credentials.' };
-    }
-
-    if (!found.isActive) {
-      return { success: false, error: 'This account has been deactivated. Please contact the administrator.' };
-    }
-
-    setCurrentUserState(found);
-    setRoleState(found.role);
-    try {
-      const sessionData = {
-        ...found,
-        token: `token-${found.id}-${Date.now()}`,
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-      };
-      localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
-      localStorage.setItem('homestay_admin_token', sessionData.token);
-      localStorage.setItem('homestay_admin_user', JSON.stringify(found));
-      localStorage.setItem('wp_crm_role', found.role);
-      localStorage.setItem('wp_crm_current_user', JSON.stringify(found));
-    } catch {}
-
-    showToast(`Signed in as ${found.fullName} (${found.role.replace('_', ' ').toUpperCase()})`);
-    return { success: true, user: found };
-  }, [staffAccounts, showToast]);
+  const changeOwnPassword = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const res = await fetch('/api/auth/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) return { success: false, error: json?.error || 'Could not change the password.' };
+        if (json.user) await startStaffSession(json.user as StaffAccount);
+        showToast('Password updated.');
+        return { success: true };
+      } catch {
+        return { success: false, error: 'Could not reach the server.' };
+      }
+    },
+    [startStaffSession, showToast]
+  );
 
   // =========================================================================
   // Menu Management CRUD (In-Room Dining)
   // =========================================================================
-  const syncAddonsToServer = (type: 'menu_items' | 'transfer_routes' | 'rental_vehicles', payload: any) => {
-    try {
-      fetch('/api/addons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, payload }),
-      }).catch(() => null);
-    } catch {}
-  };
+
 
   const addMenuItem = (item: Omit<MenuItem, 'id'>): MenuItem => {
     const newItem: MenuItem = { ...item, id: `menu-${Date.now()}` };
     setMenuItems((prev) => {
       const updated = [...prev, newItem];
       try {
-        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+        queueSync('menuItems', prev, updated);
       } catch {}
-      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast(`Added "${newItem.name}" to dining menu`);
@@ -1999,9 +1751,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setMenuItems((prev) => {
       const updated = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
       try {
-        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+        queueSync('menuItems', prev, updated);
       } catch {}
-      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast('Menu item updated');
@@ -2011,9 +1762,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setMenuItems((prev) => {
       const updated = prev.filter((m) => m.id !== id);
       try {
-        localStorage.setItem('wp_crm_menu_items', JSON.stringify(updated));
+        queueSync('menuItems', prev, updated);
       } catch {}
-      syncAddonsToServer('menu_items', updated);
       return updated;
     });
     showToast('Dish removed from menu');
@@ -2027,9 +1777,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setTransferRoutes((prev) => {
       const updated = [...prev, newRoute];
       try {
-        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+        queueSync('transferRoutes', prev, updated);
       } catch {}
-      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast(`Added transfer route "${newRoute.title}"`);
@@ -2040,9 +1789,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setTransferRoutes((prev) => {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
       try {
-        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+        queueSync('transferRoutes', prev, updated);
       } catch {}
-      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast('Transfer route updated');
@@ -2052,9 +1800,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setTransferRoutes((prev) => {
       const updated = prev.filter((r) => r.id !== id);
       try {
-        localStorage.setItem('wp_crm_transfer_routes', JSON.stringify(updated));
+        queueSync('transferRoutes', prev, updated);
       } catch {}
-      syncAddonsToServer('transfer_routes', updated);
       return updated;
     });
     showToast('Transfer route removed');
@@ -2065,9 +1812,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setRentalVehicles((prev) => {
       const updated = [...prev, newVehicle];
       try {
-        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+        queueSync('rentalVehicles', prev, updated);
       } catch {}
-      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast(`Added vehicle "${newVehicle.vehicleName}"`);
@@ -2078,9 +1824,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setRentalVehicles((prev) => {
       const updated = prev.map((v) => (v.id === id ? { ...v, ...updates } : v));
       try {
-        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+        queueSync('rentalVehicles', prev, updated);
       } catch {}
-      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast('Rental vehicle updated');
@@ -2090,9 +1835,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setRentalVehicles((prev) => {
       const updated = prev.filter((v) => v.id !== id);
       try {
-        localStorage.setItem('wp_crm_rental_vehicles', JSON.stringify(updated));
+        queueSync('rentalVehicles', prev, updated);
       } catch {}
-      syncAddonsToServer('rental_vehicles', updated);
       return updated;
     });
     showToast('Rental vehicle removed');
@@ -2101,97 +1845,65 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // =========================================================================
   // Seasonal Date Ranges & Dynamic Tariffs
   // =========================================================================
+  // Applies a server response ({ tariffs, seasonalDateRanges }) to CRM state and to every
+  // other mounted pricing consumer on this page.
+  const applyServerTariffs = (json: unknown) => {
+    const live = parseTariffResponse(json);
+    setRoomTariffs(live.tariffs);
+    setSeasonalDateRanges(live.seasonalDateRanges);
+    setGstConfig(live.gstConfig);
+    setTariffsStatus('ready');
+    publishLiveTariffs(live);
+  };
+
+  const saveTariffChange = async (payload: Record<string, unknown>, successMessage: string): Promise<boolean> => {
+    const result = await adminPostJson('/api/tariffs', payload);
+    if (!result.ok) {
+      showToast(result.error || 'Could not save to the server. The live site was not changed.', 'error');
+      return false;
+    }
+    try {
+      applyServerTariffs(result.data);
+    } catch {
+      // Saved, but the response was unexpected: reload to be certain we show what the server has.
+      try {
+        applyServerTariffs({ success: true, data: await fetchLiveTariffs(true) });
+      } catch {}
+    }
+    showToast(successMessage);
+    return true;
+  };
+
   const addSeasonalRange = (rangeData: Omit<SeasonalDateRange, 'id'>): SeasonalDateRange => {
     const newRange: SeasonalDateRange = { ...rangeData, id: `season-${Date.now()}` };
-    setSeasonalDateRanges((prev) => {
-      const updated = [...prev, newRange];
-      try {
-        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
-        fetch('/api/tariffs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
-        }).catch(() => null);
-      } catch {}
-      return updated;
-    });
-    showToast(`Added seasonal period "${newRange.name}"`);
+    void saveTariffChange(
+      { type: 'seasonal_range_upsert', range: newRange },
+      `Added seasonal period "${newRange.name}"`
+    );
     return newRange;
   };
 
-  const updateSeasonalRange = (id: string, updates: Partial<SeasonalDateRange>) => {
-    setSeasonalDateRanges((prev) => {
-      const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
-      try {
-        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
-        fetch('/api/tariffs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
-        }).catch(() => null);
-      } catch {}
-      return updated;
-    });
-    showToast('Seasonal period updated');
+  const updateSeasonalRange = async (id: string, updates: Partial<SeasonalDateRange>): Promise<boolean> => {
+    const existing = seasonalDateRanges.find((r) => r.id === id);
+    if (!existing) {
+      showToast('That seasonal period no longer exists. Please refresh.', 'error');
+      return false;
+    }
+    return saveTariffChange(
+      { type: 'seasonal_range_upsert', range: { ...existing, ...updates, id } },
+      'Seasonal period updated'
+    );
   };
 
-  const deleteSeasonalRange = (id: string) => {
-    setSeasonalDateRanges((prev) => {
-      const updated = prev.filter((r) => r.id !== id);
-      try {
-        localStorage.setItem('wp_crm_seasonal_ranges', JSON.stringify(updated));
-        fetch('/api/tariffs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'seasonal_ranges', ranges: updated }),
-        }).catch(() => null);
-      } catch {}
-      return updated;
-    });
-    showToast('Seasonal period removed');
+  const deleteSeasonalRange = async (id: string): Promise<boolean> => {
+    return saveTariffChange({ type: 'seasonal_range_delete', id }, 'Seasonal period removed');
   };
 
-  const updateRoomTariffs = (roomId: string, tariffs: RoomSeasonalTariffs) => {
-    setRoomTariffs((prev) => {
-      const updated = { ...prev, [roomId]: tariffs };
-
-      // Synchronize category IDs and physical room IDs
-      if (roomId === 'room-cat-1') {
-        updated['room-101'] = tariffs;
-        updated['room-102'] = tariffs;
-        updated['room-103'] = tariffs;
-      } else if (roomId === 'room-cat-2') {
-        updated['room-104'] = tariffs;
-      } else if (roomId === 'room-cat-3') {
-        updated['room-201'] = tariffs;
-        updated['room-202'] = tariffs;
-        updated['room-203'] = tariffs;
-      } else if (['room-101', 'room-102', 'room-103'].includes(roomId)) {
-        updated['room-cat-1'] = tariffs;
-      } else if (roomId === 'room-104') {
-        updated['room-cat-2'] = tariffs;
-      } else if (['room-201', 'room-202', 'room-203'].includes(roomId)) {
-        updated['room-cat-3'] = tariffs;
-      }
-
-      try {
-        localStorage.setItem('wp_crm_room_tariffs', JSON.stringify(updated));
-      } catch {}
-
-      // Asynchronously sync to /api/tariffs
-      try {
-        fetch('/api/tariffs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId, tariffs }),
-        }).catch(() => null);
-      } catch {}
-
-      return updated;
-    });
-    showToast('Room seasonal tariffs saved successfully');
+  const updateRoomTariffs = async (roomId: string, tariffs: RoomSeasonalTariffs): Promise<boolean> => {
+    return saveTariffChange({ roomId, tariffs }, 'Room seasonal tariffs saved to the live site');
   };
 
+  // Canonical engine: identical maths to the public website and the booking API.
   const calculateDynamicTariff = (
     roomId: string,
     checkIn: string,
@@ -2199,250 +1911,61 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     mealPlan: MealPlan = 'CP',
     adultsCount: number = 2,
     childrenCount: number = 0
-  ) => {
-    const categoryFallbackMap: Record<string, string> = {
-      'room-101': 'room-cat-1',
-      'room-102': 'room-cat-1',
-      'room-103': 'room-cat-1',
-      'room-104': 'room-cat-2',
-      'room-201': 'room-cat-3',
-      'room-202': 'room-cat-3',
-      'room-203': 'room-cat-3',
-    };
-    const catKey = categoryFallbackMap[roomId] || roomId;
-    const tariffs =
-      roomTariffs[roomId] ||
-      roomTariffs[catKey] ||
-      INITIAL_ROOM_SEASONAL_TARIFFS[roomId] ||
-      INITIAL_ROOM_SEASONAL_TARIFFS[catKey] || {
-        regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
-        season: { EP: 6000, CP: 6800, MAP: 8000, AP: 9200 },
-        offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
-        weekendSurchargePercent: 10,
-        extraAdultRate: 1200,
-        extraChildRate: 600,
-      };
-
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    const diffTime = end.getTime() - start.getTime();
-    const nights = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
-
-    let baseRoomAmount = 0;
-    const breakdown: {
-      date: string;
-      rateName: string;
-      seasonType: 'season' | 'off_season' | 'regular';
-      amount: number;
-    }[] = [];
-
-    const curr = new Date(start);
-    for (let i = 0; i < nights; i++) {
-      const dateStr = curr.toISOString().split('T')[0];
-      const dayOfWeek = curr.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
-      const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
-
-      let seasonType: 'season' | 'off_season' | 'regular' = 'regular';
-      let matchedSeasonName = 'Regular Tariff';
-
-      for (const range of seasonalDateRanges) {
-        if (dateStr >= range.startDate && dateStr <= range.endDate) {
-          seasonType = range.seasonType;
-          matchedSeasonName = range.name;
-          break;
-        }
-      }
-
-      let baseNightlyRate = tariffs.regular[mealPlan] || tariffs.regular.CP;
-      if (seasonType === 'season') {
-        baseNightlyRate = tariffs.season[mealPlan] || tariffs.season.CP;
-      } else if (seasonType === 'off_season') {
-        baseNightlyRate = tariffs.offSeason[mealPlan] || tariffs.offSeason.CP;
-      }
-
-      if (isWeekend && tariffs.weekendSurchargePercent && seasonType === 'regular') {
-        baseNightlyRate = Math.round(baseNightlyRate * (1 + tariffs.weekendSurchargePercent / 100));
-        matchedSeasonName += ' (Weekend)';
-      }
-
-      baseRoomAmount += baseNightlyRate;
-      breakdown.push({
-        date: dateStr,
-        rateName: `${matchedSeasonName} (${mealPlan})`,
-        seasonType,
-        amount: baseNightlyRate,
-      });
-
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    const extraAdultsCount = Math.max(0, adultsCount - 2);
-    const extraChildrenCount = Math.max(0, childrenCount);
-    const extraAdultRate = tariffs.extraAdultRate ?? 1200;
-    const extraChildRate = tariffs.extraChildRate ?? 600;
-    const extraAdultsCharge = extraAdultsCount * extraAdultRate * nights;
-    const extraChildrenCharge = extraChildrenCount * extraChildRate * nights;
-    const totalAmount = baseRoomAmount + extraAdultsCharge + extraChildrenCharge;
-
-    const avgRatePerNight = Math.round(totalAmount / nights);
-
-    return {
-      totalAmount,
-      baseAmount: baseRoomAmount,
-      extraAdultsCount,
-      extraAdultRate,
-      extraAdultsCharge,
-      extraChildrenCount,
-      extraChildRate,
-      extraChildrenCharge,
-      nights,
-      avgRatePerNight,
-      breakdown,
-    };
+  ): DynamicTariffResult | null => {
+    if (tariffsStatus !== 'ready') return null;
+    return calculateCanonicalTariff({
+      roomId,
+      checkIn,
+      checkOut,
+      mealPlan,
+      adultsCount,
+      childrenCount,
+      tariffsMap: roomTariffs,
+      seasonalDateRanges,
+    });
   };
 
   const getSeasonForDate = (dateStr: string) => {
     if (!dateStr) return { seasonType: 'regular' as const, seasonName: 'Regular Season' };
     const dateOnly = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    for (const range of seasonalDateRanges) {
-      if (dateOnly >= range.startDate && dateOnly <= range.endDate) {
-        return {
-          seasonType: range.seasonType,
-          seasonName: range.name,
-        };
-      }
+    // Same season resolution as the room pricing engine (peak wins over off-season on overlap)
+    const resolved = resolveSeasonForNight(dateOnly, seasonalDateRanges);
+    if (resolved.seasonType === 'regular') {
+      return { seasonType: 'regular' as const, seasonName: 'Regular Season' };
     }
-    return { seasonType: 'regular' as const, seasonName: 'Regular Season' };
+    return { seasonType: resolved.seasonType, seasonName: resolved.name };
   };
 
-  const calculateDynamicTransferRate = (
-    route: TransferRoute,
-    dateStr: string,
-    tier: 'wagonr' | 'sedan' | 'suv'
-  ) => {
-    const tierBasePrice = tier === 'wagonr' ? route.priceWagonR : tier === 'suv' ? route.priceSUV : route.priceSedan;
-    const { seasonType, seasonName } = getSeasonForDate(dateStr);
+  // Transfer & rental pricing: shared with the server (which re-prices guest requests)
+  const calculateDynamicTransferRate = (route: TransferRoute, dateStr: string, tier: 'wagonr' | 'sedan' | 'suv') =>
+    transferRate(route, dateStr, tier, seasonalDateRanges);
 
-    let rate = tierBasePrice;
-    let isSurgeApplied = false;
+  const calculateDynamicRentalRate = (vehicle: RentalVehicle, startDateStr: string, endDateStr?: string) =>
+    rentalRate(vehicle, startDateStr, endDateStr, seasonalDateRanges);
 
-    if (seasonType === 'season') {
-      const seasonalOverride = route.seasonalTariffs?.season;
-      const tierKey = tier === 'wagonr' ? 'priceWagonR' : tier === 'suv' ? 'priceSUV' : 'priceSedan';
-      if (seasonalOverride && typeof seasonalOverride[tierKey] === 'number') {
-        rate = seasonalOverride[tierKey]!;
-      } else {
-        rate = Math.round(tierBasePrice * 1.2); // 20% peak surge default
-      }
-      isSurgeApplied = true;
-    } else if (seasonType === 'off_season') {
-      const offSeasonOverride = route.seasonalTariffs?.offSeason;
-      const tierKey = tier === 'wagonr' ? 'priceWagonR' : tier === 'suv' ? 'priceSUV' : 'priceSedan';
-      if (offSeasonOverride && typeof offSeasonOverride[tierKey] === 'number') {
-        rate = offSeasonOverride[tierKey]!;
-      } else {
-        rate = Math.round(tierBasePrice * 0.85); // 15% off-season discount
-      }
-    }
-
-    return {
-      rate,
-      baseRate: tierBasePrice,
-      seasonType,
-      seasonName,
-      isSurgeApplied,
-    };
-  };
-
-  const calculateDynamicRentalRate = (
-    vehicle: RentalVehicle,
-    startDateStr: string,
-    endDateStr?: string
-  ) => {
-    const start = new Date(startDateStr || new Date().toISOString().split('T')[0]);
-    let days = 1;
-    if (endDateStr) {
-      const end = new Date(endDateStr);
-      const diffMs = end.getTime() - start.getTime();
-      const calculatedDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      days = Math.max(1, isNaN(calculatedDays) ? 1 : calculatedDays);
-    }
-
-    let totalRate = 0;
-    const breakdown: { date: string; rate: number; seasonType: 'season' | 'off_season' | 'regular'; seasonName: string }[] = [];
-
-    const curr = new Date(start);
-    for (let i = 0; i < days; i++) {
-      const dateStr = curr.toISOString().split('T')[0];
-      const { seasonType, seasonName } = getSeasonForDate(dateStr);
-
-      let dayRate = vehicle.ratePerDay;
-      if (seasonType === 'season') {
-        if (typeof vehicle.seasonalTariffs?.seasonRatePerDay === 'number') {
-          dayRate = vehicle.seasonalTariffs.seasonRatePerDay;
-        } else {
-          dayRate = Math.round(vehicle.ratePerDay * 1.2);
-        }
-      } else if (seasonType === 'off_season') {
-        if (typeof vehicle.seasonalTariffs?.offSeasonRatePerDay === 'number') {
-          dayRate = vehicle.seasonalTariffs.offSeasonRatePerDay;
-        } else {
-          dayRate = Math.round(vehicle.ratePerDay * 0.85);
-        }
-      }
-
-      totalRate += dayRate;
-      breakdown.push({
-        date: dateStr,
-        rate: dayRate,
-        seasonType,
-        seasonName,
-      });
-
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    return {
-      totalRate,
-      days,
-      dailyAvgRate: Math.round(totalRate / days),
-      breakdown,
-    };
-  };
-
+  /** Admin: deletes all bookings, bills, orders, dispatch, housekeeping and expenses on the server. */
   const resetAllOperationalData = useCallback(() => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Only an admin can reset operational data.', 'error');
+      return;
+    }
+    queueSync('crmBookings', bookings, []);
+    queueSync('folios', folios, []);
+    queueSync('expenses', expenses, []);
+    queueSync('foodOrders', foodOrders, []);
+    queueSync('dispatchRequests', dispatchRequests, []);
+    queueSync('housekeepingTasks', housekeepingTasks, []);
+    const cleanRooms: PhysicalRoom[] = rooms.map((r) => ({ ...r, currentStatus: 'available' as RoomTapeStatus, housekeeping: 'clean' as const, notes: '' }));
+    queueSync('physicalRooms', rooms, cleanRooms);
     setBookings([]);
     setFolios([]);
     setExpenses([]);
     setFoodOrders([]);
     setDispatchRequests([]);
     setHousekeepingTasks([]);
-
-    const cleanRooms: PhysicalRoom[] = INITIAL_PHYSICAL_ROOMS.map((r) => ({
-      ...r,
-      currentStatus: 'available' as RoomTapeStatus,
-      housekeeping: 'clean' as const,
-      notes: '',
-    }));
     setRooms(cleanRooms);
-
-    try {
-      localStorage.setItem('wp_crm_bookings', JSON.stringify([]));
-      localStorage.setItem('wp_crm_folios', JSON.stringify([]));
-      localStorage.setItem('wp_crm_expenses', JSON.stringify([]));
-      localStorage.setItem('wp_crm_food_orders', JSON.stringify([]));
-      localStorage.setItem('wp_crm_dispatch', JSON.stringify([]));
-      localStorage.setItem('wp_crm_housekeeping', JSON.stringify([]));
-      localStorage.setItem('wp_crm_rooms', JSON.stringify(cleanRooms));
-      localStorage.removeItem('homestay_bookings');
-      localStorage.removeItem('homestay_inquiries');
-      localStorage.setItem('wp_crm_version_key', 'wp_v2026_clean_fresh_start');
-    } catch (err) {
-      console.warn('LocalStorage reset error:', err);
-    }
-
-    showToast('Website data reset to a fresh start. All bookings, bills, and expenses cleared.', 'success');
-  }, [showToast]);
+    showToast('Operational data is being cleared on the server (bookings, bills, orders, expenses).', 'success');
+  }, [currentUser, queueSync, bookings, folios, expenses, foodOrders, dispatchRequests, housekeepingTasks, rooms, showToast]);
 
   return (
     <CRMContext.Provider
@@ -2461,6 +1984,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         rentalVehicles,
         seasonalDateRanges,
         roomTariffs,
+        tariffsStatus,
+        gstConfig,
         toast,
         showToast,
         updateRoomStatus,
@@ -2512,6 +2037,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         updateStaffAccount,
         deleteStaffAccount,
         authenticateStaff,
+        authStatus,
+        signOut,
+        changeOwnPassword,
         resetAllOperationalData,
       }}
     >

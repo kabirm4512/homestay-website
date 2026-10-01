@@ -19,6 +19,7 @@ import {
   X,
   RotateCcw,
 } from 'lucide-react';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 interface TravelAndRentalsSectionProps {
   whatsappNumber?: string;
@@ -40,7 +41,7 @@ export default function TravelAndRentalsSection({
   const [activeTab, setActiveTab] = useState<'transfers' | 'rentals'>('transfers');
   
   // Date selector: initially empty so starting "From ₹X" rates are shown
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => todayInIST(), []);
   const [selectedDate, setSelectedDate] = useState<string>('');
 
   const hasSelectedDate = Boolean(selectedDate);

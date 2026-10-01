@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { ExpenseMasterCategory, PaymentMethod } from '@/types/crm';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 interface QuickExpenseModalProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export default function QuickExpenseModal({
 
     setIsSubmitting(true);
     const expenseData = {
-      expenseDate: new Date().toISOString().split('T')[0],
+      expenseDate: todayInIST(),
       amount: Number(amount),
       paymentMethod,
       masterCategory: selectedTag.category,
@@ -101,14 +102,8 @@ export default function QuickExpenseModal({
 
     try {
       // 1. Add to local CRM state
+      // Saved to the server by the CRM sync (permission-checked and audited there)
       addExpense(expenseData);
-
-      // 2. Persist to API store asynchronously
-      fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isExpense: true, expense: expenseData }),
-      }).catch(() => null);
 
       showToast(`Expense of ₹${Number(amount).toLocaleString('en-IN')} recorded under ${selectedTag.label}!`);
       onClose();

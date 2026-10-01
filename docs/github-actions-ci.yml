@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: savera_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/savera_ci
+      SESSION_SECRET: ci-only-session-secret-0123456789abcdefghijklmnop
+      DEFAULT_ADMIN_EMAIL: ci-admin@example.com
+      DEFAULT_ADMIN_PASSWORD: CiFirstPass123
+      FILE_STORAGE: database
+      DISABLE_RATE_LIMIT: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply database migrations
+        run: for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"; done
+      - name: Apply migrations again (must be idempotent)
+        run: for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"; done
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Start server
+        run: |
+          npm start -- -p 3000 > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+      - name: Integration tests
+        run: npm run test:integration
+        env:
+          TEST_BASE_URL: http://localhost:3000
+          TEST_ADMIN_EMAIL: ci-admin@example.com
+          TEST_ADMIN_PASSWORD: CiFirstPass123
+      - name: Pricing parity (incl. write test)
+        run: |
+          npm run check:pricing -- http://localhost:3000
+          TZ=UTC npm run check:pricing -- http://localhost:3000 --write-test --with-booking
+        env:
+          STAFF_EMAIL: ci-admin@example.com
+          STAFF_PASSWORD: CiFirstPass123-changed
+      - name: Server log
+        if: failure()
+        run: cat server.log

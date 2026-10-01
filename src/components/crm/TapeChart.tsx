@@ -35,6 +35,7 @@ import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm'
 import ManualBookingModal from './ManualBookingModal';
 import GuestCheckoutModal from './GuestCheckoutModal';
 import { INDIAN_STATES } from '@/lib/booking-id';
+import { readDocumentFile } from '@/lib/image-upload';
 
 export default function TapeChart() {
   const {
@@ -229,24 +230,19 @@ export default function TapeChart() {
     isFront: boolean
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image file too large (maximum 5MB)', 'error');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      if (isFront) {
-        setEditIdDocumentUrl(dataUrl);
-      } else {
-        setEditIdDocumentBackUrl(dataUrl);
-      }
-      showToast(`${isFront ? 'Front' : 'Back'} ID document photo uploaded`);
-    };
-    reader.readAsDataURL(file);
+    readDocumentFile(file)
+      .then((dataUrl) => {
+        if (isFront) {
+          setEditIdDocumentUrl(dataUrl);
+        } else {
+          setEditIdDocumentBackUrl(dataUrl);
+        }
+        showToast(`${isFront ? 'Front' : 'Back'} ID document attached`);
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : 'Could not read this file', 'error'));
   };
 
   // Status badge styling helper
@@ -500,7 +496,7 @@ export default function TapeChart() {
                                   ? 'bg-blue-600'
                                   : 'bg-amber-400'
                               }`}
-                              title={`Housekeeping State: ${room.currentStatus.toUpperCase()}`}
+                              title={`Housekeeping State: ${(room.currentStatus || 'available').toUpperCase()}`}
                             />
                           </div>
 
@@ -674,7 +670,7 @@ export default function TapeChart() {
                       }`}
                     >
                       <span className="w-2 h-2 rounded-full bg-current" />
-                      <span>{selectedBooking.tapeStatus.toUpperCase()}</span>
+                      <span>{(selectedBooking.tapeStatus || selectedBooking.bookingStatus || '').toUpperCase()}</span>
                     </span>
                     <span className="text-xs text-forest-700">
                       Meal Plan: <strong>{selectedBooking.mealPlan}</strong>

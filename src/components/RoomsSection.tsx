@@ -2,9 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Room } from '@/types';
-import { RoomSeasonalTariffs, SeasonalDateRange } from '@/types/crm';
-import { INITIAL_ROOM_SEASONAL_TARIFFS, INITIAL_SEASONAL_DATE_RANGES } from '@/lib/crm-data';
-import { calculateDynamicTariff, DynamicTariffResult } from '@/lib/tariff-calculator';
+import {
+  calculateDynamicTariff,
+  DynamicTariffResult,
+  addCalendarDays,
+  BASE_OCCUPANCY_ADULTS,
+  calendarDayOfWeek,
+  resolveSeasonForNight,
+  todayInIST,
+  tomorrowInIST,
+} from '@/lib/tariff-calculator';
+import { useLiveTariffs } from '@/lib/live-tariffs';
 import DateRangePicker, { addDays, formatHumanDate, calculateNights } from './DateRangePicker';
 import {
   Users,
@@ -44,12 +52,8 @@ export default function RoomsSection({
   initialDates,
   onDatesChange,
 }: RoomsSectionProps) {
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getTodayStr = () => todayInIST();
+  const getTomorrowStr = () => tomorrowInIST();
 
   // Travel Stay Dates state
   const [checkIn, setCheckIn] = useState<string>(initialDates?.checkIn || getTodayStr());
@@ -67,29 +71,15 @@ export default function RoomsSection({
   const [selectedPlans, setSelectedPlans] = useState<Record<string, 'EP' | 'CP' | 'MAP' | 'AP'>>({});
   // Store state for expanding detailed tariff view per room
   const [expandedTariffs, setExpandedTariffs] = useState<Record<string, boolean>>({});
-  // Live tariffs & seasonal dates from backend PMS
-  const [liveTariffs, setLiveTariffs] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
-  const [liveSeasonalRanges, setLiveSeasonalRanges] = useState<SeasonalDateRange[]>(INITIAL_SEASONAL_DATE_RANGES);
-
-  useEffect(() => {
-    async function loadTariffs() {
-      try {
-        const res = await fetch('/api/tariffs');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            if (json.data.tariffs) {
-              setLiveTariffs((prev) => ({ ...prev, ...json.data.tariffs }));
-            }
-            if (Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
-              setLiveSeasonalRanges(json.data.seasonalDateRanges);
-            }
-          }
-        }
-      } catch {}
-    }
-    loadTariffs();
-  }, []);
+  // Live tariffs & seasonal dates from the backend (no seed fallback: while loading or on
+  // failure, cards show "price on request" instead of a possibly stale number)
+  const {
+    status: tariffStatus,
+    tariffs: liveTariffs,
+    seasonalDateRanges: liveSeasonalRanges,
+    gstConfig,
+  } = useLiveTariffs();
+  const gstNote = gstConfig.tariffsIncludeGst ? 'incl. GST' : '+ GST';
 
   // Sync with external initial dates if changed
   useEffect(() => {
@@ -120,22 +110,16 @@ export default function RoomsSection({
     let hasOffSeason = false;
     let matchedSeasonName = '';
 
-    const start = new Date(checkIn + 'T00:00:00');
-    const curr = new Date(start);
+    // Same per-night season resolution as the pricing engine (IST calendar dates)
     for (let i = 0; i < stayNights; i++) {
-      const dStr = curr.toISOString().split('T')[0];
-      for (const range of liveSeasonalRanges) {
-        if (dStr >= range.startDate && dStr <= range.endDate) {
-          if (range.seasonType === 'season') {
-            hasPeak = true;
-            matchedSeasonName = range.name;
-          } else if (range.seasonType === 'off_season') {
-            hasOffSeason = true;
-            matchedSeasonName = range.name;
-          }
-        }
+      const night = resolveSeasonForNight(addCalendarDays(checkIn, i), liveSeasonalRanges ?? []);
+      if (night.seasonType === 'season') {
+        hasPeak = true;
+        matchedSeasonName = night.name;
+      } else if (night.seasonType === 'off_season') {
+        hasOffSeason = true;
+        if (!hasPeak) matchedSeasonName = night.name;
       }
-      curr.setDate(curr.getDate() + 1);
     }
 
     if (hasPeak) {
@@ -251,15 +235,12 @@ export default function RoomsSection({
                 <button
                   type="button"
                   onClick={() => {
-                    const today = new Date();
-                    const day = today.getDay();
+                    // IST calendar maths (toISOString() picked Thursday→Saturday before 5:30am IST)
+                    const today = getTodayStr();
+                    const day = calendarDayOfWeek(today) ?? 0;
                     const daysUntilFri = (5 - day + 7) % 7 || 7;
-                    const fri = new Date(today);
-                    fri.setDate(today.getDate() + daysUntilFri);
-                    const sun = new Date(fri);
-                    sun.setDate(fri.getDate() + 2);
-                    const friStr = fri.toISOString().split('T')[0];
-                    const sunStr = sun.toISOString().split('T')[0];
+                    const friStr = addCalendarDays(today, daysUntilFri);
+                    const sunStr = addCalendarDays(friStr, 2);
                     handleDatesChange({ checkIn: friStr, checkOut: sunStr, nights: 2 });
                   }}
                   className="text-[11px] font-semibold text-[#C85A32] bg-[#C85A32]/10 hover:bg-[#C85A32]/20 border border-[#C85A32]/30 px-2.5 py-1 rounded-xl transition-all cursor-pointer shadow-2xs"
@@ -280,45 +261,30 @@ export default function RoomsSection({
             const currentImgIndex = activeImageIndices[room.id] || 0;
 
             // Compute dynamic live rates matching backend PMS for selected travel dates
-            const dynamicResults: Record<'EP' | 'CP' | 'MAP' | 'AP', DynamicTariffResult> = {
-              EP: calculateDynamicTariff({
-                roomId: room.id,
-                checkIn,
-                checkOut,
-                mealPlan: 'EP',
-                tariffsMap: liveTariffs,
-                seasonalDateRanges: liveSeasonalRanges,
-              }),
-              CP: calculateDynamicTariff({
-                roomId: room.id,
-                checkIn,
-                checkOut,
-                mealPlan: 'CP',
-                tariffsMap: liveTariffs,
-                seasonalDateRanges: liveSeasonalRanges,
-              }),
-              MAP: calculateDynamicTariff({
-                roomId: room.id,
-                checkIn,
-                checkOut,
-                mealPlan: 'MAP',
-                tariffsMap: liveTariffs,
-                seasonalDateRanges: liveSeasonalRanges,
-              }),
-              AP: calculateDynamicTariff({
-                roomId: room.id,
-                checkIn,
-                checkOut,
-                mealPlan: 'AP',
-                tariffsMap: liveTariffs,
-                seasonalDateRanges: liveSeasonalRanges,
-              }),
+            // Compute live rates with the canonical engine (same maths as the CRM and booking API)
+            const priceFor = (plan: 'EP' | 'CP' | 'MAP' | 'AP'): DynamicTariffResult | null =>
+              tariffStatus === 'ready'
+                ? calculateDynamicTariff({
+                    roomId: room.id,
+                    checkIn,
+                    checkOut,
+                    mealPlan: plan,
+                    tariffsMap: liveTariffs,
+                    seasonalDateRanges: liveSeasonalRanges,
+                  })
+                : null;
+            const dynamicResults: Record<'EP' | 'CP' | 'MAP' | 'AP', DynamicTariffResult | null> = {
+              EP: priceFor('EP'),
+              CP: priceFor('CP'),
+              MAP: priceFor('MAP'),
+              AP: priceFor('AP'),
             };
+            const priceUnavailableLabel = tariffStatus === 'loading' ? 'Loading live rates…' : 'Price on request';
 
             const activePlan = selectedPlans[room.id] || 'CP';
             const activeResult = dynamicResults[activePlan];
-            const currentRate = activeResult.avgRatePerNight;
-            const totalStayPrice = activeResult.totalAmount;
+            const currentRate = activeResult ? activeResult.avgRatePerNight : null;
+            const totalStayPrice = activeResult ? activeResult.totalAmount : null;
             const isTariffOpen = !!expandedTariffs[room.id];
 
             return (
@@ -485,7 +451,7 @@ export default function RoomsSection({
                       <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#FAF8F5] rounded-2xl border border-[#E8E2D5]">
                         {(['EP', 'CP', 'MAP', 'AP'] as const).map((plan) => {
                           const isSelected = activePlan === plan;
-                          const planRate = dynamicResults[plan].avgRatePerNight;
+                          const planRate = dynamicResults[plan]?.avgRatePerNight ?? null;
                           return (
                             <button
                               key={plan}
@@ -499,7 +465,7 @@ export default function RoomsSection({
                             >
                               <div className="text-xs leading-tight font-semibold">{plan}</div>
                               <div className={`text-[10px] leading-tight mt-0.5 ${isSelected ? 'text-[#C5A059]' : 'text-[#7B8B84]'}`}>
-                                ₹{planRate.toLocaleString()}
+                                {planRate !== null ? `₹${planRate.toLocaleString('en-IN')}` : '—'}
                               </div>
                             </button>
                           );
@@ -518,7 +484,7 @@ export default function RoomsSection({
                       </div>
 
                       {/* Collapsible Tariff Comparison Table */}
-                      {isTariffOpen && (
+                      {isTariffOpen && activeResult && totalStayPrice !== null && (
                         <div className="mt-2.5 p-3.5 bg-white border border-[#E8E2D5] rounded-2xl text-xs space-y-2 animate-fade-in shadow-xs">
                           <div className="flex items-center justify-between border-b border-[#EBE5DA] pb-1.5">
                             <span className="text-[11px] font-bold text-[#142820] uppercase tracking-wider">
@@ -531,14 +497,14 @@ export default function RoomsSection({
                               <div key={bIdx} className="flex justify-between items-center text-[#5C6D66]">
                                 <span>{formatHumanDate(item.date, 'full')}:</span>
                                 <span className="font-semibold text-[#142820]">
-                                  ₹{item.amount.toLocaleString()} ({item.rateName})
+                                  ₹{item.amount.toLocaleString('en-IN')} ({item.rateName})
                                 </span>
                               </div>
                             ))}
                           </div>
                           <div className="pt-2 border-t border-[#EBE5DA] flex justify-between font-bold text-[#142820]">
                             <span>Total for {stayNights} {stayNights === 1 ? 'Night' : 'Nights'}:</span>
-                            <span className="text-[#C85A32] text-sm">₹{totalStayPrice.toLocaleString()}</span>
+                            <span className="text-[#C85A32] text-sm">₹{totalStayPrice.toLocaleString('en-IN')}</span>
                           </div>
                         </div>
                       )}
@@ -562,19 +528,25 @@ export default function RoomsSection({
                             </span>
                           )}
                         </div>
-                        <div className="flex items-baseline space-x-1">
-                          <span className="text-3xl font-bold text-[#142820] font-serif">
-                            ₹{currentRate.toLocaleString()}
-                          </span>
-                          <span className="text-xs text-[#7B8B84]">/ night</span>
-                        </div>
-                        {stayNights > 1 && (
+                        {currentRate !== null ? (
+                          <div className="flex items-baseline space-x-1">
+                            <span className="text-3xl font-bold text-[#142820] font-serif">
+                              ₹{currentRate.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-xs text-[#7B8B84]">/ night {gstNote}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-baseline space-x-1">
+                            <span className="text-xl font-bold text-[#142820] font-serif">{priceUnavailableLabel}</span>
+                          </div>
+                        )}
+                        {stayNights > 1 && totalStayPrice !== null && (
                           <span className="text-xs font-semibold text-[#C85A32] block mt-0.5">
-                            Total: ₹{totalStayPrice.toLocaleString()} for {stayNights} nights
+                            Total: ₹{totalStayPrice.toLocaleString('en-IN')} {gstNote} for {stayNights} nights
                           </span>
                         )}
                         <span className="text-[11px] text-[#5C6D66] block mt-0.5 font-medium">
-                          Base {room.base_adults || 2} Adults {room.extra_adult_charge ? `· Extra Adult: +₹${room.extra_adult_charge}` : ''}
+                          Base {BASE_OCCUPANCY_ADULTS} Adults {activeResult?.extraAdultRate ? `· Extra Adult: +₹${activeResult.extraAdultRate.toLocaleString('en-IN')}/night` : ''}
                         </span>
                       </div>
                       <div className="text-right">

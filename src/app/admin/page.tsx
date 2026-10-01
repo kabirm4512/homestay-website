@@ -50,78 +50,25 @@ import InRoomQRHub from '@/components/qr/InRoomQRHub';
 import ManualBookingModal from '@/components/crm/ManualBookingModal';
 import QuickExpenseModal from '@/components/crm/QuickExpenseModal';
 import StaffOrderFlash from '@/components/crm/StaffOrderFlash';
+import LegacyDataMigration from '@/components/admin/LegacyDataMigration';
+import AdminTaxSettings from '@/components/admin/AdminTaxSettings';
 import { useCRM } from '@/context/CRMContext';
 
 import { Room, Inquiry, Booking, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
-import {
-  INITIAL_ROOMS,
-  INITIAL_HERO_SLIDES,
-  INITIAL_ABOUT_DATA,
-  INITIAL_SITE_INFO,
-  INITIAL_REVIEWS,
-  INITIAL_INQUIRIES,
-  INITIAL_BOOKINGS,
-} from '@/lib/mock-data';
+import { INITIAL_HERO_SLIDES, INITIAL_ABOUT_DATA, INITIAL_SITE_INFO, INITIAL_REVIEWS } from '@/lib/mock-data';
 
 type PrimaryWorkspace = 'front_desk' | 'orders_concierge' | 'operations' | 'ledger' | 'settings';
 
 export default function AdminPage() {
-  const { role, currentUser, setCurrentUser, dispatchRequests, foodOrders } = useCRM();
+  const { role, currentUser, dispatchRequests, foodOrders, authStatus, signOut } = useCRM();
 
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authChecking, setAuthChecking] = useState<boolean>(true);
-  const [adminUser, setAdminUser] = useState<{ name: string; role: string }>({
-    name: 'Estate Manager',
-    role: 'admin',
-  });
-
-  // Check auth session on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('savera_admin_session');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.expiresAt && parsed.expiresAt < Date.now()) {
-          localStorage.removeItem('savera_admin_session');
-          setIsAuthenticated(false);
-        } else {
-          setAdminUser({
-            name: parsed.fullName || parsed.name || 'Staff User',
-            role: parsed.role || 'admin',
-          });
-          setCurrentUser(parsed);
-          setIsAuthenticated(true);
-        }
-      } else {
-        // Fallback: check wp_crm_current_user or homestay_admin_user
-        const fallbackRaw = localStorage.getItem('wp_crm_current_user') || localStorage.getItem('homestay_admin_user');
-        if (fallbackRaw) {
-          const parsed = JSON.parse(fallbackRaw);
-          if (parsed && (parsed.fullName || parsed.name) && parsed.id !== 'staff-2' && parsed.id !== 'staff-3') {
-            setAdminUser({
-              name: parsed.fullName || parsed.name || 'Staff User',
-              role: parsed.role || 'admin',
-            });
-            setCurrentUser(parsed);
-            setIsAuthenticated(true);
-            const sessionData = {
-              ...parsed,
-              expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-            };
-            localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
-            return;
-          }
-        }
-        setIsAuthenticated(false);
-      }
-    } catch {
-      setIsAuthenticated(false);
-    } finally {
-      setAuthChecking(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Authentication comes from the server session (httpOnly cookie); nothing in localStorage grants access.
+  const isAuthenticated = authStatus === 'signed_in' && Boolean(currentUser) && !currentUser?.mustChangePassword;
+  const authChecking = authStatus === 'checking';
+  const adminUser = {
+    name: currentUser?.fullName || 'Staff User',
+    role: currentUser?.role || role,
+  };
 
   // Primary Workspace state with persistence
   const [workspace, setWorkspace] = useState<PrimaryWorkspace>(() => {
@@ -134,7 +81,7 @@ export default function AdminPage() {
           if (['orders_concierge', 'kitchen', 'dispatch'].includes(tabParam)) return 'orders_concierge';
           if (['operations', 'dashboard', 'tasks'].includes(tabParam)) return 'operations';
           if (['ledger', 'staff'].includes(tabParam)) return 'ledger';
-          if (['settings', 'rooms', 'addons', 'cms', 'inquiries', 'overview'].includes(tabParam)) return 'settings';
+          if (['settings', 'rooms', 'addons', 'cms', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return 'settings';
         }
       } catch {}
     }
@@ -183,107 +130,18 @@ export default function AdminPage() {
   const [showQRHubModal, setShowQRHubModal] = useState<boolean>(false);
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
 
-  // Website CMS states with Local-First persistence
-  const [rooms, setRooms] = useState<Room[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_rooms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_ROOMS;
-  });
+  // Website data: loaded from the server after sign-in (never from a browser copy).
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
+  const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
 
-  const [inquiries, setInquiries] = useState<Inquiry[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('homestay_inquiries');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_INQUIRIES;
-  });
-
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('homestay_bookings');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_BOOKINGS;
-  });
-
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const hasStaleUnsplash = Array.isArray(parsed.heroSlides) && parsed.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
-          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 && !hasStaleUnsplash) return parsed.heroSlides;
-        }
-      } catch {}
-    }
-    return INITIAL_HERO_SLIDES;
-  });
-
-  const [aboutData, setAboutData] = useState<AboutSectionData>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.aboutData?.headline) return parsed.aboutData;
-        }
-      } catch {}
-    }
-    return INITIAL_ABOUT_DATA;
-  });
-
-  const [siteInfo, setSiteInfo] = useState<SiteInfo>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.siteInfo?.name) return parsed.siteInfo;
-        }
-      } catch {}
-    }
-    return INITIAL_SITE_INFO;
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) return parsed.reviews;
-        }
-      } catch {}
-    }
-    return INITIAL_REVIEWS;
-  });
-
-  // Synchronous optimistic updates
+  // Optimistic updates after a successful save (the editors save to the server themselves)
   const handleUpdateRooms = useCallback((updatedRooms: Room[]) => {
     setRooms(updatedRooms);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('wp_site_rooms', JSON.stringify(updatedRooms));
-      } catch {}
-    }
   }, []);
 
   const handleUpdateCMS = useCallback((data: {
@@ -296,20 +154,6 @@ export default function AdminPage() {
     if (data.aboutData) setAboutData(data.aboutData);
     if (data.siteInfo) setSiteInfo(data.siteInfo);
     if (data.reviews) setReviews(data.reviews);
-
-    if (typeof window !== 'undefined') {
-      try {
-        const existingRaw = localStorage.getItem('wp_site_cms');
-        const existing = existingRaw ? JSON.parse(existingRaw) : {};
-        const merged = {
-          heroSlides: data.heroSlides || existing.heroSlides || INITIAL_HERO_SLIDES,
-          aboutData: data.aboutData || existing.aboutData || INITIAL_ABOUT_DATA,
-          siteInfo: data.siteInfo || existing.siteInfo || INITIAL_SITE_INFO,
-          reviews: data.reviews || existing.reviews || INITIAL_REVIEWS,
-        };
-        localStorage.setItem('wp_site_cms', JSON.stringify(merged));
-      } catch {}
-    }
   }, []);
 
   // Toast feedback
@@ -330,24 +174,15 @@ export default function AdminPage() {
   const fetchData = useCallback(async () => {
     try {
       const [roomsRes, inqRes, bkRes, cmsRes] = await Promise.all([
-        fetch('/api/rooms').then((r) => r.json()).catch(() => null),
-        fetch('/api/inquiries').then((r) => r.json()).catch(() => null),
-        fetch('/api/bookings').then((r) => r.json()).catch(() => null),
-        fetch('/api/cms').then((r) => r.json()).catch(() => null),
+        fetch('/api/rooms?all=1', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch('/api/inquiries', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch('/api/bookings', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch('/api/cms', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
 
-      if (roomsRes?.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
-        setRooms(roomsRes.data);
-        localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
-      }
-      if (inqRes?.success && Array.isArray(inqRes.data)) {
-        setInquiries(inqRes.data);
-        localStorage.setItem('homestay_inquiries', JSON.stringify(inqRes.data));
-      }
-      if (bkRes?.success && Array.isArray(bkRes.data)) {
-        setBookings(bkRes.data);
-        localStorage.setItem('homestay_bookings', JSON.stringify(bkRes.data));
-      }
+      if (roomsRes?.success && Array.isArray(roomsRes.data)) setRooms(roomsRes.data);
+      if (inqRes?.success && Array.isArray(inqRes.data)) setInquiries(inqRes.data);
+      if (bkRes?.success && Array.isArray(bkRes.data)) setBookings(bkRes.data);
       if (cmsRes?.success && cmsRes.data) {
         const { heroSlides: hs, aboutData: ab, siteInfo: si, reviews: rev } = cmsRes.data;
         if (Array.isArray(hs) && hs.length > 0) setHeroSlides(hs);
@@ -364,34 +199,8 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, fetchData]);
 
-  const handleAuthenticated = (token: string, user: { name: string; role: string; [key: string]: any }) => {
-    const sessionData = {
-      ...user,
-      token,
-      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    };
-    try {
-      localStorage.setItem('savera_admin_session', JSON.stringify(sessionData));
-      localStorage.setItem('homestay_admin_token', token);
-      localStorage.setItem('homestay_admin_user', JSON.stringify(user));
-      localStorage.setItem('wp_crm_current_user', JSON.stringify(user));
-      localStorage.setItem('wp_crm_role', user.role || 'admin');
-    } catch {}
-    setAdminUser(user);
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem('savera_admin_session');
-      localStorage.removeItem('homestay_admin_token');
-      localStorage.removeItem('homestay_admin_user');
-      localStorage.removeItem('wp_crm_current_user');
-      localStorage.removeItem('wp_crm_role');
-      sessionStorage.removeItem('homestay_admin_token');
-    } catch {}
-    setCurrentUser(null);
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    await signOut();
     showToast('Signed out of staff portal.');
   };
 
@@ -412,7 +221,7 @@ export default function AdminPage() {
   }
 
   if (!isAuthenticated) {
-    return <AdminAuth onAuthenticated={handleAuthenticated} />;
+    return <AdminAuth />;
   }
 
   const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
@@ -792,6 +601,18 @@ export default function AdminPage() {
                 <span>Web Inquiries</span>
               </button>
               <button
+                onClick={() => setActiveSubtab('webbookings')}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'webbookings' ? 'bg-[#1E3A2F] text-white font-bold border border-[#C5A059]/40 shadow-xs' : 'text-[#A3B899] hover:bg-[#1E3A2F]/60 hover:text-white'
+                }`}
+              >
+                <MessageSquareText className="w-3.5 h-3.5 text-[#C5A059]" />
+                <span>
+                  Web Bookings
+                  {bookings.filter((b) => b.status === 'pending').length > 0 ? ` (${bookings.filter((b) => b.status === 'pending').length})` : ''}
+                </span>
+              </button>
+              <button
                 onClick={() => setActiveSubtab('overview')}
                 className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
                   activeSubtab === 'overview' ? 'bg-[#1E3A2F] text-white font-bold border border-[#C5A059]/40 shadow-xs' : 'text-[#A3B899] hover:bg-[#1E3A2F]/60 hover:text-white'
@@ -807,6 +628,7 @@ export default function AdminPage() {
 
       {/* ================= 3. MAIN WORKSPACE VIEW ================= */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <LegacyDataMigration isAdmin={currentUser?.role === 'admin'} showToast={(m, t) => showToast(m, t)} />
         {/* Workspace 1: Front Desk (Tape Chart or Master Bookings List) */}
         {workspace === 'front_desk' && (
           <>
@@ -891,7 +713,12 @@ export default function AdminPage() {
                 onCloseAddModal={() => setIsAddRoomOpen(false)}
               />
             )}
-            {activeSubtab === 'addons' && <AdminAddonsCMS />}
+            {activeSubtab === 'addons' && (
+              <>
+                <AdminTaxSettings />
+                <AdminAddonsCMS />
+              </>
+            )}
             {activeSubtab === 'cms' && (
               <AdminCMS
                 heroSlides={heroSlides}
@@ -902,6 +729,9 @@ export default function AdminPage() {
                 onRefresh={fetchData}
                 showToast={showToast}
               />
+            )}
+            {activeSubtab === 'webbookings' && (
+              <AdminBookings bookings={bookings} onRefresh={fetchData} showToast={showToast} />
             )}
             {activeSubtab === 'inquiries' && (
               <AdminInquiries
@@ -916,7 +746,7 @@ export default function AdminPage() {
                 inquiries={inquiries}
                 bookings={bookings}
                 onNavigateTab={(tab) => {
-                  if (['rooms', 'addons', 'cms', 'inquiries'].includes(tab)) {
+                  if (['rooms', 'addons', 'cms', 'inquiries', 'webbookings'].includes(tab)) {
                     setActiveSubtab(tab);
                   } else {
                     handleSelectWorkspace(tab as PrimaryWorkspace);

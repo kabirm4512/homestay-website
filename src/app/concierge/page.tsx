@@ -32,13 +32,16 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
-import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle, PhysicalRoom, CRMBooking } from '@/types/crm';
+import { MenuItem, FoodOrderItem, TransferRoute, RentalVehicle, PhysicalRoom, CRMBooking, GuestFolio } from '@/types/crm';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
+import { todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 
 function ConciergeContent() {
   const searchParams = useSearchParams();
   const initialRoomQuery = searchParams.get('room');
+  // Secret token printed in the room's QR code: proves the device is in that room.
+  const qrToken = searchParams.get('t') || '';
 
   const {
     rooms,
@@ -76,21 +79,20 @@ function ConciergeContent() {
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem('savera_guest_room', String(parsedQuery));
-          localStorage.setItem('savera_guest_room', String(parsedQuery));
         } catch {}
       }
       return parsedQuery;
     }
 
     if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+      const stored = sessionStorage.getItem('savera_guest_room');
       const parsedStored = stored ? parseInt(stored, 10) : null;
       if (parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored)) {
         return parsedStored;
       }
     }
 
-    if (isStaffMode) return 101;
+    if (isStaffMode && rooms[0]) return rooms[0].roomNumber;
     return null;
   });
 
@@ -107,10 +109,9 @@ function ConciergeContent() {
       }
       try {
         sessionStorage.setItem('savera_guest_room', String(parsedQuery));
-        localStorage.setItem('savera_guest_room', String(parsedQuery));
       } catch {}
     } else if (!selectedRoomNumber) {
-      const stored = sessionStorage.getItem('savera_guest_room') || localStorage.getItem('savera_guest_room');
+      const stored = sessionStorage.getItem('savera_guest_room');
       const parsedStored = stored ? parseInt(stored, 10) : null;
       if (parsedStored !== null && !isNaN(parsedStored) && parsedStored > 0 && rooms.some((r) => r.roomNumber === parsedStored)) {
         setSelectedRoomNumber(parsedStored);
@@ -124,30 +125,58 @@ function ConciergeContent() {
     isCheckedIn: boolean;
     room?: PhysicalRoom;
     booking?: CRMBooking;
+    folio?: GuestFolio | null;
+    requiresVerification?: boolean;
   } | null>(null);
   const [isCheckingServer, setIsCheckingServer] = useState(false);
+  const [verifyPhone, setVerifyPhone] = useState('');
+  const [verifyError, setVerifyError] = useState('');
 
-  const fetchRoomStatusFromServer = useCallback(async (roomNum: number) => {
+  /**
+   * Live room status. The first call carries the QR token (or the mobile number the guest
+   * typed); the server then signs this device in to the stay with a cookie, so later polls
+   * need neither.
+   */
+  const fetchRoomStatusFromServer = useCallback(async (roomNum: number, phone?: string) => {
     setIsCheckingServer(true);
     try {
-      const res = await fetch(`/api/checkin?room=${encodeURIComponent(roomNum)}&_t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.success) {
-          setServerStatus({
-            roomNumber: roomNum,
-            isCheckedIn: Boolean(data.isCheckedIn),
-            room: data.room,
-            booking: data.booking,
-          });
-        }
+      const params = new URLSearchParams({ room: String(roomNum) });
+      if (qrToken) params.set('t', qrToken);
+      if (phone) params.set('phone', phone);
+      const res = await fetch(`/api/checkin?${params.toString()}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setServerStatus({
+          roomNumber: roomNum,
+          isCheckedIn: Boolean(data.isCheckedIn),
+          room: data.room,
+          booking: data.booking || undefined,
+          folio: data.folio || null,
+          requiresVerification: Boolean(data.requiresVerification),
+        });
+        return data;
       }
+      if (res.status === 429) setVerifyError('Too many attempts. Please wait a few minutes or call reception.');
     } catch {
-      // ignore
+      // offline: keep the last known status
     } finally {
       setIsCheckingServer(false);
     }
-  }, []);
+    return null;
+  }, [qrToken]);
+
+  const handleVerifyPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRoomNumber) return;
+    setVerifyError('');
+    const digits = verifyPhone.replace(/[^0-9]/g, '');
+    if (digits.length < 10) {
+      setVerifyError('Please enter the 10-digit mobile number used for your booking.');
+      return;
+    }
+    const data = await fetchRoomStatusFromServer(selectedRoomNumber, digits);
+    if (data?.requiresVerification) setVerifyError('That number does not match the guest staying in this room.');
+  };
 
   // Whenever selectedRoomNumber changes, reset serverStatus immediately and query server for that exact room
   useEffect(() => {
@@ -204,13 +233,14 @@ function ConciergeContent() {
     return baseBooking;
   }, [baseBooking, currentRoomServerStatus, selectedRoomNumber]);
 
-  // Active folio for this booking
+  // Active folio for this booking (staff devices hold all folios; guests get theirs from the server)
   const activeFolio = useMemo(() => {
     if (!activeBooking) return null;
     return (
-      folios.find((f) => f.bookingId === activeBooking.id || f.roomNumber === activeBooking.roomNumber) || null
+      folios.find((f) => f.bookingId === activeBooking.id) ||
+      (currentRoomServerStatus?.folio && currentRoomServerStatus.folio.bookingId === activeBooking.id ? currentRoomServerStatus.folio : null)
     );
-  }, [folios, activeBooking]);
+  }, [folios, activeBooking, currentRoomServerStatus]);
 
   // 5. Check-In Gate: ONLY true if THIS specific room is checked in
   const isCheckedIn = useMemo(() => {
@@ -301,15 +331,8 @@ function ConciergeContent() {
   const [selectedVehicleTier, setSelectedVehicleTier] = useState<'wagonr' | 'sedan' | 'suv'>('sedan');
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
   const [selectedRentalId, setSelectedRentalId] = useState<string>(rentalVehicles[0]?.id || '');
-  const [pickupDatetime, setPickupDatetime] = useState(() => {
-    const d = new Date();
-    return `${d.toISOString().split('T')[0]}T09:00`;
-  });
-  const [returnDatetime, setReturnDatetime] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return `${d.toISOString().split('T')[0]}T09:00`;
-  });
+  const [pickupDatetime, setPickupDatetime] = useState(() => `${todayInIST()}T09:00`);
+  const [returnDatetime, setReturnDatetime] = useState(() => `${tomorrowInIST()}T09:00`);
   const [travelPhone, setTravelPhone] = useState(activeBooking?.guest.phone || '+91 99112 33445');
   const [destinationNotes, setDestinationNotes] = useState('');
   const [lastPlacedTransport, setLastPlacedTransport] = useState<any>(null);
@@ -371,8 +394,8 @@ function ConciergeContent() {
   }, [menuItems, isLateNight, selectedFoodCategory]);
 
   // Handle Food Order Checkout
-  const handleCheckoutFoodOrder = () => {
-    if (!currentRoom || cartItemsDetailed.length === 0 || !activeBooking || !activeFolio) return;
+  const handleCheckoutFoodOrder = async () => {
+    if (!currentRoom || cartItemsDetailed.length === 0 || !activeBooking) return;
 
     // Filter out any items that are no longer available or mains during late night
     const validItems = cartItemsDetailed.filter((ci) => {
@@ -399,12 +422,13 @@ function ConciergeContent() {
       lineTotal: ci.lineTotal,
     }));
 
-    const newOrder = createFoodOrder({
+    // The server prices the order from the live menu and posts it to the folio.
+    const newOrder = await createFoodOrder({
       roomId: currentRoom.id,
       roomNumber: currentRoom.roomNumber,
       roomName: currentRoom.name,
       bookingId: activeBooking.id,
-      folioId: activeFolio.id,
+      folioId: activeFolio?.id || '',
       guestName: activeBooking.guest.fullName,
       status: 'pending',
       specialInstructions: cookingInstructions || undefined,
@@ -416,10 +440,12 @@ function ConciergeContent() {
       items: orderItems,
     });
 
+    setIsSubmittingOrder(false);
+    if (!newOrder) return; // the error was shown as a toast; the cart is kept
     setLastPlacedOrder(newOrder);
     setCart({});
     setCookingInstructions('');
-    setIsSubmittingOrder(false);
+    if (selectedRoomNumber) void fetchRoomStatusFromServer(selectedRoomNumber);
   };
 
   // Selected Transfer Route Calculation
@@ -428,7 +454,7 @@ function ConciergeContent() {
   }, [transferRoutes, selectedRouteId]);
 
   const travelDateStr = useMemo(() => {
-    return pickupDatetime ? pickupDatetime.split('T')[0] : new Date().toISOString().split('T')[0];
+    return pickupDatetime ? pickupDatetime.split('T')[0] : todayInIST();
   }, [pickupDatetime]);
 
   const returnDateStr = useMemo(() => {
@@ -480,21 +506,21 @@ function ConciergeContent() {
   }, [dynamicRentalQuote]);
 
   // Handle Travel Booking Checkout
-  const handleCheckoutTravel = (e: React.FormEvent) => {
+  const handleCheckoutTravel = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentRoom || !activeBooking || !activeFolio) return;
+    if (!currentRoom || !activeBooking) return;
 
     if (serviceType === 'point_to_point') {
       const selectedMods = currentRoute.modifiers
         .filter((m) => selectedModifiers.includes(m.name))
         .map((m) => ({ name: m.name, charge: m.extraCharge }));
 
-      const newReq = createTransportRequest({
+      const newReq = await createTransportRequest({
         roomId: currentRoom.id,
         roomNumber: currentRoom.roomNumber,
         roomName: currentRoom.name,
         bookingId: activeBooking.id,
-        folioId: activeFolio.id,
+        folioId: activeFolio?.id || '',
         guestName: activeBooking.guest.fullName,
         guestContactPhone: travelPhone,
         serviceType: 'point_to_point',
@@ -510,14 +536,14 @@ function ConciergeContent() {
         dispatchStatus: 'pending_confirmation',
         chargePostedToFolio: true,
       });
-      setLastPlacedTransport(newReq);
+      if (newReq) setLastPlacedTransport(newReq);
     } else {
-      const newReq = createTransportRequest({
+      const newReq = await createTransportRequest({
         roomId: currentRoom.id,
         roomNumber: currentRoom.roomNumber,
         roomName: currentRoom.name,
         bookingId: activeBooking.id,
-        folioId: activeFolio.id,
+        folioId: activeFolio?.id || '',
         guestName: activeBooking.guest.fullName,
         guestContactPhone: travelPhone,
         serviceType: 'vehicle_rental',
@@ -533,7 +559,7 @@ function ConciergeContent() {
         dispatchStatus: 'pending_confirmation',
         chargePostedToFolio: true,
       });
-      setLastPlacedTransport(newReq);
+      if (newReq) setLastPlacedTransport(newReq);
     }
   };
 
@@ -653,19 +679,51 @@ function ConciergeContent() {
           </div>
 
           <span className="text-xs uppercase font-extrabold tracking-widest text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 mb-3">
-            Room {currentRoom.roomNumber} Status: {currentRoom.currentStatus.toUpperCase()}
+            Room {currentRoom.roomNumber} Status: {currentRoomServerStatus?.requiresVerification ? 'GUEST VERIFICATION' : (currentRoom.currentStatus || 'available').replace(/_/g, ' ').toUpperCase()}
           </span>
 
           <h2
             className="font-bold text-2xl sm:text-3xl text-[#0B1733] mb-2"
             style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
           >
-            Room {currentRoom.roomNumber} is Awaiting Check-In
+            {currentRoomServerStatus?.requiresVerification
+              ? `Welcome to Room ${currentRoom.roomNumber}`
+              : `Room ${currentRoom.roomNumber} is Awaiting Check-In`}
           </h2>
 
           <p className="text-sm text-gray-600 max-w-md leading-relaxed mb-6">
-            This in-room digital concierge portal activates automatically once your arrival is verified by our front desk team.
+            {currentRoomServerStatus?.requiresVerification
+              ? 'Please confirm your mobile number once to open in-room dining, transfers and your bill on this phone.'
+              : 'This in-room digital concierge portal activates automatically once your arrival is verified by our front desk team.'}
           </p>
+
+          {currentRoomServerStatus?.requiresVerification && (
+            <form
+              onSubmit={handleVerifyPhone}
+              className="p-5 bg-white rounded-3xl border border-[#C7D4F5] shadow-sm text-xs text-[#0B1733] max-w-md w-full text-left space-y-3 mb-4"
+            >
+              <div className="font-bold text-sm">Staying in Room {currentRoom.roomNumber}?</div>
+              <p className="text-gray-600">
+                Enter the mobile number used for your booking to open your in-room concierge on this device.
+              </p>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={verifyPhone}
+                onChange={(e) => setVerifyPhone(e.target.value)}
+                placeholder="10-digit mobile number"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#25479E]"
+              />
+              {verifyError && <p className="text-red-700 font-semibold">{verifyError}</p>}
+              <button
+                type="submit"
+                disabled={isCheckingServer}
+                className="w-full min-h-[44px] py-2.5 bg-[#25479E] hover:bg-[#1A3478] text-white font-bold rounded-xl disabled:opacity-60"
+              >
+                Verify &amp; Open Concierge
+              </button>
+            </form>
+          )}
 
           <div className="p-5 bg-white rounded-3xl border border-[#C7D4F5] shadow-sm text-xs text-[#0B1733] max-w-md w-full text-left space-y-3 mb-4">
             <div className="flex items-center space-x-2 font-bold text-[#0B1733] text-sm">
@@ -770,7 +828,8 @@ function ConciergeContent() {
                 </h1>
                 <p className="text-xs text-gray-300 mt-1">
                   Guest: <strong className="text-white">{activeBooking?.guest.fullName}</strong> • Meal Plan:{' '}
-                  <strong className="text-[#FE6E00] font-mono">{activeBooking?.mealPlan}</strong> • Folio: #{activeFolio?.folioNumber}
+                  <strong className="text-[#FE6E00] font-mono">{activeBooking?.mealPlan}</strong>
+                  {activeFolio ? <> • Folio: #{activeFolio.folioNumber}</> : null}
                 </p>
               </div>
 

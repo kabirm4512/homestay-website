@@ -38,6 +38,7 @@ import {
   Fuel,
 } from 'lucide-react';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 export default function AdminAddonsCMS() {
   const {
@@ -168,7 +169,7 @@ export default function AdminAddonsCMS() {
   const [newSeasonStart, setNewSeasonStart] = useState('');
   const [newSeasonEnd, setNewSeasonEnd] = useState('');
   const [newSeasonDesc, setNewSeasonDesc] = useState('');
-  const [testDate, setTestDate] = useState(new Date().toISOString().split('T')[0]);
+  const [testDate, setTestDate] = useState(() => todayInIST());
 
   // ==========================================
   // DINING HANDLERS
@@ -464,7 +465,7 @@ export default function AdminAddonsCMS() {
       endDate: newSeasonEnd,
       description: newSeasonDesc.trim() || undefined,
     });
-    showToast(`Added seasonal date range: ${newSeasonName}`);
+    // Success / failure toast is shown by the CRM context once the server confirms the save
     setNewSeasonName('');
     setNewSeasonStart('');
     setNewSeasonEnd('');
@@ -960,7 +961,7 @@ export default function AdminAddonsCMS() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        {veh.vehicleType.toUpperCase()}
+                        {(veh.vehicleType || '').toUpperCase()}
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${

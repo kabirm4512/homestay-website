@@ -36,6 +36,7 @@ export default function AdminBookings({
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isManualBookingModalOpen, setIsManualBookingModalOpen] = useState(false);
+  const [assignFrom, setAssignFrom] = useState<Booking | null>(null);
 
   // Update Status via API
   const handleUpdateStatus = async (
@@ -55,8 +56,8 @@ export default function AdminBookings({
         }),
       });
 
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
         showToast(`Booking updated to ${newStatus}`);
         onRefresh();
         if (selectedBooking && selectedBooking.id === bookingId) {
@@ -67,7 +68,8 @@ export default function AdminBookings({
           });
         }
       } else {
-        showToast('Failed to update booking status', 'error');
+        // e.g. 409: the dates are now sold out, or the change isn't allowed from this status
+        showToast(json?.error || 'Failed to update booking status', 'error');
       }
     } catch {
       showToast('Error updating booking', 'error');
@@ -87,7 +89,30 @@ export default function AdminBookings({
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: Booking['status']) => {
+  /** A pending website request holds its rooms only until hold_expires_at. */
+  const holdInfo = (b: Booking): { expired: boolean; label: string } | null => {
+    if (b.status !== 'pending' || !b.hold_expires_at) return null;
+    const ms = new Date(b.hold_expires_at).getTime() - Date.now();
+    if (!Number.isFinite(ms)) return null;
+    if (ms <= 0) return { expired: true, label: 'Hold expired: rooms released' };
+    const hours = Math.floor(ms / 3600000);
+    const mins = Math.max(1, Math.round((ms % 3600000) / 60000));
+    return { expired: false, label: `Rooms held for ${hours > 0 ? `${hours}h ` : ''}${mins}m` };
+  };
+
+  const getStatusBadge = (status: Booking['status'], booking?: Booking) => {
+    const hold = booking ? holdInfo(booking) : null;
+    if (hold) {
+      return (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+            <Clock className="w-3 h-3" />
+            <span>Pending Review</span>
+          </span>
+          <span className={`text-[10px] font-semibold ${hold.expired ? 'text-red-700' : 'text-amber-700'}`}>{hold.label}</span>
+        </span>
+      );
+    }
     switch (status) {
       case 'confirmed':
         return (
@@ -197,7 +222,7 @@ export default function AdminBookings({
                   <span className="font-mono text-xs font-bold text-forest-900 bg-sand-100 px-2 py-0.5 rounded border border-sand-300">
                     {b.booking_reference}
                   </span>
-                  {getStatusBadge(b.status)}
+                  {getStatusBadge(b.status, b)}
                   {getPaymentBadge(b.payment_status)}
                 </div>
 
@@ -377,6 +402,9 @@ export default function AdminBookings({
                   <span className="font-serif font-bold text-forest-900 text-sm">
                     ₹{Number(selectedBooking.total_price).toLocaleString('en-IN')}
                   </span>
+                  {typeof selectedBooking.gst_amount === 'number' && selectedBooking.gst_amount > 0 && (
+                    <span className="block text-[10px] text-gray-500">incl. GST ₹{selectedBooking.gst_amount.toLocaleString('en-IN')}</span>
+                  )}
                 </div>
               </div>
 
@@ -395,7 +423,19 @@ export default function AdminBookings({
               )}
             </div>
 
-            <div className="pt-3 border-t border-sand-200 flex justify-end">
+            <div className="pt-3 border-t border-sand-200 flex flex-wrap justify-end gap-2">
+              {(selectedBooking.status === 'pending' || selectedBooking.status === 'confirmed') && (
+                <button
+                  onClick={() => {
+                    setAssignFrom(selectedBooking);
+                    setSelectedBooking(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 text-white font-semibold text-xs"
+                  title="Create the front-desk stay for this request on a specific room (linked, so the rooms are not counted twice)"
+                >
+                  Assign room on tape chart
+                </button>
+              )}
               <button
                 onClick={() => setSelectedBooking(null)}
                 className="px-4 py-2 rounded-xl bg-forest-800 text-white font-semibold text-xs"
@@ -414,6 +454,19 @@ export default function AdminBookings({
         onBookingCreated={() => {
           onRefresh();
           showToast('Manual reservation created successfully!');
+        }}
+      />
+
+      {/* Assign a website request to a room (linked front-desk booking) */}
+      <ManualBookingModal
+        isOpen={assignFrom !== null}
+        fromWebBooking={assignFrom}
+        onClose={() => setAssignFrom(null)}
+        onBookingCreated={async () => {
+          const source = assignFrom;
+          if (source && source.status === 'pending') await handleUpdateStatus(source.id, 'confirmed');
+          onRefresh();
+          showToast('Room assigned. The website request is now confirmed and linked to the stay.');
         }}
       />
     </div>

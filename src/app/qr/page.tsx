@@ -8,8 +8,12 @@ function QRRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const room = searchParams.get('room') || '101';
-    router.replace(`/concierge?room=${room}`);
+    const params = new URLSearchParams();
+    const room = searchParams.get('room');
+    const token = searchParams.get('t');
+    if (room) params.set('room', room);
+    if (token) params.set('t', token);
+    router.replace(`/concierge${params.toString() ? `?${params.toString()}` : ''}`);
   }, [searchParams, router]);
 
   return (

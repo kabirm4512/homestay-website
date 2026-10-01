@@ -26,16 +26,9 @@ import {
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, Guest } from '@/types/crm';
 import { INDIAN_STATES } from '@/lib/booking-id';
+import { readDocumentFile } from '@/lib/image-upload';
+import { todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 
-const ROOM_OPTIONS = [
-  { id: 'room-101', roomNumber: 101, name: 'Room 101 - Sunrise Mountain Balcony' },
-  { id: 'room-102', roomNumber: 102, name: 'Room 102 - Valley Vista Balcony' },
-  { id: 'room-103', roomNumber: 103, name: 'Room 103 - Himalayan Mist Balcony' },
-  { id: 'room-104', roomNumber: 104, name: 'Room 104 - Pine Whispers Balcony' },
-  { id: 'room-201', roomNumber: 201, name: 'Room 201 - Kanchenjunga Suite' },
-  { id: 'room-202', roomNumber: 202, name: 'Room 202 - Alpine Grand Suite' },
-  { id: 'room-203', roomNumber: 203, name: 'Room 203 - Celestial Penthouse Suite' },
-];
 
 function normalizePhone(raw: string): string {
   const digits = (raw || '').replace(/[^0-9]/g, '');
@@ -48,16 +41,20 @@ function CheckinContent() {
   const nameParam = searchParams.get('name') || '';
   const phoneParam = searchParams.get('phone') || '';
 
-  const { bookings, updateBookingGuestDetails, showToast } = useCRM();
+  const { bookings, rooms, authStatus, showToast } = useCRM();
+  const isStaffDevice = authStatus === 'signed_in';
+  const roomOptions = rooms.map((r) => ({ id: r.id, roomNumber: r.roomNumber, name: `Room ${r.roomNumber} - ${r.name}` }));
 
-  const [bookingQuery, setBookingQuery] = useState(phoneParam || bookingParam || '');
+  const [bookingQuery, setBookingQuery] = useState(searchParams.get('booking') || searchParams.get('query') || '');
+  const [searchPhone, setSearchPhone] = useState(phoneParam);
+  const [walkInMessage, setWalkInMessage] = useState('');
   const [activeBooking, setActiveBooking] = useState<CRMBooking | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isWalkIn, setIsWalkIn] = useState(false);
-  const [selectedRoomId, setSelectedRoomId] = useState('room-101');
-  const [selectedCheckInDate, setSelectedCheckInDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedCheckOutDate, setSelectedCheckOutDate] = useState(() => new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+  const [selectedRoomId, setSelectedRoomId] = useState('');
+  const [selectedCheckInDate, setSelectedCheckInDate] = useState(() => todayInIST());
+  const [selectedCheckOutDate, setSelectedCheckOutDate] = useState(() => tomorrowInIST());
 
   // Form Fields
   const [fullName, setFullName] = useState(nameParam);
@@ -83,9 +80,9 @@ function CheckinContent() {
   const loadBookingIntoForm = (b: CRMBooking) => {
     setActiveBooking(b);
     setNotFound(false);
-    setSelectedRoomId(b.roomId || 'room-101');
-    setSelectedCheckInDate(b.checkInDate || new Date().toISOString().split('T')[0]);
-    setSelectedCheckOutDate(b.checkOutDate || new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+    setSelectedRoomId(b.roomId || '');
+    setSelectedCheckInDate(b.checkInDate || todayInIST());
+    setSelectedCheckOutDate(b.checkOutDate || tomorrowInIST());
     setFullName(b.guest?.fullName || nameParam || '');
     setPhone(b.guest?.phone || phoneParam || '');
     setEmail(b.guest?.email || '');
@@ -111,70 +108,36 @@ function CheckinContent() {
   // Pre-fill fields from URL query params
   useEffect(() => {
     if (nameParam && !fullName) setFullName(nameParam);
-    if (phoneParam && !phone) {
-      setPhone(phoneParam);
-      setBookingQuery(phoneParam);
-    }
+    if (phoneParam && !phone) setPhone(phoneParam);
   }, [nameParam, phoneParam, fullName, phone]);
 
-  // Resolve booking from query param or search
-  useEffect(() => {
-    if (!bookingParam) return;
-
-    const query = bookingParam.trim().toLowerCase();
-    const queryDigits = query.replace(/[^0-9]/g, '');
-    const normParamPhone = normalizePhone(query);
-
-    const localFound = bookings.find((b) => {
-      if (b.id.toLowerCase() === query) return true;
-      if (b.bookingReference.toLowerCase() === query) return true;
-      if (b.guest?.phone) {
-        const bNorm = normalizePhone(b.guest.phone);
-        if (normParamPhone && normParamPhone.length >= 6 && bNorm === normParamPhone) return true;
-        if (queryDigits && queryDigits.length >= 6 && b.guest.phone.replace(/[^0-9]/g, '').includes(queryDigits)) return true;
-      }
-      return false;
-    });
-
-    if (localFound) {
-      loadBookingIntoForm(localFound);
-      return;
+  /**
+   * Looks a reservation up on the server. Guests need the Booking ID AND the mobile number on
+   * the booking (the server then signs this browser in to that booking); signed-in staff can
+   * search by reference alone.
+   */
+  const lookupReservation = async (reference: string, mobile: string): Promise<boolean> => {
+    const params = new URLSearchParams({ query: reference.trim() });
+    if (mobile.trim()) params.set('phone', mobile.trim());
+    const res = await fetch(`/api/checkin?${params.toString()}`, { cache: 'no-store' });
+    const json = await res.json().catch(() => null);
+    if (res.ok && json?.success && json.booking) {
+      setIsWalkIn(false);
+      loadBookingIntoForm(json.booking);
+      return true;
     }
+    if (res.status === 429) alert('Too many attempts. Please wait a few minutes or call reception.');
+    return false;
+  };
 
-    // Check localStorage directly
-    try {
-      const raw = localStorage.getItem('wp_crm_bookings');
-      if (raw) {
-        const parsed: CRMBooking[] = JSON.parse(raw);
-        const rawFound = parsed.find((b) => {
-          if (b.id.toLowerCase() === query) return true;
-          if (b.bookingReference.toLowerCase() === query) return true;
-          if (b.guest?.phone) {
-            const bNorm = normalizePhone(b.guest.phone);
-            if (normParamPhone && normParamPhone.length >= 6 && bNorm === normParamPhone) return true;
-          }
-          return false;
-        });
-        if (rawFound) {
-          loadBookingIntoForm(rawFound);
-          return;
-        }
-      }
-    } catch {}
-
-    // Check backend server API
-    fetch(`/api/checkin?query=${encodeURIComponent(bookingParam)}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json?.success && json.booking) {
-          loadBookingIntoForm(json.booking);
-        } else {
-          setNotFound(true);
-        }
-      })
+  // Resolve booking from the link (only when it carries both the Booking ID and the mobile)
+  useEffect(() => {
+    if (!bookingParam || !phoneParam || bookingParam === phoneParam) return;
+    lookupReservation(bookingParam, phoneParam)
+      .then((found) => !found && setNotFound(true))
       .catch(() => setNotFound(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingParam, bookings]);
+  }, [bookingParam, phoneParam]);
 
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,42 +146,23 @@ function CheckinContent() {
     setIsSearching(true);
     setNotFound(false);
 
-    const query = bookingQuery.trim().toLowerCase();
-    const cleanDigits = query.replace(/[^0-9]/g, '');
-    const cleanQueryPhone = normalizePhone(query);
-
-    // 1. First check local CRM state
-    const found = bookings.find((b) => {
-      if (b.bookingReference.toLowerCase() === query) return true;
-      if (b.id.toLowerCase() === query) return true;
-      if (b.guest?.phone) {
-        const bNorm = normalizePhone(b.guest.phone);
-        if (cleanQueryPhone && cleanQueryPhone.length >= 6) {
-          if (bNorm === cleanQueryPhone || bNorm.endsWith(cleanQueryPhone) || cleanQueryPhone.endsWith(bNorm)) {
-            return true;
-          }
-        }
-        if (cleanDigits && cleanDigits.length >= 6 && b.guest.phone.replace(/[^0-9]/g, '').includes(cleanDigits)) {
-          return true;
-        }
+    // Staff devices can pick from the front-desk list already loaded
+    if (isStaffDevice) {
+      const q = bookingQuery.trim().toLowerCase();
+      const found = bookings.find((b) => b.bookingReference.toLowerCase() === q || b.id.toLowerCase() === q);
+      if (found) {
+        loadBookingIntoForm(found);
+        setIsSearching(false);
+        return;
       }
-      if (b.guest?.fullName && b.guest.fullName.toLowerCase().includes(query)) return true;
-      return false;
-    });
-
-    if (found) {
-      loadBookingIntoForm(found);
+    } else if (normalizePhone(searchPhone).length < 10) {
+      alert('Please enter the 10-digit mobile number used for the booking.');
       setIsSearching(false);
       return;
     }
 
-    // 2. Query backend checkin API
     try {
-      const res = await fetch(`/api/checkin?query=${encodeURIComponent(bookingQuery.trim())}`);
-      const json = await res.json();
-      if (res.ok && json.success && json.booking) {
-        loadBookingIntoForm(json.booking);
-        updateBookingGuestDetails(json.booking.id, json.booking.guest, json.booking);
+      if (await lookupReservation(bookingQuery, isStaffDevice ? '' : searchPhone)) {
         setIsSearching(false);
         return;
       }
@@ -231,18 +175,19 @@ function CheckinContent() {
   };
 
   const startDirectSelfCheckin = (queryStr: string, suggestedName?: string) => {
-    const cleanDigits = queryStr.replace(/[^0-9]/g, '');
-    const initialPhone = cleanDigits.length >= 7 ? cleanDigits : (phoneParam || phone || '');
+    const cleanDigits = normalizePhone(searchPhone || queryStr);
+    const initialPhone = cleanDigits.length >= 10 ? cleanDigits : (phoneParam || phone || '');
     const initialName = (suggestedName || fullName || nameParam || '').trim();
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const today = todayInIST();
+    const tomorrow = tomorrowInIST();
 
+    // A draft only: the server registers it as a request and reception assigns the room.
     const walkInBooking: CRMBooking = {
       id: `walkin-${Date.now()}`,
-      bookingReference: `WP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      roomId: 'room-101',
-      roomNumber: 101,
-      roomName: 'Room 101 - Sunrise Mountain Balcony',
+      bookingReference: 'New registration',
+      roomId: '',
+      roomNumber: 0,
+      roomName: 'Room to be assigned by reception',
       guestId: `gst-${Date.now()}`,
       guest: {
         id: `gst-${Date.now()}`,
@@ -255,41 +200,36 @@ function CheckinContent() {
       },
       checkInDate: today,
       checkOutDate: tomorrow,
-      tapeStatus: 'checked_in',
-      bookingStatus: 'checked_in',
+      tapeStatus: 'hold',
+      bookingStatus: 'confirmed',
       mealPlan: 'CP',
       adultsCount: 2,
       childrenCount: 0,
-      roomRatePerNight: 4500,
+      roomRatePerNight: 0,
       totalNights: 1,
-      totalRoomAmount: 4500,
+      totalRoomAmount: 0,
       documentStatus: 'pending',
     };
 
     setIsWalkIn(true);
-    setSelectedRoomId('room-101');
+    setSelectedRoomId('');
     setSelectedCheckInDate(today);
     setSelectedCheckOutDate(tomorrow);
     loadBookingIntoForm(walkInBooking);
   };
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: string) => void
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo is too large. Please select an image under 5MB.');
-      return;
+    try {
+      setter(await readDocumentFile(file));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'This file could not be read.');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setter(reader.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -362,7 +302,7 @@ function CheckinContent() {
       documentStatus: 'submitted',
     };
 
-    const targetRoom = ROOM_OPTIONS.find((r) => r.id === selectedRoomId);
+    const targetRoom = roomOptions.find((r) => r.id === selectedRoomId);
 
     const payload = {
       bookingId: activeBooking.id.startsWith('walkin-') ? undefined : activeBooking.id,
@@ -376,8 +316,6 @@ function CheckinContent() {
       specialRequests: specialRequests.trim() || undefined,
     };
 
-    let savedBooking: CRMBooking = activeBooking;
-
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
@@ -385,65 +323,24 @@ function CheckinContent() {
         body: JSON.stringify(payload),
       });
 
-      const resData = await res.json();
+      const resData = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        alert(resData.error || 'Check-in submission failed. Please verify required fields.');
+      if (!res.ok || !resData?.success) {
+        alert(resData?.error || 'Check-in submission failed. Please verify required fields.');
         setIsSubmitting(false);
         return;
       }
 
-      if (resData.success && resData.booking) {
-        savedBooking = resData.booking;
+      if (resData.walkInRequest) {
+        setWalkInMessage(resData.message || 'Thank you! Reception will assign your room shortly.');
+      } else if (resData.booking) {
         setActiveBooking(resData.booking);
-        updateBookingGuestDetails(resData.booking.id, guestUpdates, {
-          specialRequests: specialRequests.trim() || undefined,
-          documentStatus: 'submitted',
-        });
-      } else {
-        updateBookingGuestDetails(activeBooking.id, guestUpdates, {
-          specialRequests: specialRequests.trim() || undefined,
-          documentStatus: 'submitted',
-        });
       }
     } catch (err) {
-      console.warn('Server check-in sync failed, updated locally:', err);
-      updateBookingGuestDetails(activeBooking.id, guestUpdates, {
-        specialRequests: specialRequests.trim() || undefined,
-        documentStatus: 'submitted',
-      });
-    }
-
-    // Direct localStorage sync for cross-tab persistence
-    try {
-      const raw = localStorage.getItem('wp_crm_bookings');
-      if (raw) {
-        const parsed: CRMBooking[] = JSON.parse(raw);
-        const updated = parsed.map((b) => {
-          if (b.id === activeBooking.id) {
-            return {
-              ...b,
-              specialRequests: specialRequests.trim() || undefined,
-              documentStatus: 'submitted' as const,
-              guest: {
-                ...b.guest,
-                ...guestUpdates,
-                documentStatus: 'submitted' as const,
-              },
-            };
-          }
-          return b;
-        });
-        localStorage.setItem('wp_crm_bookings', JSON.stringify(updated));
-        window.dispatchEvent(new Event('storage'));
-      }
-    } catch {}
-
-    // Save session for seamless instant portal access
-    if (savedBooking) {
-      try {
-        localStorage.setItem('savera_guest_portal_session', JSON.stringify(savedBooking));
-      } catch {}
+      console.warn('Check-in submission failed:', err);
+      alert('We could not reach reception. Your details were not sent; please check your connection and try again.');
+      setIsSubmitting(false);
+      return;
     }
 
     setIsSubmitting(false);
@@ -500,7 +397,7 @@ function CheckinContent() {
                   Welcome to Savera Homestay
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-600 max-w-md mx-auto mt-1">
-                  Please enter your <strong>Booking Reference</strong> or registered <strong>Phone Number</strong> to complete your digital registration.
+                  Please enter your <strong>Booking ID</strong> and the <strong>mobile number</strong> used for the booking to complete your digital registration.
                 </p>
               </div>
 
@@ -515,10 +412,27 @@ function CheckinContent() {
                       setBookingQuery(e.target.value);
                       setNotFound(false);
                     }}
-                    placeholder="e.g. WP-2026-101 or 9911233445"
+                    placeholder="Booking ID, e.g. SH-2K2610001"
                     className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-300 bg-[#F3F7FF]/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#25479E] focus:bg-white text-[#0B1733]"
                   />
                 </div>
+                {!isStaffDevice && (
+                  <div className="relative">
+                    <Phone className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="tel"
+                      required
+                      inputMode="numeric"
+                      value={searchPhone}
+                      onChange={(e) => {
+                        setSearchPhone(e.target.value);
+                        setNotFound(false);
+                      }}
+                      placeholder="Mobile number on the booking"
+                      className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-300 bg-[#F3F7FF]/50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#25479E] focus:bg-white text-[#0B1733]"
+                    />
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={isSearching}
@@ -551,7 +465,7 @@ function CheckinContent() {
                     <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold text-forest-950 text-xs sm:text-sm">
-                        No reservation found for <span className="underline font-mono text-amber-900">{bookingQuery}</span>
+                        No reservation found for <span className="underline font-mono text-amber-900">{bookingQuery}</span> with that mobile number
                       </p>
                       <p className="text-[11px] text-forest-700 mt-1 leading-relaxed">
                         Arrived directly or booked via WhatsApp/Call? You can proceed immediately with self check-in registration &amp; ID upload below.
@@ -581,10 +495,10 @@ function CheckinContent() {
             </div>
 
             {/* Quick Demo Pickers if available */}
-            {bookings.length > 0 && (
+            {isStaffDevice && bookings.length > 0 && (
               <div className="bg-white/80 rounded-2xl p-5 border border-sand-200 text-xs text-forest-700">
                 <span className="font-bold text-forest-900 block mb-2">
-                  Or select from existing reservations on this device:
+                  Staff: select an arriving reservation:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {bookings.slice(0, 4).map((b) => (
@@ -660,14 +574,14 @@ function CheckinContent() {
                 <div className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="text-[10px] text-sand-300 uppercase font-bold block mb-1">
-                      Assigned Room
+                      Preferred Room (reception confirms)
                     </label>
                     <select
                       value={selectedRoomId}
                       onChange={(e) => {
                         const newId = e.target.value;
                         setSelectedRoomId(newId);
-                        const match = ROOM_OPTIONS.find((r) => r.id === newId);
+                        const match = roomOptions.find((r) => r.id === newId);
                         if (match) {
                           setActiveBooking((prev) =>
                             prev ? { ...prev, roomId: match.id, roomNumber: match.roomNumber, roomName: match.name } : null
@@ -676,7 +590,8 @@ function CheckinContent() {
                       }}
                       className="w-full p-2.5 rounded-xl bg-forest-900 border border-white/20 text-white font-semibold text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none"
                     >
-                      {ROOM_OPTIONS.map((r) => (
+                      <option value="" className="bg-forest-950 text-white">No preference</option>
+                      {roomOptions.map((r) => (
                         <option key={r.id} value={r.id} className="bg-forest-950 text-white">
                           {r.name}
                         </option>
@@ -1105,9 +1020,15 @@ function CheckinContent() {
               <p className="text-sm text-forest-700 max-w-md mx-auto mt-2">
                 Thank you, <strong>{fullName || activeBooking.guest.fullName}</strong>. Your documents and guest details have been safely received by the Savera Homestay team.
               </p>
+              {walkInMessage && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 max-w-md mx-auto mt-3">
+                  {walkInMessage}
+                </p>
+              )}
             </div>
 
             {/* Quick Stay Confirmation Card */}
+            {!walkInMessage && (
             <div className="bg-sand-50 p-5 rounded-2xl border border-sand-200 max-w-md mx-auto text-xs text-left space-y-2">
               <div className="flex items-center justify-between border-b border-sand-200 pb-2">
                 <span className="text-forest-600">Assigned Accommodation:</span>
@@ -1130,10 +1051,13 @@ function CheckinContent() {
               </div>
             </div>
 
-            {/* Primary Guest Portal CTA */}
+            )}
+
+            {/* Primary Guest Portal CTA (this browser is already signed in to the booking) */}
+            {!walkInMessage && (
             <div className="pt-2 max-w-md mx-auto space-y-2">
               <Link
-                href={`/guest-portal?phone=${encodeURIComponent(activeBooking.guest?.phone || phone)}&booking=${encodeURIComponent(activeBooking.bookingReference)}`}
+                href="/guest-portal"
                 className="w-full py-4 px-6 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-2xl font-bold text-sm sm:text-base shadow-[0_4px_16px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2.5 cursor-pointer"
               >
                 <Sparkles className="w-5 h-5 text-white" />
@@ -1143,6 +1067,7 @@ function CheckinContent() {
                 Order hot meals to your room, view GST folio &amp; bills, or copy property Wi-Fi password.
               </p>
             </div>
+            )}
 
             {/* Useful Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

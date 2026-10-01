@@ -14,6 +14,7 @@ import InquiryModal from '@/components/InquiryModal';
 import BookingModal from '@/components/BookingModal';
 import AvailabilityModal from '@/components/AvailabilityModal';
 import { RoomConfig } from '@/components/RoomGuestSelector';
+import { todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 
 import { Room, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 import {
@@ -25,74 +26,14 @@ import {
 } from '@/lib/mock-data';
 
 export default function HomePage() {
-  const [rooms, setRooms] = useState<Room[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_rooms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const hasStaleUnsplash = Array.isArray(parsed) && parsed.some((r: Room) =>
-            r.images?.some((img: string) => img.includes('images.unsplash.com'))
-          );
-          if (Array.isArray(parsed) && parsed.length > 0 && !hasStaleUnsplash) return parsed;
-        }
-      } catch {}
-    }
-    return INITIAL_ROOMS;
-  });
-
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const hasStaleUnsplash = Array.isArray(parsed.heroSlides) && parsed.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
-          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0 && !hasStaleUnsplash) return parsed.heroSlides;
-        }
-      } catch {}
-    }
-    return INITIAL_HERO_SLIDES;
-  });
-
-  const [aboutData, setAboutData] = useState<AboutSectionData>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.aboutData?.headline) return parsed.aboutData;
-        }
-      } catch {}
-    }
-    return INITIAL_ABOUT_DATA;
-  });
-
-  const [siteInfo, setSiteInfo] = useState<SiteInfo>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.siteInfo?.name) return parsed.siteInfo;
-        }
-      } catch {}
-    }
-    return INITIAL_SITE_INFO;
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wp_site_cms');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) return parsed.reviews;
-        }
-      } catch {}
-    }
-    return INITIAL_REVIEWS;
-  });
+  // The server (via /api/rooms and /api/cms) is the only source of truth. The bundled defaults
+  // are shown only for the first paint; no copy is kept in the browser, so an admin change
+  // shows up on the next visit (a stale browser copy used to hide CMS edits indefinitely).
+  const [rooms, setRooms] = useState<Room[]>(INITIAL_ROOMS);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(INITIAL_HERO_SLIDES);
+  const [aboutData, setAboutData] = useState<AboutSectionData>(INITIAL_ABOUT_DATA);
+  const [siteInfo, setSiteInfo] = useState<SiteInfo>(INITIAL_SITE_INFO);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
 
   // Modal states
   const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
@@ -127,60 +68,25 @@ export default function HomePage() {
 
         if (roomsRes && roomsRes.success && Array.isArray(roomsRes.data) && roomsRes.data.length > 0) {
           setRooms(roomsRes.data);
-          try {
-            localStorage.setItem('wp_site_rooms', JSON.stringify(roomsRes.data));
-          } catch {}
         }
 
         if (cmsRes && cmsRes.success && cmsRes.data) {
-          const savedCMS = typeof window !== 'undefined' ? localStorage.getItem('wp_site_cms') : null;
-          let hasStaleHero = false;
-          if (savedCMS) {
-            try {
-              const parsedCMS = JSON.parse(savedCMS);
-              hasStaleHero = Array.isArray(parsedCMS.heroSlides) && parsedCMS.heroSlides.some((s: HeroSlide) => s.image?.includes('images.unsplash.com'));
-            } catch {}
-          }
-          if (!savedCMS || hasStaleHero) {
-            if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
-            if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
-            if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
-            if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
-            try {
-              localStorage.setItem('wp_site_cms', JSON.stringify(cmsRes.data));
-            } catch {}
-          }
+          if (cmsRes.data.heroSlides?.length > 0) setHeroSlides(cmsRes.data.heroSlides);
+          if (cmsRes.data.aboutData?.headline) setAboutData(cmsRes.data.aboutData);
+          if (cmsRes.data.siteInfo?.name) setSiteInfo(cmsRes.data.siteInfo);
+          if (cmsRes.data.reviews?.length > 0) setReviews(cmsRes.data.reviews);
         }
       } catch (err) {
-        console.warn('Using local pre-seeded homestay content:', err);
+        console.warn('Live content unavailable; showing default content:', err);
       }
     }
     loadData();
-
-    // Multi-tab real-time synchronization
-    const handleStorage = (e: StorageEvent) => {
-      try {
-        if (e.key === 'wp_site_rooms' && e.newValue) {
-          const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed) && parsed.length > 0) setRooms(parsed);
-        }
-        if (e.key === 'wp_site_cms' && e.newValue) {
-          const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed.heroSlides) && parsed.heroSlides.length > 0) setHeroSlides(parsed.heroSlides);
-          if (parsed.aboutData?.headline) setAboutData(parsed.aboutData);
-          if (parsed.siteInfo?.name) setSiteInfo(parsed.siteInfo);
-          if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) setReviews(parsed.reviews);
-        }
-      } catch {}
-    };
-
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const [stayDates, setStayDates] = useState<{ checkIn: string; checkOut: string }>(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    // IST calendar dates (toISOString() is UTC and showed "yesterday" in India before 5:30am)
+    const today = todayInIST();
+    const tomorrow = tomorrowInIST();
     return { checkIn: today, checkOut: tomorrow };
   });
 

@@ -62,6 +62,14 @@ export interface Booking {
   extra_children_count?: number;
   extra_charges_total?: number;
   total_price: number;
+  /** Room charges before GST (website requests priced on the server) */
+  room_subtotal?: number;
+  gst_amount?: number;
+  addons_total?: number;
+  meal_plan?: string;
+  rooms_config?: { room_id: string; adults: number; children: number; child_ages?: number[] }[];
+  /** Pending requests hold inventory until this time, then expire. */
+  hold_expires_at?: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   payment_status: 'unpaid' | 'deposit_paid' | 'fully_paid';
   special_requests?: string;

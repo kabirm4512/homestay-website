@@ -135,8 +135,8 @@ export default function AdminStaffManagement() {
       return;
     }
 
-    if (newPassword.trim().length < 6) {
-      setFormError('Password must be at least 6 characters long.');
+    if (newPassword.trim().length < 8) {
+      setFormError('Password must be at least 8 characters long.');
       return;
     }
 
@@ -151,8 +151,8 @@ export default function AdminStaffManagement() {
       });
 
       setIsAddModalOpen(false);
-    } catch {
-      setFormError('Failed to create account. Please try again.');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
     }
   };
 
@@ -192,14 +192,17 @@ export default function AdminStaffManagement() {
       }
     }
 
-    await updateStaffAccount(editingStaff.id, {
-      fullName: editFullName.trim(),
-      email: editEmail.trim().toLowerCase(),
-      phone: editPhone.trim() || undefined,
-      role: editRole,
-    });
-
-    setEditingStaff(null);
+    try {
+      await updateStaffAccount(editingStaff.id, {
+        fullName: editFullName.trim(),
+        email: editEmail.trim().toLowerCase(),
+        phone: editPhone.trim() || undefined,
+        role: editRole,
+      });
+      setEditingStaff(null);
+    } catch {
+      // the error was already shown
+    }
   };
 
   const handleToggleStatus = async (account: StaffAccount) => {
@@ -217,8 +220,12 @@ export default function AdminStaffManagement() {
     }
 
     const newStatus = !account.isActive;
-    await updateStaffAccount(account.id, { isActive: newStatus });
-    showToast(`${account.fullName} is now ${newStatus ? 'Active' : 'Deactivated'}`);
+    try {
+      await updateStaffAccount(account.id, { isActive: newStatus });
+      showToast(`${account.fullName} is now ${newStatus ? 'Active' : 'Deactivated'}`);
+    } catch {
+      // the error was already shown
+    }
   };
 
   const handleOpenResetPassword = (account: StaffAccount) => {
@@ -232,14 +239,17 @@ export default function AdminStaffManagement() {
     if (!passwordResetStaff) return;
     setResetError(null);
 
-    if (newResetPassword.trim().length < 6) {
-      setResetError('New password must be at least 6 characters.');
+    if (newResetPassword.trim().length < 8) {
+      setResetError('New password must be at least 8 characters.');
       return;
     }
 
-    await updateStaffAccount(passwordResetStaff.id, { password: newResetPassword.trim() });
-    showToast(`Password updated for ${passwordResetStaff.fullName}`);
-    setPasswordResetStaff(null);
+    try {
+      await updateStaffAccount(passwordResetStaff.id, { password: newResetPassword.trim() });
+      setPasswordResetStaff(null);
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Could not reset the password.');
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -460,7 +470,11 @@ export default function AdminStaffManagement() {
                       <div className="flex items-center space-x-1.5 text-forest-500">
                         <Lock className="w-3.5 h-3.5" />
                         <span className="text-[11px]">
-                          Password: <code className="bg-sand-100 px-1.5 py-0.5 rounded text-[10px] font-mono">{account.password}</code>
+                          {account.mustChangePassword
+                            ? 'Waiting for first sign-in (temporary password)'
+                            : account.lastLoginAt
+                            ? `Last sign-in ${new Date(account.lastLoginAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+                            : 'Password set'}
                         </span>
                       </div>
                     </div>
@@ -613,7 +627,9 @@ export default function AdminStaffManagement() {
                   <button
                     type="button"
                     onClick={() => {
-                      const randomPass = 'wp' + Math.floor(100000 + Math.random() * 900000);
+                      const bytes = new Uint8Array(9);
+                      crypto.getRandomValues(bytes);
+                      const randomPass = Array.from(bytes, (b) => 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join('');
                       setNewPassword(randomPass);
                     }}
                     className="text-[10px] text-amber-700 hover:text-amber-800 font-semibold flex items-center space-x-1"

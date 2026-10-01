@@ -141,6 +141,10 @@ export interface CRMBooking {
   checkedInByManagerName?: string;
   checkedOutByManagerId?: string;
   checkedOutByManagerName?: string;
+  /** Website request this front-desk booking fulfils (so inventory is not counted twice). */
+  sourceBookingId?: string;
+  /** GST on the room charges, from the shared GST rules. */
+  gstAmount?: number;
 }
 
 export interface FolioCharge {
@@ -154,6 +158,9 @@ export interface FolioCharge {
   sourceReferenceId?: string;
   notes?: string;
   postedAt: string;
+  /** GST for this line when it differs from the category default (e.g. rooms above ₹7,500/night). */
+  taxAmount?: number;
+  postedByName?: string;
 }
 
 export interface FolioPayment {
@@ -360,7 +367,10 @@ export interface Expense {
 export interface StaffAccount {
   id: string;
   email: string;
-  password: string;
+  /** Only sent when creating an account or resetting a password; never returned by the server. */
+  password?: string;
+  mustChangePassword?: boolean;
+  lastLoginAt?: string;
   fullName: string;
   phone?: string;
   role: StaffRole;
@@ -375,6 +385,8 @@ export interface SeasonalDateRange {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   description?: string;
+  /** Minimum nights for any stay that includes a night in this range (e.g. 2 over Puja). */
+  minNights?: number;
 }
 
 export interface MealPlanRates {
@@ -391,6 +403,10 @@ export interface RoomSeasonalTariffs {
   weekendSurchargePercent?: number;
   extraAdultRate?: number;
   extraChildRate?: number;
+  /** Adults included in the room rate (default 2); extra-adult charges start above this. */
+  baseAdults?: number;
+  /** Children younger than this age stay free (when ages are given). Unset = every child is charged. */
+  freeChildUnderAge?: number;
 }
 
 export interface ManagerActivityLog {
@@ -409,3 +425,14 @@ export interface ManagerActivityLog {
 }
 
 
+
+export interface StaffAlert {
+  id: string;
+  type: 'order' | 'special_request' | 'booking' | 'inquiry' | 'checkin';
+  roomNumber: number;
+  guestName: string;
+  orderDetails: string;
+  totalAmount: number;
+  createdAt: string;
+  acknowledged: boolean;
+}

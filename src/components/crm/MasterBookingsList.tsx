@@ -28,6 +28,7 @@ import {
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, GuestFolio } from '@/types/crm';
 import GuestCheckoutModal from './GuestCheckoutModal';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 interface MasterBookingsListProps {
   onOpenManualBooking?: () => void;
@@ -50,7 +51,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
   const [selectedBookingForCheckout, setSelectedBookingForCheckout] = useState<CRMBooking | null>(null);
   const [inspectBooking, setInspectBooking] = useState<CRMBooking | null>(null);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => todayInIST(), []);
 
   // Compute stats across all bookings
   const stats = useMemo(() => {

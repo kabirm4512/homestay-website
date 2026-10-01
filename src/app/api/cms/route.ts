@@ -1,40 +1,43 @@
-import { NextResponse } from 'next/server';
-import {
-  getCMSContent,
-  updateHeroSlides,
-  updateAboutSection,
-  updateSiteInfo,
-  updateReviews
-} from '@/lib/data-service';
+import { z } from 'zod';
+import { handler, ok, readJson, clientIp } from '@/lib/server/http';
+import { requireStaff, ROLES } from '@/lib/server/auth/staff-session';
+import { getCmsContent, putSetting, getSetting, SETTINGS } from '@/lib/server/repos/settings';
+import { persistDataUrl } from '@/lib/server/repos/files';
+import { audit } from '@/lib/server/audit';
 
-export async function GET() {
-  try {
-    const data = await getCMSContent();
-    return NextResponse.json({ success: true, data });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+export const dynamic = 'force-dynamic';
+
+/** Public: website copy (hero slides, about, site info, reviews). */
+export const GET = handler('cms.get', async () => ok({ data: await getCmsContent() }));
+
+const Body = z.object({
+  type: z.enum(['hero_carousel', 'about_section', 'site_info', 'reviews']),
+  payload: z.unknown(),
+});
+
+/** Admin / manager: edit website copy. */
+export const POST = handler('cms.save', async (request: Request) => {
+  const staff = await requireStaff(request, ROLES.MANAGERS);
+  const actor = `staff:${staff.id}`;
+  const { type, payload } = await readJson(request, Body);
+  const keyFor = { hero_carousel: SETTINGS.CMS_HERO, about_section: SETTINGS.CMS_ABOUT, site_info: SETTINGS.CMS_SITE, reviews: SETTINGS.CMS_REVIEWS } as const;
+  const key = keyFor[type];
+
+  let value: unknown = payload;
+  if (type === 'hero_carousel') {
+    const slides = z.array(z.object({ id: z.string(), image: z.string() }).passthrough()).max(20).parse(payload);
+    const stored = await Promise.all(
+      slides.map(async (s) => ({ ...s, image: (await persistDataUrl(s.image, { visibility: 'public', ownerKind: 'cms', actor })) || s.image }))
+    );
+    value = { slides: stored };
+  } else if (type === 'reviews') {
+    value = { reviews: z.array(z.object({ id: z.string() }).passthrough()).max(200).parse(payload) };
+  } else {
+    value = z.object({}).passthrough().parse(payload);
   }
-}
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { type, payload } = body;
-
-    if (type === 'hero_carousel') {
-      await updateHeroSlides(payload);
-    } else if (type === 'about_section') {
-      await updateAboutSection(payload);
-    } else if (type === 'site_info') {
-      await updateSiteInfo(payload);
-    } else if (type === 'reviews') {
-      await updateReviews(payload);
-    } else {
-      return NextResponse.json({ success: false, error: 'Invalid CMS section type' }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true, message: 'CMS updated successfully' });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
+  const before = await getSetting(key);
+  await putSetting(key, value, actor);
+  await audit({ actor, action: 'update', entity: 'cms', entityId: key, before, after: value, ip: clientIp(request) });
+  return ok({ message: 'CMS updated successfully' });
+});

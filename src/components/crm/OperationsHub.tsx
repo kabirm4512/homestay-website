@@ -302,7 +302,7 @@ export default function OperationsHub() {
                       </span>
                     </div>
                     <p className="text-[11px] text-forest-600 mt-0.5">
-                      Assigned to: <strong>{task.assignedToName}</strong> • Priority: {task.priority.toUpperCase()}
+                      Assigned to: <strong>{task.assignedToName}</strong> • Priority: {(task.priority || 'normal').toUpperCase()}
                     </p>
                   </div>
 

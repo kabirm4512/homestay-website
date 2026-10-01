@@ -42,8 +42,10 @@ import {
   X,
 } from 'lucide-react';
 import { CRMBooking, GuestFolio, MenuItem } from '@/types/crm';
-import { INITIAL_MENU_ITEMS, INITIAL_TRANSFER_ROUTES, INITIAL_RENTAL_VEHICLES } from '@/lib/crm-data';
+import { useCRM } from '@/context/CRMContext';
+import { findCelebration } from '@/lib/celebrations';
 import { INDIAN_STATES, getTimeBasedGreeting } from '@/lib/booking-id';
+import { readDocumentFile } from '@/lib/image-upload';
 
 interface SpecialCelebrationOption {
   id: string;
@@ -59,7 +61,7 @@ const CELEBRATION_OPTIONS: SpecialCelebrationOption[] = [
   {
     id: 'celebration-cake',
     title: 'Himalayan Celebration Cake',
-    price: 1000,
+    price: findCelebration('celebration-cake')?.price ?? 1000,
     icon: Cake,
     badge: 'Popular for Birthdays & Anniversaries',
     description: 'Freshly baked mountain artisan celebration cake (500g) with customized wording, celebration candles, and elegant table setup.',
@@ -68,7 +70,7 @@ const CELEBRATION_OPTIONS: SpecialCelebrationOption[] = [
   {
     id: 'candlelight-dinner',
     title: 'Candlelight Balcony Dinner & Decor',
-    price: 2000,
+    price: findCelebration('candlelight-dinner')?.price ?? 2000,
     icon: Heart,
     badge: 'Honeymoon & Romantic Getaway',
     description: 'Private candlelit dinner arrangement on your private mountain balcony, adorned with fresh pine florals, aromatic candles, and ambient fairy lights.',
@@ -77,7 +79,7 @@ const CELEBRATION_OPTIONS: SpecialCelebrationOption[] = [
   {
     id: 'flower-bed-decoration',
     title: 'Romantic Bed Flower Decoration',
-    price: 1000,
+    price: findCelebration('flower-bed-decoration')?.price ?? 1000,
     icon: Flower2,
     badge: 'Anniversary & Romantic Homecoming',
     description: 'Intricately arranged fresh Himalayan wild blooms, marigolds, and aromatic red rose petals on your king bed for a romantic mountain homecoming.',
@@ -95,6 +97,10 @@ function GuestPortalContent() {
   const urlBooking = searchParams.get('booking') || searchParams.get('query') || '';
   const urlPhone = searchParams.get('phone') || '';
   const urlName = searchParams.get('name') || '';
+
+  // Live menu / transfers / rentals from the server (never the seed data)
+  const { menuItems, transferRoutes, rentalVehicles } = useCRM();
+  const liveMenu = useMemo(() => menuItems.filter((m) => m.isAvailable !== false), [menuItems]);
 
   // Auth / Session State
   const [activeBooking, setActiveBooking] = useState<CRMBooking | null>(null);
@@ -146,9 +152,9 @@ function GuestPortalContent() {
   const [showInvoicePrint, setShowInvoicePrint] = useState<boolean>(false);
 
   // Fetch Folio
-  const fetchFolio = useCallback(async (bookingId: string, roomNumber?: number) => {
+  const fetchFolio = useCallback(async (bookingId: string, _roomNumber?: number) => {
     try {
-      const res = await fetch(`/api/orders?folio=true&booking=${encodeURIComponent(bookingId)}&room=${roomNumber || ''}`);
+      const res = await fetch(`/api/orders?folio=true&booking=${encodeURIComponent(bookingId)}`, { cache: 'no-store' });
       const json = await res.json();
       if (json?.success && json.folio) {
         setActiveFolio(json.folio);
@@ -159,15 +165,13 @@ function GuestPortalContent() {
   }, []);
 
   // Fetch Orders for this booking
-  const fetchOrders = useCallback(async (bookingId: string, roomNumber?: number) => {
+  const fetchOrders = useCallback(async (bookingId: string, _roomNumber?: number) => {
     try {
-      const res = await fetch(`/api/orders?orders=true`);
+      // The server returns only this signed-in guest's orders
+      const res = await fetch(`/api/orders?orders=true`, { cache: 'no-store' });
       const json = await res.json();
       if (json?.success && Array.isArray(json.orders)) {
-        const filtered = json.orders.filter(
-          (o: any) => o.bookingId === bookingId || (roomNumber && o.roomNumber === roomNumber)
-        );
-        setMyOrders(filtered);
+        setMyOrders(json.orders.filter((o: any) => o.bookingId === bookingId));
       }
     } catch {}
   }, []);
@@ -195,9 +199,6 @@ function GuestPortalContent() {
   // Login handler
   const loginGuest = useCallback((booking: CRMBooking) => {
     setActiveBooking(booking);
-    try {
-      localStorage.setItem('savera_guest_portal_session', JSON.stringify(booking));
-    } catch {}
 
     // Populate missing checkin form fields from existing guest data
     if (booking.guest) {
@@ -219,51 +220,36 @@ function GuestPortalContent() {
     fetchOrders(booking.id, booking.roomNumber);
   }, [fetchFolio, fetchOrders, urlName, urlPhone]);
 
-  // Session restore & URL authentication on mount
+  // Session restore & URL authentication on mount.
+  // The signed-in booking lives in an httpOnly cookie set by the server after the Booking ID
+  // AND mobile number both match (or the in-room QR code); nothing is kept in the browser.
   useEffect(() => {
     const initSession = async () => {
       setIsLoading(true);
       try {
-        // 1. Direct authentication via URL parameters if present
-        if (urlBooking || urlPhone) {
-          const query = urlBooking || urlPhone;
-          const phoneParam = urlPhone ? `&phone=${encodeURIComponent(urlPhone)}` : '';
-          const res = await fetch(`/api/checkin?query=${encodeURIComponent(query)}${phoneParam}`);
-          const json = await res.json();
-          if (json?.success && json.booking) {
-            // Verify phone if both booking & phone were provided
-            if (urlPhone && json.booking.guest?.phone) {
-              const bPhone = normalizePhone(json.booking.guest.phone);
-              const qPhone = normalizePhone(urlPhone);
-              if (bPhone === qPhone || !qPhone || !bPhone) {
-                loginGuest(json.booking);
-                setIsLoading(false);
-                return;
-              }
-            } else {
-              loginGuest(json.booking);
-              setIsLoading(false);
-              return;
-            }
+        try {
+          localStorage.removeItem('savera_guest_portal_session'); // old insecure copy
+        } catch {}
+
+        if (urlBooking && urlPhone) {
+          const res = await fetch('/api/guest/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: urlBooking, phone: urlPhone }),
+          });
+          const json = await res.json().catch(() => null);
+          if (res.ok && json?.success && json.booking) {
+            loginGuest(json.booking);
+            if (json.folio) setActiveFolio(json.folio);
+            return;
           }
         }
 
-        // 2. LocalStorage saved session
-        const savedRaw = localStorage.getItem('savera_guest_portal_session');
-        if (savedRaw) {
-          const parsed: CRMBooking = JSON.parse(savedRaw);
-          if (parsed && (parsed.id || parsed.bookingReference)) {
-            const query = parsed.bookingReference || parsed.guest?.phone || parsed.id;
-            const res = await fetch(`/api/checkin?query=${encodeURIComponent(query)}`);
-            const json = await res.json();
-            if (json?.success && json.booking) {
-              loginGuest(json.booking);
-            } else {
-              loginGuest(parsed);
-            }
-            setIsLoading(false);
-            return;
-          }
+        const res = await fetch('/api/guest/session', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && json.booking) {
+          loginGuest(json.booking);
+          if (json.folio) setActiveFolio(json.folio);
         }
       } catch (err) {
         console.warn('Session init error:', err);
@@ -275,7 +261,7 @@ function GuestPortalContent() {
     initSession();
   }, [urlBooking, urlPhone, loginGuest]);
 
-  // Manual 2-Field Login Submission
+  // Manual 2-Field Login Submission (both must match the reservation)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -296,51 +282,22 @@ function GuestPortalContent() {
     setIsAuthenticating(true);
 
     try {
-      // Lookup booking by Booking ID AND Phone
-      const res = await fetch(`/api/checkin?query=${encodeURIComponent(cleanBk)}&phone=${encodeURIComponent(cleanPh)}`);
-      const json = await res.json();
-
-      if (!json?.success || !json.booking) {
-        // Fallback: try searching by phone number
-        const resByPhone = await fetch(`/api/checkin?query=${encodeURIComponent(cleanPh)}`);
-        const jsonByPhone = await resByPhone.json();
-
-        if (jsonByPhone?.success && jsonByPhone.booking) {
-          loginGuest(jsonByPhone.booking);
-          return;
-        }
-
-        setLoginError(
-          `No active reservation found for Booking ID "${cleanBk}". Please verify your booking reference or tap the call button above for receptionist assistance.`
-        );
+      const res = await fetch('/api/guest/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: cleanBk, phone: cleanPh }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success && json.booking) {
+        loginGuest(json.booking);
+        if (json.folio) setActiveFolio(json.folio);
         return;
       }
-
-      const booking: CRMBooking = json.booking;
-      const bookingGuestPhone = normalizePhone(booking.guest?.phone || '');
-
-      // Check phone match
-      if (!bookingGuestPhone || bookingGuestPhone === cleanPh) {
-        if (!bookingGuestPhone && booking.guest) {
-          booking.guest.phone = cleanPh;
-        }
-        loginGuest(booking);
-        return;
-      }
-
-      // If phone on file doesn't match, check if cleanBk was an exact match on booking reference
-      const bRefClean = (booking.bookingReference || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      const inputRefClean = cleanBk.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      if (bRefClean === inputRefClean) {
-        if (booking.guest) {
-          booking.guest.phone = cleanPh;
-        }
-        loginGuest(booking);
-        return;
-      }
-
       setLoginError(
-        `The mobile number entered does not match the reservation on file for ${cleanBk}. Please verify your 10-digit mobile number.`
+        res.status === 429
+          ? 'Too many attempts. Please wait a few minutes or call the front desk.'
+          : json?.error ||
+              `No reservation found for Booking ID "${cleanBk}" with that mobile number. Please check both, or call reception.`
       );
     } catch {
       setLoginError('Unable to connect to reception server. Please check your connection or call front desk.');
@@ -351,9 +308,7 @@ function GuestPortalContent() {
 
   // Sign out / Switch guest
   const handleLogout = () => {
-    try {
-      localStorage.removeItem('savera_guest_portal_session');
-    } catch {}
+    void fetch('/api/guest/session', { method: 'DELETE' }).catch(() => {});
     setActiveBooking(null);
     setActiveFolio(null);
     setCheckinJustCompleted(false);
@@ -363,20 +318,15 @@ function GuestPortalContent() {
   };
 
   // Handle Photo Upload
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
-    if (file.size > 6 * 1024 * 1024) {
-      alert('Photo is too large. Please select an image under 6MB.');
-      return;
+    try {
+      setter(await readDocumentFile(file));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'This file could not be read.');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setter(reader.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
   // Digital Check-In Submission
@@ -490,15 +440,11 @@ function GuestPortalContent() {
 
       setActiveBooking(updatedBk);
       setCheckinJustCompleted(true);
-      try {
-        localStorage.setItem('savera_guest_portal_session', JSON.stringify(updatedBk));
-      } catch {}
 
       // Refresh folio
       fetchFolio(updatedBk.id, updatedBk.roomNumber);
     } catch {
-      alert('Check-in saved locally. Reception has been alerted.');
-      setCheckinJustCompleted(true);
+      alert('We could not reach reception. Your details were not sent; please check your connection and try again.');
     } finally {
       setIsSubmittingCheckin(false);
     }
@@ -511,10 +457,10 @@ function GuestPortalContent() {
 
   const cartTotalAmount = useMemo(() => {
     return Object.entries(diningCart).reduce((sum, [itemId, qty]) => {
-      const item = INITIAL_MENU_ITEMS.find((m) => m.id === itemId);
+      const item = liveMenu.find((m) => m.id === itemId);
       return sum + (item ? item.price * qty : 0);
     }, 0);
-  }, [diningCart]);
+  }, [diningCart, liveMenu]);
 
   const updateCartQty = (itemId: string, delta: number) => {
     setDiningCart((prev) => {
@@ -536,28 +482,14 @@ function GuestPortalContent() {
     setIsPlacingOrder(true);
     setOrderSuccessMsg('');
 
-    const items = Object.entries(diningCart).map(([itemId, qty]) => {
-      const item = INITIAL_MENU_ITEMS.find((m) => m.id === itemId);
-      return {
-        menuItemId: itemId,
-        name: item?.name || 'In-Room Dining Dish',
-        itemName: item?.name || 'In-Room Dining Dish',
-        price: item?.price || 0,
-        unitPrice: item?.price || 0,
-        quantity: qty,
-        lineTotal: (item?.price || 0) * qty,
-      };
-    });
+    // Prices are taken from the live menu on the server; only item ids and quantities are sent.
+    const items = Object.entries(diningCart).map(([itemId, qty]) => ({ menuItemId: itemId, quantity: qty }));
 
     const payload = {
       type: 'food_order',
       bookingId: activeBooking.id,
-      roomNumber: activeBooking.roomNumber,
-      guestName: activeBooking.guest?.fullName || 'Guest',
       items,
-      totalAmount: cartTotalAmount,
       notes: cartNotes.trim() || undefined,
-      orderSource: 'guest_portal',
     };
 
     try {
@@ -577,7 +509,8 @@ function GuestPortalContent() {
         fetchFolio(activeBooking.id, activeBooking.roomNumber);
         fetchOrders(activeBooking.id, activeBooking.roomNumber);
       } else {
-        alert(json.error || 'Failed to place dine-in order. Please try again or call reception.');
+        if (res.status === 401) handleLogout();
+        alert(json?.error || 'Failed to place dine-in order. Please try again or call reception.');
       }
     } catch {
       alert('Network error. Reception has been notified.');
@@ -596,21 +529,8 @@ function GuestPortalContent() {
     const payload = {
       type: 'special_request',
       bookingId: activeBooking.id,
-      roomNumber: activeBooking.roomNumber,
-      guestName: activeBooking.guest?.fullName || 'Guest',
-      items: [
-        {
-          name: `🎉 ${selectedCelebration.title}`,
-          itemName: `🎉 ${selectedCelebration.title}`,
-          price: selectedCelebration.price,
-          unitPrice: selectedCelebration.price,
-          quantity: 1,
-          lineTotal: selectedCelebration.price,
-        },
-      ],
-      totalAmount: selectedCelebration.price,
+      celebrationId: selectedCelebration.id,
       notes: celebrationNotes.trim() || undefined,
-      orderSource: 'guest_portal',
     };
 
     try {
@@ -629,6 +549,9 @@ function GuestPortalContent() {
         );
         fetchFolio(activeBooking.id, activeBooking.roomNumber);
         fetchOrders(activeBooking.id, activeBooking.roomNumber);
+      } else {
+        if (res.status === 401) handleLogout();
+        alert(json?.error || 'Unable to submit celebration request. Please try again or call reception.');
       }
     } catch {
       alert('Unable to submit celebration request. Please try again.');
@@ -1528,7 +1451,10 @@ function GuestPortalContent() {
 
               {/* Menu Items List */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {INITIAL_MENU_ITEMS.map((item) => {
+                {liveMenu.length === 0 && (
+                  <p className="text-xs text-gray-500">Loading today&apos;s menu…</p>
+                )}
+                {liveMenu.map((item) => {
                   const qty = diningCart[item.id] || 0;
                   return (
                     <div
@@ -1741,7 +1667,7 @@ function GuestPortalContent() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {INITIAL_TRANSFER_ROUTES.map((route) => (
+                {transferRoutes.filter((r) => r.isActive !== false).map((route) => (
                   <div
                     key={route.id}
                     className="p-4 rounded-2xl border border-sand-200 flex items-center justify-between gap-3 text-xs"
@@ -1775,7 +1701,7 @@ function GuestPortalContent() {
                   Explore Takdah, Tinchuley, Lamahatta, and Darjeeling at your own mountain pace.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {INITIAL_RENTAL_VEHICLES.map((vehicle) => (
+                  {rentalVehicles.filter((v) => v.isAvailable !== false).map((vehicle) => (
                     <div
                       key={vehicle.id}
                       className="p-4 rounded-2xl border border-sand-200 flex flex-col justify-between text-xs"

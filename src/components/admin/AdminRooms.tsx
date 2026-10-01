@@ -34,6 +34,16 @@ import {
   Upload,
 } from 'lucide-react';
 import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
+import { resolveRoomTariffs, todayInIST, addCalendarDays } from '@/lib/tariff-calculator';
+import { adminRequestJson } from '@/lib/admin-api';
+import {
+  compressImageFile,
+  dataUrlBytes,
+  isPlaceholderImage,
+  normalizeRoomImages,
+  ROOM_PLACEHOLDER_IMAGE,
+  ROOM_SAVE_MAX_PAYLOAD_BYTES,
+} from '@/lib/image-upload';
 
 interface AdminRoomsProps {
   rooms: Room[];
@@ -78,6 +88,7 @@ export default function AdminRooms({
     deleteSeasonalRange,
     updateRoomTariffs,
     calculateDynamicTariff,
+    tariffsStatus,
   } = useCRM();
 
   const [activeSubTab, setActiveSubTabState] = useState<'inventory' | 'seasons' | 'tariffs' | 'simulator'>(() => {
@@ -134,7 +145,7 @@ export default function AdminRooms({
     bed_type: 'King Bed',
     room_size_sqft: 400,
     amenities: ['Complimentary Breakfast', 'High-Speed Starlink Wi-Fi', 'Private Valley Balcony'],
-    images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'],
+    images: [],
     total_inventory: 1,
     available_inventory: 1,
     is_active: true,
@@ -184,7 +195,7 @@ export default function AdminRooms({
   const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(() => {
     const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
     return (
-      roomTariffs[selectedTariffRoomId] ||
+      resolveRoomTariffs(selectedTariffRoomId, roomTariffs) ||
       foundRoom?.tariffs ||
       INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
         regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
@@ -201,7 +212,7 @@ export default function AdminRooms({
     if (selectedTariffRoomId) {
       const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
       const found =
-        roomTariffs[selectedTariffRoomId] ||
+        resolveRoomTariffs(selectedTariffRoomId, roomTariffs) ||
         foundRoom?.tariffs ||
         INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
           regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
@@ -220,14 +231,8 @@ export default function AdminRooms({
   // 4. RATE SIMULATOR STATES
   // ==========================================
   const [simRoomId, setSimRoomId] = useState<string>(rooms.length > 0 ? rooms[0].id : 'room-1');
-  const [simCheckIn, setSimCheckIn] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [simCheckOut, setSimCheckOut] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    return d.toISOString().split('T')[0];
-  });
+  const [simCheckIn, setSimCheckIn] = useState<string>(() => todayInIST());
+  const [simCheckOut, setSimCheckOut] = useState<string>(() => addCalendarDays(todayInIST(), 3) || todayInIST());
   const [simMealPlan, setSimMealPlan] = useState<MealPlan>('CP');
   const [simAdults, setSimAdults] = useState<number>(2);
   const [simChildren, setSimChildren] = useState<number>(0);
@@ -251,7 +256,7 @@ export default function AdminRooms({
       bed_type: 'King Bed',
       room_size_sqft: 400,
       amenities: ['Complimentary Breakfast', 'High-Speed Starlink Wi-Fi', 'Private Valley Balcony'],
-      images: ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'],
+      images: [],
       total_inventory: 1,
       available_inventory: 1,
       is_active: true,
@@ -274,7 +279,8 @@ export default function AdminRooms({
       extra_adult_charge: room.extra_adult_charge ?? room.tariffs?.extraAdultRate ?? 1200,
       extra_child_charge: room.extra_child_charge ?? room.tariffs?.extraChildRate ?? 600,
       amenities: [...(room.amenities || [])],
-      images: [...(room.images || [])],
+      // Hide placeholder images in the editor so new uploads are not saved behind them
+      images: (room.images || []).filter((url) => !isPlaceholderImage(url)),
     });
     setImageInput('');
     setIsModalOpen(true);
@@ -296,22 +302,22 @@ export default function AdminRooms({
     setSubmitting(true);
     try {
       const targetId = editingRoom?.id || (formData.id || `room-${Date.now()}`);
-      const existingTariffs = roomTariffs[targetId] || editingRoom?.tariffs;
+      const savedLiveTariffs = resolveRoomTariffs(targetId, roomTariffs);
+      const existingTariffs = savedLiveTariffs || editingRoom?.tariffs;
       const baseRate = editingRoom?.price_per_night || existingTariffs?.regular?.EP || Number(formData.price_per_night) || 4500;
       const weekendRate = editingRoom?.weekend_price || (existingTariffs?.weekendSurchargePercent ? Math.round(baseRate * (1 + existingTariffs.weekendSurchargePercent / 100)) : baseRate);
       const extraAdult = editingRoom?.extra_adult_charge ?? existingTariffs?.extraAdultRate ?? 1200;
       const extraChild = editingRoom?.extra_child_charge ?? existingTariffs?.extraChildRate ?? 600;
 
-      // Automatically include any pending image URL entered by the user
-      let currentImages = [...(formData.images || [])];
-      if (imageInput.trim() && !currentImages.includes(imageInput.trim())) {
-        currentImages.push(imageInput.trim());
+      // Automatically include any pending image URL entered by the user, drop placeholders
+      // (they used to be saved in front of real photos) and fall back to a local placeholder.
+      const pendingImages = [...(formData.images || [])];
+      if (imageInput.trim() && !pendingImages.includes(imageInput.trim())) {
+        pendingImages.push(imageInput.trim());
       }
-      if (currentImages.length === 0) {
-        currentImages = ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80'];
-      }
+      const currentImages = normalizeRoomImages(pendingImages);
 
-      // Preserve existing tariffs without clashing
+      // Starting tariffs for a brand-new category only (existing live tariffs are never touched here)
       const updatedTariffs: RoomSeasonalTariffs = existingTariffs || {
         regular: { EP: baseRate, CP: Math.round(baseRate * 1.15), MAP: Math.round(baseRate * 1.35), AP: Math.round(baseRate * 1.55) },
         season: { EP: Math.round(baseRate * 1.3), CP: Math.round(baseRate * 1.45), MAP: Math.round(baseRate * 1.7), AP: Math.round(baseRate * 1.95) },
@@ -321,7 +327,7 @@ export default function AdminRooms({
         extraChildRate: extraChild,
       };
 
-      const savedRoom: Room = {
+      const roomPayload: Room = {
         ...formData,
         id: targetId,
         slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -347,31 +353,45 @@ export default function AdminRooms({
         updated_at: new Date().toISOString(),
       };
 
-      // 1. Optimistic Local State & Persistence
+      // Guard against requests the server/host will reject as too large (silently, before)
+      const payloadBytes = new Blob([JSON.stringify(roomPayload)]).size;
+      if (payloadBytes > ROOM_SAVE_MAX_PAYLOAD_BYTES) {
+        showToast(
+          `Photos are too large to save together (${(payloadBytes / 1024 / 1024).toFixed(1)} MB). Remove a photo or use smaller images.`,
+          'error'
+        );
+        return;
+      }
+
+      // 1. Save to the server FIRST; only a confirmed save is shown as saved
+      const result = await adminRequestJson<{ success: boolean; data: Room }>('/api/rooms', {
+        method: 'POST',
+        body: roomPayload,
+      });
+      if (!result.ok || !result.data?.data) {
+        showToast(result.error || 'The room could not be saved. Nothing was changed on the website.', 'error');
+        return;
+      }
+      const savedRoom: Room = result.data.data;
+
+      // 2. Reflect the server's saved copy locally
       const nextRooms = editingRoom
         ? rooms.map((r) => (r.id === editingRoom.id ? savedRoom : r))
         : [savedRoom, ...rooms];
 
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
-        } catch {}
-      }
 
       if (onUpdateRooms) {
         onUpdateRooms(nextRooms);
       }
 
-      updateRoomTariffs(savedRoom.id, updatedTariffs);
+      // 3. A brand-new category gets starting tariffs, AFTER the room itself is saved (sequential,
+      //    so the two writes can never overwrite each other). Existing tariffs are left alone:
+      //    prices are edited only in the Tariffs tab.
+      if (!savedLiveTariffs && tariffsStatus === 'ready') {
+        await updateRoomTariffs(savedRoom.id, updatedTariffs);
+      }
 
-      // 2. Background Sync
-      fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(savedRoom),
-      }).catch(() => null);
-
-      showToast(editingRoom ? 'Room updated successfully!' : 'New room added successfully!');
+      showToast(editingRoom ? 'Room updated on the website.' : 'New room added to the website.');
       handleCloseModal();
     } catch {
       showToast('Error saving room. Please try again.', 'error');
@@ -383,22 +403,18 @@ export default function AdminRooms({
   const handleToggleActive = async (room: Room) => {
     const updatedRoom: Room = { ...room, is_active: !room.is_active };
     const nextRooms = rooms.map((r) => (r.id === room.id ? updatedRoom : r));
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
-      } catch {}
-    }
     if (onUpdateRooms) onUpdateRooms(nextRooms);
-    showToast(`Room marked as ${updatedRoom.is_active ? 'Active' : 'Inactive'}`);
 
-    try {
-      await fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedRoom),
-      });
-    } catch {
-      // already saved locally
+    // Partial update: only the changed field, so photos/details saved elsewhere are never overwritten
+    const result = await adminRequestJson('/api/rooms', {
+      method: 'POST',
+      body: { id: room.id, name: room.name, is_active: updatedRoom.is_active },
+    });
+    if (result.ok) {
+      showToast(`Room marked as ${updatedRoom.is_active ? 'Active' : 'Inactive'}`);
+    } else {
+      if (onUpdateRooms) onUpdateRooms(rooms); // revert: the website was not changed
+      showToast(result.error || 'Could not update the room on the server.', 'error');
     }
   };
 
@@ -408,22 +424,17 @@ export default function AdminRooms({
 
     const updatedRoom: Room = { ...room, available_inventory: nextVal };
     const nextRooms = rooms.map((r) => (r.id === room.id ? updatedRoom : r));
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
-      } catch {}
-    }
     if (onUpdateRooms) onUpdateRooms(nextRooms);
-    showToast(`Inventory updated: ${nextVal} available`);
 
-    try {
-      await fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedRoom),
-      });
-    } catch {
-      // already saved locally
+    const result = await adminRequestJson('/api/rooms', {
+      method: 'POST',
+      body: { id: room.id, name: room.name, available_inventory: nextVal },
+    });
+    if (result.ok) {
+      showToast(`Inventory updated: ${nextVal} available`);
+    } else {
+      if (onUpdateRooms) onUpdateRooms(rooms);
+      showToast(result.error || 'Could not update inventory on the server.', 'error');
     }
   };
 
@@ -432,21 +443,17 @@ export default function AdminRooms({
     const targetId = deleteConfirmRoom.id;
     setSubmitting(true);
     try {
-      const nextRooms = rooms.filter((r) => r.id !== targetId);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
-        } catch {}
+      const result = await adminRequestJson(`/api/rooms?id=${encodeURIComponent(targetId)}`, { method: 'DELETE' });
+      if (!result.ok) {
+        showToast(result.error || 'Could not delete the room on the server.', 'error');
+        return;
       }
+      const nextRooms = rooms.filter((r) => r.id !== targetId);
       if (onUpdateRooms) onUpdateRooms(nextRooms);
       showToast('Room deleted successfully');
       setDeleteConfirmRoom(null);
-
-      await fetch(`/api/rooms?id=${encodeURIComponent(targetId)}`, {
-        method: 'DELETE',
-      });
     } catch {
-      showToast('Deleted room locally');
+      showToast('Could not delete the room.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -485,8 +492,10 @@ export default function AdminRooms({
 
   const handleAddImage = () => {
     if (!imageInput.trim()) return;
-    const current = formData.images || [];
-    setFormData({ ...formData, images: [...current, imageInput.trim()] });
+    const current = (formData.images || []).filter((url) => !isPlaceholderImage(url));
+    if (!current.includes(imageInput.trim())) {
+      setFormData({ ...formData, images: [...current, imageInput.trim()] });
+    }
     setImageInput('');
   };
 
@@ -499,25 +508,38 @@ export default function AdminRooms({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        showToast('Please select a valid image file', 'error');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
+    const selected = Array.from(files);
+    e.target.value = '';
+
+    // Resize + compress in the browser before adding (full-size phone photos made the save
+    // request too large and it failed silently). Files are processed in order.
+    (async () => {
+      let added = 0;
+      for (const file of selected) {
+        try {
+          const compressed = await compressImageFile(file);
+          // Upload straight to photo storage; the room keeps only the URL.
+          const uploaded = await adminRequestJson<{ success: boolean; file: { url: string } }>('/api/uploads', {
+            method: 'POST',
+            body: { kind: 'room_photo', dataUrl: compressed },
+          });
+          if (!uploaded.ok || !uploaded.data?.file?.url) {
+            throw new Error(uploaded.error || 'The photo could not be uploaded.');
+          }
+          const url = uploaded.data.file.url;
           setFormData((prev) => ({
             ...prev,
-            images: [...(prev.images || []), result],
+            images: [...(prev.images || []).filter((u) => !isPlaceholderImage(u)), url],
           }));
-          showToast('Image uploaded successfully!');
+          added += 1;
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Could not read this photo.', 'error');
         }
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
+      }
+      if (added > 0) {
+        showToast(`${added} photo${added > 1 ? 's' : ''} uploaded. Click Save to publish them on the website.`);
+      }
+    })();
   };
 
   // ==========================================
@@ -528,8 +550,8 @@ export default function AdminRooms({
     setSeasonForm({
       name: '',
       seasonType: 'season',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      startDate: todayInIST(),
+      endDate: addCalendarDays(todayInIST(), 30) || todayInIST(),
       description: '',
     });
     setIsSeasonModalOpen(true);
@@ -560,8 +582,9 @@ export default function AdminRooms({
         startDate: seasonForm.startDate,
         endDate: seasonForm.endDate,
         description: seasonForm.description?.trim() || '',
+        minNights: seasonForm.minNights && seasonForm.minNights > 1 ? seasonForm.minNights : undefined,
       });
-      showToast(`Updated season period: ${seasonForm.name}`);
+      // Success / failure toast is shown by the CRM context once the server confirms the save
     } else {
       addSeasonalRange({
         name: seasonForm.name.trim(),
@@ -569,8 +592,9 @@ export default function AdminRooms({
         startDate: seasonForm.startDate,
         endDate: seasonForm.endDate,
         description: seasonForm.description?.trim() || '',
+        minNights: seasonForm.minNights && seasonForm.minNights > 1 ? seasonForm.minNights : undefined,
       });
-      showToast(`Added seasonal date range: ${seasonForm.name}`);
+      // Success / failure toast is shown by the CRM context once the server confirms the save
     }
     setIsSeasonModalOpen(false);
   };
@@ -581,10 +605,16 @@ export default function AdminRooms({
   const handleSaveTariffMatrix = async () => {
     if (!selectedTariffRoomId) return;
 
-    // 1. Update in CRM Context (which syncs physical rooms and saves to wp_crm_room_tariffs)
-    updateRoomTariffs(selectedTariffRoomId, currentTariffs);
+    if (tariffsStatus !== 'ready') {
+      showToast('Live tariffs are still loading from the server. Please try again in a moment.', 'error');
+      return;
+    }
 
-    // 2. Synchronize and update the room in rooms array
+    // 1. Save to the server FIRST. Only a confirmed save reaches the live website and CRM.
+    const saved = await updateRoomTariffs(selectedTariffRoomId, currentTariffs);
+    if (!saved) return; // the CRM context already showed the error
+
+    // 2. Update the display-only room fields (admin inventory list / cached room cards)
     const targetRoom = rooms.find((r) => r.id === selectedTariffRoomId);
     if (targetRoom) {
       const baseRate = currentTariffs.regular.EP || currentTariffs.regular.CP || targetRoom.price_per_night;
@@ -604,32 +634,14 @@ export default function AdminRooms({
 
       const nextRooms = rooms.map((r) => (r.id === selectedTariffRoomId ? updatedRoom : r));
 
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('wp_site_rooms', JSON.stringify(nextRooms));
-        } catch {}
-      }
 
       if (onUpdateRooms) {
         onUpdateRooms(nextRooms);
       }
 
-      // Background Sync
-      fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedRoom),
-      }).catch(() => null);
-
-      fetch('/api/tariffs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: selectedTariffRoomId, tariffs: currentTariffs }),
-      }).catch(() => null);
-
-      showToast('Room seasonal tariffs and nightly rates saved successfully!');
-    } else {
-      showToast('Updated seasonal and meal plan tariffs for this room!');
+      // No separate /api/rooms write here: the server mirrors the display price fields when the
+      // tariff is saved. Re-posting the whole room from local state used to overwrite newer
+      // room photos with a stale copy.
     }
   };
 
@@ -780,7 +792,7 @@ export default function AdminRooms({
               const primaryImage =
                 room.images && room.images.length > 0
                   ? room.images[0]
-                  : 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                  : ROOM_PLACEHOLDER_IMAGE;
 
               return (
                 <div
@@ -1348,7 +1360,7 @@ export default function AdminRooms({
                     />
                   </div>
                   <span className="text-[10px] text-gray-500 mt-0.5 block">
-                    Applies for 3rd adult onward (beyond 2 base adults).
+                    Applies per adult beyond the adults included in the rate.
                   </span>
                 </div>
 
@@ -1375,6 +1387,44 @@ export default function AdminRooms({
                   <span className="text-[10px] text-gray-500 mt-0.5 block">
                     Applies per child per night.
                   </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    Adults included in the rate
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={currentTariffs.baseAdults ?? 2}
+                    onChange={(e) =>
+                      setCurrentTariffs({
+                        ...currentTariffs,
+                        baseAdults: Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 2))),
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">Extra-adult charges start above this number.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-forest-900 mb-1">
+                    Children stay free under age
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={17}
+                    value={currentTariffs.freeChildUnderAge ?? 0}
+                    onChange={(e) => {
+                      const v = Math.max(0, Math.min(17, Math.round(Number(e.target.value) || 0)));
+                      setCurrentTariffs({ ...currentTariffs, freeChildUnderAge: v > 0 ? v : undefined });
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-0.5 block">0 = every child is charged. Uses the ages guests enter.</span>
                 </div>
               </div>
             </div>
@@ -1499,6 +1549,13 @@ export default function AdminRooms({
           </div>
 
           {/* Simulation Output Card */}
+          {!simResult ? (
+            <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm text-sm text-forest-800">
+              {tariffsStatus === 'ready'
+                ? 'This stay cannot be priced: no live tariff is saved for this room / meal plan / occupancy, or the dates are invalid. The website will show "Price on request".'
+                : 'Loading live tariffs from the server…'}
+            </div>
+          ) : (
           <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sand-200 pb-4">
               <div>
@@ -1568,7 +1625,7 @@ export default function AdminRooms({
                                 : 'bg-gray-100 text-gray-700'
                             }`}
                           >
-                            {b.seasonType.toUpperCase()}
+                            {(b.seasonType || '').toUpperCase()}
                           </span>
                         </td>
                         <td className="py-2 px-3 text-right font-bold text-forest-950">
@@ -1581,6 +1638,7 @@ export default function AdminRooms({
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -1867,7 +1925,11 @@ export default function AdminRooms({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="thumbnail" className="w-full h-full object-cover" />
                       </div>
-                      <span className="text-xs text-gray-700 truncate flex-1 font-mono">{url}</span>
+                      <span className="text-xs text-gray-700 truncate flex-1 font-mono">
+                        {url.startsWith('data:')
+                          ? `Uploaded photo (${Math.round(dataUrlBytes(url) / 1024)} KB)`
+                          : url}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveImage(idx)}
@@ -2015,6 +2077,23 @@ export default function AdminRooms({
                     className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-forest-900 mb-1">
+                  Minimum stay (nights)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={seasonForm.minNights || 1}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, minNights: Math.max(1, Math.min(30, Number(e.target.value) || 1)) })}
+                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
+                />
+                <span className="text-[10px] text-gray-500 mt-0.5 block">
+                  Website bookings that include a night in this range must be at least this long (1 = no limit).
+                </span>
               </div>
 
               <div>

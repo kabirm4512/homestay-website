@@ -12,22 +12,28 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 
-interface AdminAuthProps {
-  onAuthenticated: (token: string, user: { name: string; role: string; [key: string]: any }) => void;
-}
-
-export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
-  const { authenticateStaff } = useCRM();
+/**
+ * Staff sign-in against the server (passwords are checked and stored only on the server).
+ * Accounts created by an admin, and the first default admin, must set a new password
+ * at first sign-in.
+ */
+export default function AdminAuth() {
+  const { authenticateStaff, changeOwnPassword, currentUser, signOut } = useCRM();
 
   // Credentials state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // First-sign-in password change
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Handle Individual Email + Password Login
+  const mustChange = Boolean(currentUser?.mustChangePassword);
+
   const handleCredentialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -40,15 +46,7 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
     setLoading(true);
     try {
       const result = await authenticateStaff(email, password);
-      if (result.success && result.user) {
-        onAuthenticated(`token-${result.user.id}-${Date.now()}`, {
-          id: result.user.id,
-          name: result.user.fullName,
-          fullName: result.user.fullName,
-          email: result.user.email,
-          role: result.user.role,
-        });
-      } else {
+      if (!result.success) {
         setError(result.error || 'Invalid credentials. Please check your email and password.');
       }
     } catch {
@@ -58,11 +56,21 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
     }
   };
 
-  // Quick autofill helpers for testing individual logins
-  const handlePrefill = (targetEmail: string, targetPass: string) => {
-    setEmail(targetEmail);
-    setPassword(targetPass);
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
+    if (newPassword.length < 8) {
+      setError('Your new password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The two new passwords do not match.');
+      return;
+    }
+    setLoading(true);
+    const result = await changeOwnPassword(password, newPassword);
+    setLoading(false);
+    if (!result.success) setError(result.error || 'Could not change the password.');
   };
 
   return (
@@ -102,6 +110,57 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
             </div>
           )}
 
+          {mustChange ? (
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <p className="text-xs text-[#142820] leading-relaxed">
+                Welcome, <strong>{currentUser?.fullName}</strong>. Please choose a new password to finish signing in.
+              </p>
+              {!password && (
+                <div>
+                  <label className="text-xs font-bold text-[#142820] block mb-1.5">Current (temporary) password</label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full text-xs p-3.5 rounded-xl border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820]"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-bold text-[#142820] block mb-1.5">New password (at least 8 characters)</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full text-xs p-3.5 rounded-xl border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[#142820] block mb-1.5">Confirm new password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full text-xs p-3.5 rounded-xl border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full min-h-[46px] bg-[#C85A32] hover:bg-[#B34D28] text-white font-bold py-3 px-4 rounded-xl text-xs cursor-pointer"
+              >
+                {loading ? 'Saving…' : 'Set new password & continue'}
+              </button>
+              <button type="button" onClick={() => void signOut()} className="w-full text-[11px] text-[#6B7C72] underline cursor-pointer">
+                Sign out
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleCredentialSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-[#142820] block mb-1.5">
@@ -113,7 +172,7 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. admin@saverahomestay.com"
+                  placeholder="you@saverahomestay.com"
                   className="w-full text-xs p-3.5 pl-10 rounded-xl border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#142820] focus:border-transparent focus:bg-white transition-all"
                 />
                 <Mail className="w-4 h-4 text-[#8C9B90] absolute left-3.5 top-3.5 pointer-events-none" />
@@ -144,34 +203,6 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
               </div>
             </div>
 
-            {/* 1-Click Fill Administrator Credentials */}
-            <div className="pt-1">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-[#6B7C72] block mb-1.5">
-                Default Administrator Account:
-              </span>
-              <button
-                type="button"
-                onClick={() => handlePrefill('admin@saverahomestay.com', 'admin123')}
-                className="w-full py-2.5 px-3 bg-[#F4F1EA] hover:bg-[#EBE5DA] border border-[#E5DEC9] text-[#142820] rounded-xl font-medium text-xs flex items-center justify-between transition-colors group cursor-pointer"
-              >
-                <div className="flex items-center space-x-2.5 text-left">
-                  <div className="w-6 h-6 rounded-lg bg-[#142820] text-[#C5A059] flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-[#142820] block leading-tight text-xs">Savera Admin (Owner)</span>
-                    <span className="text-[11px] text-[#5C6D66] font-mono">admin@saverahomestay.com</span>
-                  </div>
-                </div>
-                <span className="text-[10px] uppercase bg-[#C5A059]/20 text-[#8C6B1F] border border-[#C5A059]/40 px-2 py-0.5 rounded-md font-bold group-hover:bg-[#C5A059]/30 transition-colors">
-                  1-Click Fill
-                </span>
-              </button>
-              <p className="text-[11px] text-[#6B7C72] mt-2 leading-relaxed">
-                Log in as Administrator to access the <strong>Staff &amp; Logins</strong> portal and manage team permissions.
-              </p>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
@@ -188,11 +219,12 @@ export default function AdminAuth({ onAuthenticated }: AdminAuthProps) {
               )}
             </button>
           </form>
+          )}
 
           {/* Security Notice */}
           <div className="pt-2 border-t border-[#E5DEC9] text-center">
             <p className="text-[11px] text-[#6B7C72]">
-              Access restricted to authorized personnel. Session will persist securely.
+              Access restricted to authorized personnel. Accounts are created by the administrator.
             </p>
           </div>
         </div>

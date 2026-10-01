@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
 import DateRangePicker from './DateRangePicker';
+import {
+  addCalendarDays,
+  calculateDynamicTariff,
+  todayInIST,
+  tomorrowInIST,
+} from '@/lib/tariff-calculator';
+import { useLiveTariffs } from '@/lib/live-tariffs';
 import { X, Calendar, User, Phone, Mail, Users, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
 
 interface InquiryModalProps {
@@ -34,28 +41,21 @@ export default function InquiryModal({
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const {
+    status: tariffStatus,
+    tariffs: liveTariffs,
+    seasonalDateRanges: liveSeasonalRanges,
+  } = useLiveTariffs();
   const [submittedData, setSubmittedData] = useState<any>(null);
 
-  const getTodayStr = () => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  };
+  // IST calendar-date helpers (the old toISOString() versions shifted dates by a day in India)
+  const getTodayStr = () => todayInIST();
 
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getTomorrowStr = () => tomorrowInIST();
 
   const getNextDayStr = (dateStr: string) => {
     if (!dateStr) return getTomorrowStr();
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return getTomorrowStr();
-    }
+    return addCalendarDays(dateStr, 1);
   };
 
   const handleCheckInChange = (newCheckIn: string) => {
@@ -303,11 +303,26 @@ export default function InquiryModal({
                     className="w-full px-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white cursor-pointer"
                   >
                     <option value="">Any Available Room</option>
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} (₹{r.price_per_night}/n)
-                      </option>
-                    ))}
+                    {rooms.map((r) => {
+                      // Live CP rate for the chosen dates (never the static room price)
+                      const live =
+                        tariffStatus === 'ready' && checkIn && checkOut
+                          ? calculateDynamicTariff({
+                              roomId: r.id,
+                              checkIn,
+                              checkOut,
+                              mealPlan: 'CP',
+                              tariffsMap: liveTariffs,
+                              seasonalDateRanges: liveSeasonalRanges,
+                            })
+                          : null;
+                      return (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                          {live ? ` (₹${live.avgRatePerNight.toLocaleString('en-IN')}/n, CP)` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 

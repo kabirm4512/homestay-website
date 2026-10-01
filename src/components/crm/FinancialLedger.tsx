@@ -28,6 +28,8 @@ import {
   GuestFolio,
   Expense,
 } from '@/types/crm';
+import DayCloseCard from './DayCloseCard';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 export default function FinancialLedger() {
   const {
@@ -45,10 +47,7 @@ export default function FinancialLedger() {
   const [activeTab, setActiveTab] = useState<'analytics' | 'folios' | 'expenses'>('analytics');
 
   // Expense Form State
-  const [expenseDate, setExpenseDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
+  const [expenseDate, setExpenseDate] = useState(() => todayInIST());
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseMethod, setExpenseMethod] = useState<PaymentMethod>('upi');
   const [expenseCategory, setExpenseCategory] = useState<ExpenseMasterCategory>('groceries');
@@ -175,6 +174,8 @@ export default function FinancialLedger() {
 
   return (
     <div className="space-y-6">
+      <DayCloseCard showToast={showToast} />
+
       {/* Header Bar */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-sand-200 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -837,7 +838,7 @@ export default function FinancialLedger() {
                   <div key={p.id} className="flex items-center justify-between">
                     <div>
                       <span className="font-bold text-emerald-950">
-                        ₹{p.amount.toLocaleString('en-IN')} via {p.paymentMethod.toUpperCase()}
+                        ₹{p.amount.toLocaleString('en-IN')} via {(p.paymentMethod || 'other').toUpperCase()}
                       </span>
                       {p.transactionReference && (
                         <p className="text-[10px] text-emerald-800 font-mono">

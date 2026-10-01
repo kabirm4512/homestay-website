@@ -1,4 +1,4 @@
-import { Room, HeroSlide, AboutSectionData, SiteInfo, Review, Inquiry, Booking } from '@/types';
+import { Room, HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 
 export const INITIAL_ROOMS: Room[] = [
   {
@@ -283,24 +283,3 @@ export const INITIAL_REVIEWS: Review[] = [
   }
 ];
 
-export const INITIAL_INQUIRIES: Inquiry[] = [];
-
-export const INITIAL_BOOKINGS: Booking[] = [
-  {
-    id: 'bk-8101298882',
-    booking_reference: 'SH-2K2609001',
-    guest_name: 'Savera Guest',
-    email: 'guest8882@gmail.com',
-    phone: '8101298882',
-    room_id: 'room-101',
-    room_name: 'Room 101 - Sunrise Mountain Balcony',
-    check_in: new Date().toISOString().split('T')[0],
-    check_out: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    nights: 1,
-    total_price: 4500,
-    status: 'confirmed',
-    payment_status: 'deposit_paid',
-    special_requests: 'Mountain sunrise view, warm drinking water',
-    created_at: new Date().toISOString(),
-  }
-];

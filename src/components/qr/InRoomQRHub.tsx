@@ -96,8 +96,11 @@ export default function InRoomQRHub({
       cleanOrigin = `https://${cleanOrigin}`;
     }
     cleanOrigin = cleanOrigin.replace(/\/+$/, '');
-    return `${cleanOrigin}/concierge?room=${roomNum}`;
-  }, [customDomain]);
+    // Staff devices know each room's secret QR token; scanning it signs the guest's phone in to
+    // that room's stay. (QR codes printed before this change still work after phone verification.)
+    const token = rooms.find((r) => r.roomNumber === roomNum)?.qrSecretToken;
+    return `${cleanOrigin}/concierge?room=${roomNum}${token ? `&t=${encodeURIComponent(token)}` : ''}`;
+  }, [customDomain, rooms]);
 
   // Generate QR Code for currently selected room
   useEffect(() => {

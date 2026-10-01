@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Room, HeroSlide } from '@/types';
 import DateRangePicker from './DateRangePicker';
+import { addCalendarDays, todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 import {
   ChevronLeft,
   ChevronRight,
@@ -39,26 +40,14 @@ export default function HeroCarousel({
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
   // Date helper functions
-  const getTodayStr = () => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  };
+  // IST calendar-date helpers (the old toISOString() versions shifted dates by a day in India)
+  const getTodayStr = () => todayInIST();
 
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getTomorrowStr = () => tomorrowInIST();
 
   const getNextDayStr = (dateStr: string) => {
     if (!dateStr) return getTomorrowStr();
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return getTomorrowStr();
-    }
+    return addCalendarDays(dateStr, 1);
   };
 
   // Quick search form state

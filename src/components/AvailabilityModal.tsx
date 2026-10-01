@@ -3,15 +3,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Room, Booking } from '@/types';
 import { RoomSeasonalTariffs, SeasonalDateRange, MealPlan } from '@/types/crm';
-import { INITIAL_ROOMS, INITIAL_BOOKINGS } from '@/lib/mock-data';
-import { INITIAL_ROOM_SEASONAL_TARIFFS, INITIAL_SEASONAL_DATE_RANGES } from '@/lib/crm-data';
+import { INITIAL_ROOMS } from '@/lib/mock-data';
+import { fetchLiveTariffs } from '@/lib/live-tariffs';
 import DateRangePicker from './DateRangePicker';
 import RoomGuestSelector, { RoomConfig, DEFAULT_ROOM_CONFIG } from './RoomGuestSelector';
 import {
   calculateDynamicTariff,
-  calculateCategoryAvailability,
   suggestBestRoomCombinations,
   SuggestedCombination,
+  addCalendarDays,
+  nightsBetween,
+  todayInIST,
+  tomorrowInIST,
 } from '@/lib/tariff-calculator';
 import {
   X,
@@ -58,8 +61,8 @@ interface CategoryAvailability {
   totalCapacity: number;
   bookedCount: number;
   availableCount: number;
-  nightlyRate: number;
-  totalStayPrice: number;
+  nightlyRate: number | null; // null = cannot be priced from live tariffs ("price on request")
+  totalStayPrice: number | null;
   nights: number;
 }
 
@@ -75,26 +78,13 @@ export default function AvailabilityModal({
   onBookRoom,
   onOpenInquiry,
 }: AvailabilityModalProps) {
-  const getTodayStr = () => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  };
+  const getTodayStr = () => todayInIST();
 
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getTomorrowStr = () => tomorrowInIST();
 
   const getNextDayStr = (dateStr: string) => {
     if (!dateStr) return getTomorrowStr();
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return getTomorrowStr();
-    }
+    return addCalendarDays(dateStr, 1);
   };
 
   const formatDisplayDate = (dateStr: string) => {
@@ -146,9 +136,13 @@ export default function AvailabilityModal({
   const [isChecking, setIsChecking] = useState(false);
   const [availabilityResults, setAvailabilityResults] = useState<CategoryAvailability[]>([]);
   const [suggestedCombinations, setSuggestedCombinations] = useState<SuggestedCombination[]>([]);
-  const [cachedBookings, setCachedBookings] = useState<Booking[]>([]);
-  const [tariffsMap, setTariffsMap] = useState<Record<string, RoomSeasonalTariffs>>(INITIAL_ROOM_SEASONAL_TARIFFS);
-  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[]>(INITIAL_SEASONAL_DATE_RANGES);
+  // Live per-category availability from the server (counts only; no guest data)
+  type AvailMap = Record<string, { availableCount: number; totalCapacity: number; bookedCount: number }>;
+  const [cachedAvailability, setCachedAvailability] = useState<{ key: string; map: AvailMap } | null>(null);
+  const [gstNote, setGstNote] = useState('+ GST');
+  // Live pricing data (null until loaded; never seeded with demo tariffs)
+  const [tariffsMap, setTariffsMap] = useState<Record<string, RoomSeasonalTariffs> | null>(null);
+  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[] | null>(null);
   const [stayNights, setStayNights] = useState(1);
   const [availabilityError, setAvailabilityError] = useState('');
 
@@ -159,27 +153,15 @@ export default function AvailabilityModal({
       outDate: string,
       currentMealPlan: MealPlan,
       currentConfig: RoomConfig[],
-      bookingsList: Booking[],
-      currentTariffs: Record<string, RoomSeasonalTariffs>,
-      currentRanges: SeasonalDateRange[]
+      availMap: AvailMap,
+      currentTariffs: Record<string, RoomSeasonalTariffs> | null,
+      currentRanges: SeasonalDateRange[] | null
     ) => {
       const activeRooms = rooms && rooms.length > 0 ? rooms : INITIAL_ROOMS;
 
-      // Calculate availability map per category
-      const availMap = calculateCategoryAvailability({
-        checkIn: inDate,
-        checkOut: outDate,
-        bookings: bookingsList,
-        rooms: activeRooms,
-      });
-
       // Calculate dynamic tariffs for individual categories
       const list: CategoryAvailability[] = activeRooms.map((room) => {
-        const stats = availMap[room.id] || {
-          availableCount: room.total_inventory || 1,
-          totalCapacity: room.total_inventory || 1,
-          bookedCount: 0,
-        };
+        const stats = availMap[room.id] || { availableCount: 0, totalCapacity: 0, bookedCount: 0 };
 
         const tariffRes = calculateDynamicTariff({
           roomId: room.id,
@@ -197,9 +179,9 @@ export default function AvailabilityModal({
           totalCapacity: stats.totalCapacity,
           bookedCount: stats.bookedCount,
           availableCount: stats.availableCount,
-          nightlyRate: tariffRes.avgRatePerNight,
-          totalStayPrice: tariffRes.totalAmount,
-          nights: tariffRes.nights,
+          nightlyRate: tariffRes ? tariffRes.avgRatePerNight : null,
+          totalStayPrice: tariffRes ? tariffRes.totalAmount : null,
+          nights: tariffRes ? tariffRes.nights : Math.max(1, nightsBetween(inDate, outDate) ?? 1),
         };
       });
 
@@ -215,9 +197,7 @@ export default function AvailabilityModal({
         seasonalDateRanges: currentRanges,
       });
 
-      const d1 = new Date(inDate + 'T00:00:00');
-      const d2 = new Date(outDate + 'T00:00:00');
-      const nights = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24)));
+      const nights = Math.max(1, nightsBetween(inDate, outDate) ?? 1);
 
       setAvailabilityResults(list);
       setSuggestedCombinations(combs);
@@ -232,41 +212,40 @@ export default function AvailabilityModal({
     setAvailabilityError('');
 
     try {
-      let bookingsList = cachedBookings;
       let liveTariffs = tariffsMap;
       let liveRanges = seasonalDateRanges;
 
-      // Fetch bookings & tariffs in parallel
-      const [bookingsRes, tariffsRes] = await Promise.all([
-        bookingsList.length === 0
-          ? fetch('/api/bookings')
-              .then((r) => r.json())
-              .catch(() => null)
-          : Promise.resolve(null),
-        fetch('/api/tariffs')
+      // Live availability (all website + front-desk bookings, counted on the server) and live tariffs
+      const [availRes, tariffsRes] = await Promise.all([
+        fetch(`/api/availability?checkIn=${encodeURIComponent(inDate)}&checkOut=${encodeURIComponent(outDate)}`, { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => null),
+        fetchLiveTariffs(true).catch(() => null),
       ]);
 
-      if (bookingsRes && bookingsRes.success && Array.isArray(bookingsRes.data)) {
-        bookingsList = bookingsRes.data;
-        setCachedBookings(bookingsRes.data);
-      } else if (bookingsList.length === 0) {
-        bookingsList = INITIAL_BOOKINGS;
+      if (!availRes?.success || !availRes.data?.categories) {
+        setAvailabilityError(availRes?.error || 'Live availability could not be checked right now. Please try again or send us an enquiry.');
+        setAvailabilityResults([]);
+        setSuggestedCombinations([]);
+        return;
+      }
+      const availMap: AvailMap = {};
+      for (const [cat, v] of Object.entries(availRes.data.categories as Record<string, { inventory: number; booked: number; available: number }>)) {
+        availMap[cat] = { availableCount: v.available, totalCapacity: v.inventory, bookedCount: v.booked };
+      }
+      setCachedAvailability({ key: `${inDate}|${outDate}`, map: availMap });
+
+      if (tariffsRes) {
+        liveTariffs = tariffsRes.tariffs;
+        liveRanges = tariffsRes.seasonalDateRanges;
+        setTariffsMap(liveTariffs);
+        setSeasonalDateRanges(liveRanges);
+        setGstNote(tariffsRes.gstConfig.tariffsIncludeGst ? 'incl. GST' : '+ GST');
+      } else if (!liveTariffs || !liveRanges) {
+        setAvailabilityError('Live rates could not be loaded. Availability is shown; please enquire for the exact tariff.');
       }
 
-      if (tariffsRes && tariffsRes.success && tariffsRes.data) {
-        if (tariffsRes.data.tariffs) {
-          liveTariffs = { ...INITIAL_ROOM_SEASONAL_TARIFFS, ...tariffsRes.data.tariffs };
-          setTariffsMap(liveTariffs);
-        }
-        if (Array.isArray(tariffsRes.data.seasonalDateRanges) && tariffsRes.data.seasonalDateRanges.length > 0) {
-          liveRanges = tariffsRes.data.seasonalDateRanges;
-          setSeasonalDateRanges(liveRanges);
-        }
-      }
-
-      recalculateData(inDate, outDate, selectedMealPlan, config, bookingsList, liveTariffs, liveRanges);
+      recalculateData(inDate, outDate, selectedMealPlan, config, availMap, liveTariffs, liveRanges);
     } catch {
       setAvailabilityError('Failed to verify live inventory. Please try again.');
     } finally {
@@ -313,7 +292,7 @@ export default function AvailabilityModal({
       checkOut,
       plan,
       roomsConfig,
-      cachedBookings.length > 0 ? cachedBookings : INITIAL_BOOKINGS,
+      cachedAvailability && cachedAvailability.key === `${checkIn}|${checkOut}` ? cachedAvailability.map : {},
       tariffsMap,
       seasonalDateRanges
     );
@@ -670,11 +649,11 @@ export default function AvailabilityModal({
                               className="text-2xl font-bold text-[#0B1733]"
                               style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                             >
-                              ₹{comb.totalStayPrice.toLocaleString()}
+                              ₹{comb.totalStayPrice.toLocaleString('en-IN')}
                             </div>
                             <span className="text-xs text-gray-600 block">
-                              ₹{comb.totalNightlyRate.toLocaleString()}/night ({stayNights}{' '}
-                              {stayNights === 1 ? 'night' : 'nights'})
+                              ₹{comb.totalNightlyRate.toLocaleString('en-IN')}/night ({stayNights}{' '}
+                              {stayNights === 1 ? 'night' : 'nights'}) · {gstNote}
                             </span>
                           </div>
                         </div>
@@ -699,7 +678,7 @@ export default function AvailabilityModal({
                                       {roomItem.roomCategory.name}
                                     </span>
                                     <span className="text-xs font-bold text-primary-700 ml-1 shrink-0">
-                                      ₹{roomItem.nightlyRate.toLocaleString()}/nt
+                                      ₹{roomItem.nightlyRate.toLocaleString('en-IN')}/nt
                                     </span>
                                   </div>
                                   <div className="text-[11px] text-gray-600 flex items-center gap-1.5 mt-0.5">
@@ -878,14 +857,20 @@ export default function AvailabilityModal({
                         <div className="w-full md:w-48 flex md:flex-col justify-between md:justify-center items-center md:items-end gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-[#EBE5DA]">
                           <div className="text-left md:text-right">
                             <div className="text-[11px] text-[#7B8B84]">Live Rate ({selectedMealPlan})</div>
-                            <div className="text-lg sm:text-xl font-bold text-[#142820] font-serif">
-                              ₹{nightlyRate.toLocaleString()}
-                              <span className="text-xs font-normal text-[#7B8B84]"> /night</span>
-                            </div>
-                            <div className="text-[11px] text-[#C85A32] font-semibold">
-                              ₹{totalStayPrice.toLocaleString()} for {stayNights}{' '}
-                              {stayNights === 1 ? 'night' : 'nights'}
-                            </div>
+                            {nightlyRate !== null && totalStayPrice !== null ? (
+                              <>
+                                <div className="text-lg sm:text-xl font-bold text-[#142820] font-serif">
+                                  ₹{nightlyRate.toLocaleString('en-IN')}
+                                  <span className="text-xs font-normal text-[#7B8B84]"> /night {gstNote}</span>
+                                </div>
+                                <div className="text-[11px] text-[#C85A32] font-semibold">
+                                  ₹{totalStayPrice.toLocaleString('en-IN')} for {stayNights}{' '}
+                                  {stayNights === 1 ? 'night' : 'nights'}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-base font-bold text-[#142820] font-serif">Price on request</div>
+                            )}
                           </div>
 
                           {!isSoldOut ? (

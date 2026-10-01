@@ -1,5 +1,6 @@
 'use client';
 
+import { adminPostJson } from '@/lib/admin-api';
 import { useState, useEffect } from 'react';
 import { HeroSlide, AboutSectionData, SiteInfo, Review } from '@/types';
 import {
@@ -196,14 +197,6 @@ export default function AdminCMS({
   };
 
   const persistCMS = (type: 'heroSlides' | 'aboutData' | 'siteInfo' | 'reviews', data: any) => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('wp_site_cms');
-        const parsed = raw ? JSON.parse(raw) : {};
-        parsed[type] = data;
-        localStorage.setItem('wp_site_cms', JSON.stringify(parsed));
-      } catch {}
-    }
     if (onUpdateCMS) {
       onUpdateCMS({ [type]: data });
     }
@@ -213,17 +206,9 @@ export default function AdminCMS({
     setSavingHero(true);
     persistCMS('heroSlides', slides);
     try {
-      fetch('/api/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'hero_carousel',
-          payload: slides,
-        }),
-      }).catch(() => null);
-      showToast('Hero Carousel slides saved successfully!');
-    } catch {
-      showToast('Saved hero carousel locally');
+      const result = await adminPostJson('/api/cms', { type: 'hero_carousel', payload: slides });
+      if (result.ok) showToast('Hero Carousel slides saved successfully!');
+      else showToast(result.error || 'Could not save to the website. Please try again.', 'error');
     } finally {
       setSavingHero(false);
     }
@@ -236,17 +221,9 @@ export default function AdminCMS({
     setSavingAbout(true);
     persistCMS('aboutData', about);
     try {
-      fetch('/api/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'about_section',
-          payload: about,
-        }),
-      }).catch(() => null);
-      showToast('About section content saved successfully!');
-    } catch {
-      showToast('Saved about section locally');
+      const result = await adminPostJson('/api/cms', { type: 'about_section', payload: about });
+      if (result.ok) showToast('About section content saved successfully!');
+      else showToast(result.error || 'Could not save to the website. Please try again.', 'error');
     } finally {
       setSavingAbout(false);
     }
@@ -271,17 +248,9 @@ export default function AdminCMS({
     setSavingSite(true);
     persistCMS('siteInfo', site);
     try {
-      fetch('/api/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'site_info',
-          payload: site,
-        }),
-      }).catch(() => null);
-      showToast('Site info & contact details saved successfully!');
-    } catch {
-      showToast('Saved site info locally');
+      const result = await adminPostJson('/api/cms', { type: 'site_info', payload: site });
+      if (result.ok) showToast('Site info & contact details saved successfully!');
+      else showToast(result.error || 'Could not save to the website. Please try again.', 'error');
     } finally {
       setSavingSite(false);
     }
@@ -295,17 +264,9 @@ export default function AdminCMS({
     const payloadToSave = updatedList || reviewsList;
     persistCMS('reviews', payloadToSave);
     try {
-      fetch('/api/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'reviews',
-          payload: payloadToSave,
-        }),
-      }).catch(() => null);
-      showToast('Guest reviews saved and updated on website!');
-    } catch {
-      showToast('Saved reviews locally');
+      const result = await adminPostJson('/api/cms', { type: 'reviews', payload: payloadToSave });
+      if (result.ok) showToast('Guest reviews saved and updated on website!');
+      else showToast(result.error || 'Could not save to the website. Please try again.', 'error');
     } finally {
       setSavingReviews(false);
     }

@@ -1,28 +1,24 @@
-import { NextResponse } from 'next/server';
-import { getAddonsData, saveAddonsData } from '@/lib/data-service';
+import { handler, ok } from '@/lib/server/http';
+import { listRecords } from '@/lib/server/repos/records';
+import type { MenuItem, RentalVehicle, TransferRoute } from '@/types/crm';
 
-export async function GET() {
-  try {
-    const data = await getAddonsData();
-    return NextResponse.json({ success: true, data });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { type, payload } = body;
-    if (!type || !payload) {
-      return NextResponse.json({ success: false, error: 'Type and payload are required' }, { status: 400 });
-    }
-    const success = await saveAddonsData(type, payload);
-    if (!success) {
-      return NextResponse.json({ success: false, error: 'Failed to save addon data' }, { status: 400 });
-    }
-    return NextResponse.json({ success: true, message: 'Addon data saved successfully' });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
+/**
+ * Public catalogue: in-room dining menu, transfer routes and rental vehicles.
+ * (Staff edit these through the CRM; see /api/crm/mutate.)
+ */
+export const GET = handler('addons.get', async () => {
+  const [menuItems, transferRoutes, rentalVehicles] = await Promise.all([
+    listRecords<MenuItem>('menuItems'),
+    listRecords<TransferRoute>('transferRoutes'),
+    listRecords<RentalVehicle>('rentalVehicles'),
+  ]);
+  return ok({
+    data: {
+      menuItems,
+      transferRoutes: transferRoutes.filter((r) => r.isActive !== false),
+      rentalVehicles,
+    },
+  });
+});

@@ -2,15 +2,25 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Room } from '@/types';
-import { RoomSeasonalTariffs, SeasonalDateRange, MealPlan } from '@/types/crm';
+import { MealPlan } from '@/types/crm';
 import { INITIAL_ROOMS } from '@/lib/mock-data';
-import { INITIAL_ROOM_SEASONAL_TARIFFS, INITIAL_SEASONAL_DATE_RANGES } from '@/lib/crm-data';
 import {
   calculateDynamicTariff,
-  DynamicTariffResult,
-  CATEGORY_CAPACITIES,
+  categoryCapacity,
   normalizeCategoryId,
+  addCalendarDays,
+  nightsBetween,
+  todayInIST,
+  tomorrowInIST,
+  stayRestriction,
 } from '@/lib/tariff-calculator';
+import { useLiveTariffs } from '@/lib/live-tariffs';
+import { calculateBookingTotals } from '@/lib/gst';
+import {
+  AIRPORT_TRANSFER_RATE,
+  BIKE_RENTAL_RATE_PER_NIGHT,
+  calculateAddonCharges,
+} from '@/lib/booking-addons';
 import DateRangePicker from './DateRangePicker';
 import { RoomConfig, DEFAULT_ROOM_CONFIG } from './RoomGuestSelector';
 import {
@@ -78,58 +88,28 @@ export default function BookingModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [bookingRef, setBookingRef] = useState('');
 
-  // Live tariffs & seasonal date ranges from backend
-  const [tariffsMap, setTariffsMap] = useState<Record<string, RoomSeasonalTariffs>>(
-    INITIAL_ROOM_SEASONAL_TARIFFS
-  );
-  const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[]>(
-    INITIAL_SEASONAL_DATE_RANGES
-  );
+  // Server-confirmed total (the booking API re-prices every booking with live tariffs)
+  const [confirmedTotal, setConfirmedTotal] = useState<number | null>(null);
 
-  const getTodayStr = () => {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  };
+  // Live tariffs & seasonal date ranges from backend (no seed fallback)
+  const {
+    status: tariffStatus,
+    tariffs: tariffsMap,
+    seasonalDateRanges,
+    gstConfig,
+    addonRates,
+  } = useLiveTariffs();
+  // One key per reservation attempt: a double-tap or retry never creates two bookings.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => `bk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
 
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getTodayStr = () => todayInIST();
+
+  const getTomorrowStr = () => tomorrowInIST();
 
   const getNextDayStr = (dateStr: string) => {
     if (!dateStr) return getTomorrowStr();
-    try {
-      const d = new Date(dateStr + 'T00:00:00');
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().split('T')[0];
-    } catch {
-      return getTomorrowStr();
-    }
+    return addCalendarDays(dateStr, 1);
   };
-
-  // Fetch live tariffs from backend on mount
-  useEffect(() => {
-    async function loadLiveTariffs() {
-      try {
-        const res = await fetch('/api/tariffs');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            if (json.data.tariffs) {
-              setTariffsMap((prev) => ({ ...prev, ...json.data.tariffs }));
-            }
-            if (Array.isArray(json.data.seasonalDateRanges) && json.data.seasonalDateRanges.length > 0) {
-              setSeasonalDateRanges(json.data.seasonalDateRanges);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Using seeded tariffs:', err);
-      }
-    }
-    loadLiveTariffs();
-  }, []);
 
   // Sync initial dates, meal plan & room configuration when modal is triggered
   useEffect(() => {
@@ -174,10 +154,8 @@ export default function BookingModal({
   // Calculate nights
   let nights = 1;
   if (checkIn && checkOut) {
-    const d1 = new Date(checkIn + 'T00:00:00');
-    const d2 = new Date(checkOut + 'T00:00:00');
-    const diff = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24));
-    if (diff > 0) nights = diff;
+    const diff = nightsBetween(checkIn, checkOut);
+    if (diff !== null && diff > 0) nights = diff;
   }
 
   // Goibibo Room Actions
@@ -212,7 +190,7 @@ export default function BookingModal({
     const updated = [...roomsConfig];
     const current = updated[index].adults || 1;
     const assignedCatId = normalizeCategoryId(updated[index].roomId || room.id);
-    const maxAllowed = CATEGORY_CAPACITIES[assignedCatId]?.maxAdults || 4;
+    const maxAllowed = categoryCapacity(assignedCatId, activeRoomsList.find((r) => r.id === assignedCatId)).maxAdults;
     const next = Math.min(maxAllowed, Math.max(1, current + delta));
     updated[index] = { ...updated[index], adults: next };
     setRoomsConfig(updated);
@@ -222,7 +200,7 @@ export default function BookingModal({
     const updated = [...roomsConfig];
     const current = updated[index].children || 0;
     const assignedCatId = normalizeCategoryId(updated[index].roomId || room.id);
-    const maxAllowed = CATEGORY_CAPACITIES[assignedCatId]?.maxChildren || 2;
+    const maxAllowed = categoryCapacity(assignedCatId, activeRoomsList.find((r) => r.id === assignedCatId)).maxChildren;
     const next = Math.min(maxAllowed, Math.max(0, current + delta));
 
     let ages = [...(updated[index].childAges || [])];
@@ -261,8 +239,7 @@ export default function BookingModal({
   const handleUpdateRoomCategory = (roomIndex: number, targetCategoryId: string) => {
     const updated = [...roomsConfig];
     const matchedCategory = activeRoomsList.find((r) => r.id === targetCategoryId);
-    const maxAdults = CATEGORY_CAPACITIES[targetCategoryId]?.maxAdults || 4;
-    const maxChildren = CATEGORY_CAPACITIES[targetCategoryId]?.maxChildren || 2;
+    const { maxAdults, maxChildren } = categoryCapacity(targetCategoryId, activeRoomsList.find((r) => r.id === targetCategoryId));
 
     const currentAdults = updated[roomIndex].adults || 2;
     const currentChildren = updated[roomIndex].children || 0;
@@ -288,13 +265,14 @@ export default function BookingModal({
     const assignedCatId = normalizeCategoryId(r.roomId || room.id);
     const matchedCategory = activeRoomsList.find((rm) => rm.id === assignedCatId) || room;
 
-    const tariffResult: DynamicTariffResult = calculateDynamicTariff({
+    const tariffResult = calculateDynamicTariff({
       roomId: assignedCatId,
       checkIn: checkIn || getTodayStr(),
       checkOut: checkOut || getNextDayStr(checkIn || getTodayStr()),
       mealPlan,
       adultsCount: r.adults || 2,
       childrenCount: r.children || 0,
+      childAges: r.childAges,
       tariffsMap,
       seasonalDateRanges,
     });
@@ -306,18 +284,27 @@ export default function BookingModal({
       adults: r.adults || 2,
       children: r.children || 0,
       childAges: r.childAges || [],
-      nightlyTotal: tariffResult.avgRatePerNight,
-      stayTotal: tariffResult.totalAmount,
-      baseAmount: tariffResult.baseAmount,
-      extraAdultsCount: tariffResult.extraAdultsCount,
-      extraAdultRate: tariffResult.extraAdultRate,
-      extraAdultsCharge: tariffResult.extraAdultsCharge,
-      extraChildrenCount: tariffResult.extraChildrenCount,
-      extraChildRate: tariffResult.extraChildRate,
-      extraChildrenCharge: tariffResult.extraChildrenCharge,
-      breakdown: tariffResult.breakdown,
+      priced: tariffResult !== null,
+      result: tariffResult,
+      nightlyTotal: tariffResult?.avgRatePerNight ?? 0,
+      stayTotal: tariffResult?.totalAmount ?? 0,
+      baseAmount: tariffResult?.baseAmount ?? 0,
+      extraAdultsCount: tariffResult?.extraAdultsCount ?? 0,
+      extraAdultRate: tariffResult?.extraAdultRate ?? 0,
+      extraAdultsCharge: tariffResult?.extraAdultsCharge ?? 0,
+      extraChildrenCount: tariffResult?.extraChildrenCount ?? 0,
+      extraChildRate: tariffResult?.extraChildRate ?? 0,
+      extraChildrenCharge: tariffResult?.extraChildrenCharge ?? 0,
+      breakdown: tariffResult?.breakdown ?? [],
     };
   });
+
+  // Every room must be priced from live backend tariffs before a total is shown or submitted
+  const pricingReady = tariffStatus === 'ready' && roomCalculations.every((rc) => rc.priced);
+  // Minimum-stay rules from the seasonal calendar (the server enforces the same rule)
+  const restrictionMsg = checkIn && checkOut ? stayRestriction(checkIn, checkOut, seasonalDateRanges) : null;
+  const priceUnavailableLabel = tariffStatus === 'loading' ? 'Loading live rates…' : 'Price on request';
+  const inr = (amount: number) => (pricingReady ? `₹${amount.toLocaleString('en-IN')}` : '—');
 
   const baseStayAllRooms = roomCalculations.reduce((sum, rc) => sum + rc.baseAmount, 0);
   const totalExtraCharges = roomCalculations.reduce(
@@ -326,9 +313,19 @@ export default function BookingModal({
   );
   const totalRoomsCost = roomCalculations.reduce((sum, rc) => sum + rc.stayTotal, 0);
 
-  const transferCharge = includeAirportTransfer ? 2800 : 0;
-  const bikeCharge = includeBikeRental ? 800 * nights : 0;
-  const totalEstimatedAmount = totalRoomsCost + transferCharge + bikeCharge;
+  const { transferCharge, bikeCharge } = calculateAddonCharges({
+    includeAirportTransfer,
+    includeBikeRental,
+    nights,
+    rates: addonRates,
+  });
+  // GST on rooms (per room-night slab) and add-ons: the same function the booking API uses
+  const stayGst = pricingReady
+    ? calculateBookingTotals(roomCalculations.map((rc) => rc.result!).filter(Boolean), transferCharge + bikeCharge, gstConfig)
+    : null;
+  const totalEstimatedAmount = stayGst ? stayGst.total : Math.round((totalRoomsCost + transferCharge + bikeCharge) * 100) / 100;
+  const airportTransferLabel = `₹${(addonRates?.airportTransfer ?? AIRPORT_TRANSFER_RATE).toLocaleString('en-IN')}`;
+  const bikeRatePerNight = addonRates?.bikeRentalPerNight ?? BIKE_RENTAL_RATE_PER_NIGHT;
 
   // Quick meal plan rates for selector preview (for primary room)
   const primaryCatId = normalizeCategoryId(room.id);
@@ -344,10 +341,10 @@ export default function BookingModal({
         tariffsMap,
         seasonalDateRanges,
       });
-      acc[plan] = res.avgRatePerNight;
+      if (res) acc[plan] = res.avgRatePerNight;
       return acc;
     },
-    {} as Record<MealPlan, number>
+    {} as Partial<Record<MealPlan, number>>
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -356,6 +353,16 @@ export default function BookingModal({
 
     if (!guestName.trim() || !phone.trim() || !checkIn || !checkOut) {
       setErrorMsg('Please complete your name, phone number, and both check-in/out dates.');
+      return;
+    }
+
+    if (!pricingReady) {
+      setErrorMsg('Live prices for these dates are not available right now. Please send us an enquiry and we will confirm your exact tariff.');
+      return;
+    }
+
+    if (restrictionMsg) {
+      setErrorMsg(restrictionMsg);
       return;
     }
 
@@ -371,7 +378,7 @@ export default function BookingModal({
                     rc.childAges.length > 0 ? ` (Age ${rc.childAges.join(', ')})` : ''
                   }`
                 : ''
-            } - ₹${rc.stayTotal.toLocaleString()}]`
+            } - ₹${rc.stayTotal.toLocaleString('en-IN')}]`
         )
         .join(' ');
 
@@ -397,13 +404,27 @@ export default function BookingModal({
         children_count: totalChildren,
         extra_charges_total: totalExtraCharges,
         total_price: totalEstimatedAmount,
+        idempotency_key: idempotencyKey,
+        // The server re-prices the stay from these inputs with live tariffs; total_price above is
+        // only the guest's on-screen estimate and is never trusted.
+        meal_plan: mealPlan,
+        rooms_config: roomCalculations.map((rc) => ({
+          room_id: rc.assignedCatId,
+          adults: rc.adults,
+          children: rc.children,
+          child_ages: rc.childAges.length === rc.children ? rc.childAges : undefined,
+        })),
+        addons: {
+          airport_transfer: includeAirportTransfer,
+          bike_rental: includeBikeRental,
+        },
         special_requests: [
           `[Multi-Room Booking: ${totalRooms} Rooms • ${totalAdults} Adults${
             totalChildren > 0 ? `, ${totalChildren} Child` : ''
           }]`,
           roomSummaryStr,
           `[Meal Plan: ${mealPlan}]`,
-          includeAirportTransfer ? '[Add-on: Airport/Railway Station Transfer (+₹2,800)]' : '',
+          includeAirportTransfer ? `[Add-on: Airport/Railway Station Transfer (+${airportTransferLabel})]` : '',
           includeBikeRental ? `[Add-on: Scooty/Bike Rental (+₹${bikeCharge})]` : '',
           specialRequests.trim(),
         ]
@@ -420,8 +441,11 @@ export default function BookingModal({
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setBookingRef(data.data?.booking_reference || 'SH-2K2609' + Math.floor(100 + Math.random() * 900));
+        setBookingRef(data.data?.booking_reference || '');
+        const serverTotal = Number(data.data?.total_price);
+        setConfirmedTotal(Number.isFinite(serverTotal) && serverTotal > 0 ? serverTotal : null);
         setSuccess(true);
+        setIdempotencyKey(`bk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       } else {
         setErrorMsg(data.error || 'Failed to process booking reservation.');
       }
@@ -434,6 +458,7 @@ export default function BookingModal({
 
   const handleResetAndClose = () => {
     setSuccess(false);
+    setConfirmedTotal(null);
     setErrorMsg('');
     setGuestName('');
     setPhone('');
@@ -446,7 +471,7 @@ export default function BookingModal({
   const getWhatsAppBookingLink = () => {
     const cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
     const addonsList = [
-      includeAirportTransfer ? '• Airport/Station Cab Transfer (+₹2,800)' : '',
+      includeAirportTransfer ? `• Airport/Station Cab Transfer (+${airportTransferLabel})` : '',
       includeBikeRental ? `• Scooty/Motorcycle Rental (+₹${bikeCharge})` : '',
     ]
       .filter(Boolean)
@@ -459,7 +484,7 @@ export default function BookingModal({
             rc.children > 0
               ? `, ${rc.children} Child (Age: ${rc.childAges.join(', ') || '5'})`
               : ''
-          } — ₹${rc.stayTotal.toLocaleString()} (${nights} nights @ ₹${rc.nightlyTotal.toLocaleString()}/nt)`
+          } — ₹${rc.stayTotal.toLocaleString('en-IN')} (${nights} nights @ ₹${rc.nightlyTotal.toLocaleString('en-IN')}/nt)`
       )
       .join('\n');
 
@@ -471,7 +496,7 @@ export default function BookingModal({
         `*Meal Plan:* ${mealPlan}\n` +
         `*Total Guests:* ${totalAdults} Adults${totalChildren > 0 ? `, ${totalChildren} Child` : ''}\n\n` +
         `*Room Allocation & Tariffs:*\n${roomsBreakdownText}\n\n` +
-        `*Verified Total Tariff:* ₹${totalEstimatedAmount.toLocaleString()}\n` +
+        `*Verified Total Tariff:* ₹${(confirmedTotal ?? totalEstimatedAmount).toLocaleString('en-IN')}\n` +
         `*Primary Guest:* ${guestName}\n` +
         `*Phone:* ${phone}\n` +
         (addonsList ? `\n*Add-ons:*\n${addonsList}\n` : '') +
@@ -531,7 +556,7 @@ export default function BookingModal({
               <div className="max-w-md mx-auto bg-gray-50 border border-gray-200 rounded-2xl p-4 text-left text-xs space-y-2 text-gray-700">
                 <div className="flex justify-between font-semibold text-gray-900 pb-1.5 border-b border-gray-200">
                   <span>{totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · {nights} {nights === 1 ? 'Night' : 'Nights'} ({mealPlan})</span>
-                  <span className="text-primary-700 text-sm font-bold">₹{totalEstimatedAmount.toLocaleString()}</span>
+                  <span className="text-primary-700 text-sm font-bold">₹{(confirmedTotal ?? totalEstimatedAmount).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="text-gray-600">
                   📅 {checkIn} → {checkOut}
@@ -543,7 +568,7 @@ export default function BookingModal({
                   {roomCalculations.map((rc) => (
                     <div key={rc.roomNumber} className="flex justify-between text-gray-800">
                       <span>Room {rc.roomNumber} ({rc.assignedCategory.name}):</span>
-                      <span className="font-semibold">₹{rc.stayTotal.toLocaleString()}</span>
+                      <span className="font-semibold">{inr(rc.stayTotal)}</span>
                     </div>
                   ))}
                 </div>
@@ -617,8 +642,10 @@ export default function BookingModal({
                   {roomsConfig.map((r, roomIdx) => {
                     const assignedCatId = normalizeCategoryId(r.roomId || room.id);
                     const currentCalc = roomCalculations[roomIdx];
-                    const maxCapAdults = CATEGORY_CAPACITIES[assignedCatId]?.maxAdults || 4;
-                    const maxCapChildren = CATEGORY_CAPACITIES[assignedCatId]?.maxChildren || 2;
+                    const { maxAdults: maxCapAdults, maxChildren: maxCapChildren } = categoryCapacity(
+                      assignedCatId,
+                      activeRoomsList.find((rm) => rm.id === assignedCatId)
+                    );
 
                     return (
                       <div
@@ -653,13 +680,15 @@ export default function BookingModal({
                           </div>
 
                           <div className="flex items-center justify-between sm:justify-end space-x-2">
-                            {currentCalc && (
+                            {currentCalc && currentCalc.priced && tariffStatus === 'ready' ? (
                               <span className="text-xs font-bold text-primary-700">
-                                ₹{currentCalc.stayTotal.toLocaleString()}{' '}
+                                ₹{currentCalc.stayTotal.toLocaleString('en-IN')}{' '}
                                 <span className="text-[10px] text-gray-500 font-normal">
-                                  (₹{currentCalc.nightlyTotal.toLocaleString()}/nt)
+                                  (₹{currentCalc.nightlyTotal.toLocaleString('en-IN')}/nt)
                                 </span>
                               </span>
+                            ) : (
+                              <span className="text-xs font-bold text-primary-700">{priceUnavailableLabel}</span>
                             )}
 
                             {roomsConfig.length > 1 && (
@@ -737,7 +766,7 @@ export default function BookingModal({
                         </div>
 
                         {/* Extra Bed & Child Surcharge details */}
-                        {currentCalc && (currentCalc.extraAdultsCount > 0 || currentCalc.extraChildrenCount > 0) && (
+                        {currentCalc && currentCalc.priced && (currentCalc.extraAdultsCount > 0 || currentCalc.extraChildrenCount > 0) && (
                           <div className="flex flex-wrap gap-2 text-[11px] pt-0.5">
                             {currentCalc.extraAdultsCount > 0 && (
                               <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
@@ -848,13 +877,13 @@ export default function BookingModal({
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs">{item.plan}</span>
-                        {mealPlanPreviewRates[item.plan] && (
+                        {mealPlanPreviewRates[item.plan] !== undefined && (
                           <span
                             className={`text-[11px] font-bold ${
                               mealPlan === item.plan ? 'text-amber-300' : 'text-primary-700'
                             }`}
                           >
-                            ₹{mealPlanPreviewRates[item.plan].toLocaleString()}/nt
+                            ₹{mealPlanPreviewRates[item.plan]!.toLocaleString('en-IN')}/nt
                           </span>
                         )}
                       </div>
@@ -887,7 +916,7 @@ export default function BookingModal({
                     />
                     <div>
                       <span className="font-bold block">Airport / Cab Transfer</span>
-                      <span className="text-[10px] text-gray-500 block">Bagdogra (IXB) / NJP (+₹2,800)</span>
+                      <span className="text-[10px] text-gray-500 block">Bagdogra (IXB) / NJP (+{airportTransferLabel})</span>
                     </div>
                   </label>
 
@@ -906,7 +935,7 @@ export default function BookingModal({
                     />
                     <div>
                       <span className="font-bold block">Scooty / Bike Rental</span>
-                      <span className="text-[10px] text-gray-500 block">Enfield / Activa (+₹{800 * nights} for stay)</span>
+                      <span className="text-[10px] text-gray-500 block">Enfield / Activa (+₹{(bikeRatePerNight * nights).toLocaleString('en-IN')} for stay)</span>
                     </div>
                   </label>
                 </div>
@@ -933,7 +962,7 @@ export default function BookingModal({
                           <span className="font-bold text-gray-900">Room {rc.roomNumber}:</span>{' '}
                           <span className="font-medium">{rc.assignedCategory.name}</span>
                           <span className="text-gray-500 text-[11px] block">
-                            {rc.adults} Adults{rc.children > 0 ? `, ${rc.children} Child` : ''} · ₹{rc.nightlyTotal.toLocaleString()}/nt × {nights} {nights === 1 ? 'night' : 'nights'}
+                            {rc.adults} Adults{rc.children > 0 ? `, ${rc.children} Child` : ''} · {inr(rc.nightlyTotal)}/nt × {nights} {nights === 1 ? 'night' : 'nights'}
                             {(rc.extraAdultsCount > 0 || rc.extraChildrenCount > 0) && (
                               <span className="text-amber-700 ml-1">
                                 (Extra guests included)
@@ -942,7 +971,7 @@ export default function BookingModal({
                           </span>
                         </div>
                         <span className="font-bold text-[#0B1733] shrink-0 ml-2">
-                          ₹{rc.stayTotal.toLocaleString()}
+                          {inr(rc.stayTotal)}
                         </span>
                       </div>
                     ))}
@@ -954,15 +983,30 @@ export default function BookingModal({
                       {includeAirportTransfer && (
                         <div className="flex justify-between text-gray-700 text-[11px]">
                           <span>Airport / Station Transfer</span>
-                          <span className="font-semibold">₹2,800</span>
+                          <span className="font-semibold">{airportTransferLabel}</span>
                         </div>
                       )}
                       {includeBikeRental && (
                         <div className="flex justify-between text-gray-700 text-[11px]">
                           <span>Scooty / Bike Rental ({nights} days)</span>
-                          <span className="font-semibold">₹{(800 * nights).toLocaleString()}</span>
+                          <span className="font-semibold">₹{bikeCharge.toLocaleString('en-IN')}</span>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {stayGst && stayGst.gstAmount > 0 && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>
+                        GST{' '}
+                        {Object.keys(stayGst.byRate)
+                          .filter((r) => stayGst.byRate[Number(r)].gst > 0)
+                          .map((r) => `${r}%`)
+                          .join(' + ')}
+                        {stayGst.addonsGst > 0 ? ` on rooms + ${gstConfig.transportRate}% on add-ons` : ' on rooms'}
+                        {gstConfig.tariffsIncludeGst ? ' (included)' : ''}
+                      </span>
+                      <span className="font-semibold">₹{stayGst.gstAmount.toLocaleString('en-IN')}</span>
                     </div>
                   )}
 
@@ -983,11 +1027,11 @@ export default function BookingModal({
                     <div>
                       <span className="text-base font-bold">Total Stay Tariff</span>
                       <span className="block text-[11px] text-gray-500 font-normal">
-                        ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · {nights} {nights === 1 ? 'Night' : 'Nights'} · Exact Backend Tariff · Taxes Included)
+                        ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · {nights} {nights === 1 ? 'Night' : 'Nights'} · Live tariff incl. GST on rooms)
                       </span>
                     </div>
                     <span className="text-2xl font-bold text-primary-900">
-                      ₹{totalEstimatedAmount.toLocaleString()}
+                      {pricingReady ? `₹${totalEstimatedAmount.toLocaleString('en-IN')}` : priceUnavailableLabel}
                     </span>
                   </div>
                 </div>
@@ -1060,9 +1104,14 @@ export default function BookingModal({
               </div>
 
               <div className="pt-2">
+                {restrictionMsg && (
+                  <p className="mb-2 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                    {restrictionMsg} Please adjust your dates.
+                  </p>
+                )}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || Boolean(restrictionMsg)}
                   className="w-full bg-[#C85A32] hover:bg-[#B34D28] text-white font-semibold py-3.5 px-4 rounded-2xl shadow-[0_4px_14px_rgba(200,90,50,0.3)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
                 >
                   {loading ? (
@@ -1074,7 +1123,7 @@ export default function BookingModal({
                     <>
                       <CreditCard className="w-4 h-4 text-white" />
                       <span>
-                        Confirm Reservation ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · ₹{totalEstimatedAmount.toLocaleString()})
+                        Confirm Reservation ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'}{pricingReady ? ` · ₹${totalEstimatedAmount.toLocaleString('en-IN')}` : ''})
                       </span>
                     </>
                   )}

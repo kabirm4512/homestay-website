@@ -1,24 +1,28 @@
 import type { Metadata, Viewport } from 'next';
-import { Outfit, Inter, Playfair_Display } from 'next/font/google';
+import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import { CRMProvider } from '@/context/CRMContext';
 import PWARegister from '@/components/pwa/PWARegister';
 
-const playfair = Playfair_Display({
-  subsets: ['latin'],
+// Self-hosted variable fonts (OFL-1.1, see src/app/fonts): no build-time or runtime call to Google.
+const playfair = localFont({
+  src: './fonts/playfair-display-latin-wght.woff2',
+  weight: '400 900',
   variable: '--font-playfair',
   display: 'swap',
 });
 
-const outfit = Outfit({
-  subsets: ['latin'],
+const outfit = localFont({
+  src: './fonts/outfit-latin-wght.woff2',
+  weight: '100 900',
   variable: '--font-outfit',
   display: 'swap',
 });
 
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: './fonts/inter-latin-wght.woff2',
+  weight: '100 900',
   variable: '--font-inter',
   display: 'swap',
 });

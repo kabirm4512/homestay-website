@@ -32,8 +32,12 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { MealPlan, RoomTapeStatus, PaymentMethod, CRMBooking } from '@/types/crm';
-import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
+import { addCalendarDays, nightsBetween, normalizeCategoryId, resolveRoomTariffs, todayInIST } from '@/lib/tariff-calculator';
 import { INDIAN_STATES } from '@/lib/booking-id';
+import { readDocumentFile } from '@/lib/image-upload';
+import type { Booking } from '@/types';
+import { calculateStayGst } from '@/lib/gst';
+import { accommodationGstForTotal } from '@/lib/folio';
 
 interface ManualBookingModalProps {
   isOpen: boolean;
@@ -41,6 +45,8 @@ interface ManualBookingModalProps {
   defaultRoomId?: string;
   defaultDate?: string;
   onBookingCreated?: (booking: CRMBooking) => void;
+  /** Website request this stay fulfils: pre-fills the form and links the two (no double count). */
+  fromWebBooking?: Booking | null;
 }
 
 export default function ManualBookingModal({
@@ -49,8 +55,9 @@ export default function ManualBookingModal({
   defaultRoomId,
   defaultDate,
   onBookingCreated,
+  fromWebBooking,
 }: ManualBookingModalProps) {
-  const { rooms, calculateDynamicTariff, createManualBooking, showToast, roomTariffs } = useCRM();
+  const { rooms, calculateDynamicTariff, createManualBooking, showToast, roomTariffs, tariffsStatus, gstConfig } = useCRM();
 
   // Selected room
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -60,7 +67,8 @@ export default function ManualBookingModal({
   const [checkOutDate, setCheckOutDate] = useState<string>('');
 
   // Tariff & Rate Mode
-  const [useManualRate, setUseManualRate] = useState<boolean>(true);
+  // Default: charge the live seasonal tariff (same engine as the website). Manual override is opt-in.
+  const [useManualRate, setUseManualRate] = useState<boolean>(false);
   const [manualRatePerNight, setManualRatePerNight] = useState<number>(4500);
   const [customTotalTariff, setCustomTotalTariff] = useState<number | null>(null);
   const [mealPlan, setMealPlan] = useState<MealPlan>('CP');
@@ -102,7 +110,8 @@ export default function ManualBookingModal({
   const [createdBooking, setCreatedBooking] = useState<CRMBooking | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
-  // Initialize or reset when modal opens
+  // Initialize or reset when the modal OPENS (not on every background refresh of rooms/tariffs,
+  // which used to wipe a half-filled form every few seconds)
   useEffect(() => {
     if (isOpen) {
       const room = defaultRoomId
@@ -111,24 +120,18 @@ export default function ManualBookingModal({
       const initialRoomId = room?.id || 'room-101';
       setSelectedRoomId(initialRoomId);
 
-      const start = defaultDate || new Date().toISOString().split('T')[0];
+      const start = defaultDate || todayInIST();
       setCheckInDate(start);
 
       // Default 1 night
-      const next = new Date(start);
-      next.setDate(next.getDate() + 1);
-      setCheckOutDate(next.toISOString().split('T')[0]);
+      setCheckOutDate(addCalendarDays(start, 1));
 
-      // Fetch dynamic rates from roomTariffs
-      const tariffs = (roomTariffs && roomTariffs[initialRoomId]) || INITIAL_ROOM_SEASONAL_TARIFFS[initialRoomId];
-      const adultRate = tariffs?.extraAdultRate ?? (initialRoomId.includes('20') ? 1500 : 1200);
-      const childRate = tariffs?.extraChildRate ?? (initialRoomId.includes('20') ? 750 : 600);
-      const baseNightly = tariffs?.regular?.CP ?? (initialRoomId.includes('20') ? 6500 : 4500);
-
-      setExtraAdultChargePerNight(adultRate);
-      setExtraChildChargePerNight(childRate);
-      setManualRatePerNight(baseNightly);
-      setUseManualRate(true);
+      // Extra-person rates from the live saved tariff for this room's category
+      const tariffs = resolveRoomTariffs(initialRoomId, roomTariffs);
+      setExtraAdultChargePerNight(tariffs?.extraAdultRate ?? 0);
+      setExtraChildChargePerNight(tariffs?.extraChildRate ?? 0);
+      setManualRatePerNight(tariffs?.regular?.CP ?? 0);
+      setUseManualRate(false);
       setCustomTotalTariff(null);
       setMealPlan('CP');
       setExtraAdultsCount(0);
@@ -156,21 +159,40 @@ export default function ManualBookingModal({
       setCurrentStep(1);
       setCreatedBooking(null);
       setIsCopied(false);
-    }
-  }, [isOpen, defaultRoomId, defaultDate, rooms, roomTariffs]);
 
-  // When room or meal plan changes, update rates from roomTariffs
-  useEffect(() => {
-    if (selectedRoomId) {
-      const tariffs = (roomTariffs && roomTariffs[selectedRoomId]) || INITIAL_ROOM_SEASONAL_TARIFFS[selectedRoomId];
-      if (tariffs) {
-        if (tariffs.extraAdultRate) setExtraAdultChargePerNight(tariffs.extraAdultRate);
-        if (tariffs.extraChildRate) setExtraChildChargePerNight(tariffs.extraChildRate);
-        const baseRate = tariffs.regular?.[mealPlan] || (selectedRoomId.includes('20') ? 6500 : 4500);
-        setManualRatePerNight(baseRate);
+      if (fromWebBooking) {
+        const w = fromWebBooking;
+        setCheckInDate(w.check_in);
+        setCheckOutDate(w.check_out);
+        if (w.meal_plan && ['EP', 'CP', 'MAP', 'AP'].includes(w.meal_plan)) setMealPlan(w.meal_plan as MealPlan);
+        const first = w.rooms_config?.[0];
+        const cat = first?.room_id || String(w.room_id || '').split(',')[0].trim();
+        const match = rooms.find((r) => normalizeCategoryId(r.categoryId) === normalizeCategoryId(cat) && r.currentStatus !== 'maintenance');
+        if (match) setSelectedRoomId(match.id);
+        setExtraAdultsCount(Math.max(0, (first?.adults ?? 2) - 2));
+        setExtraChildrenCount(first?.children ?? 0);
+        setGuestName(w.guest_name || '');
+        setGuestPhone(w.phone || '');
+        setGuestEmail(w.email || '');
+        setSpecialRequests(w.special_requests || '');
+        setTapeStatus('confirmed');
+        setStaffNotes(`Website booking ${w.booking_reference}${(w.rooms_count || 1) > 1 ? ` (room 1 of ${w.rooms_count}; assign the others separately)` : ''}`);
       }
     }
-  }, [selectedRoomId, mealPlan, roomTariffs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, fromWebBooking]);
+
+  // When room or meal plan changes (and no manual override is active), refresh the
+  // extra-person rates from the live saved tariff for the room's category
+  useEffect(() => {
+    if (selectedRoomId && !useManualRate) {
+      const tariffs = resolveRoomTariffs(selectedRoomId, roomTariffs);
+      if (tariffs) {
+        setExtraAdultChargePerNight(tariffs.extraAdultRate ?? 0);
+        setExtraChildChargePerNight(tariffs.extraChildRate ?? 0);
+      }
+    }
+  }, [selectedRoomId, mealPlan, roomTariffs, useManualRate]);
 
   // Selected room object
   const activeRoom = useMemo(() => {
@@ -180,28 +202,21 @@ export default function ManualBookingModal({
   // Minimum checkout date (at least checkIn + 1 day)
   const minCheckOutDate = useMemo(() => {
     if (!checkInDate) return undefined;
-    const next = new Date(checkInDate);
-    next.setDate(next.getDate() + 1);
-    return next.toISOString().split('T')[0];
+    return addCalendarDays(checkInDate, 1);
   }, [checkInDate]);
 
   const handleCheckInDateChange = (newIn: string) => {
     setCheckInDate(newIn);
     if (!newIn) return;
     if (!checkOutDate || checkOutDate <= newIn) {
-      const next = new Date(newIn);
-      next.setDate(next.getDate() + 1);
-      setCheckOutDate(next.toISOString().split('T')[0]);
+      setCheckOutDate(addCalendarDays(newIn, 1));
     }
   };
 
   // Calculate nights
   const totalNights = useMemo(() => {
     if (!checkInDate || !checkOutDate) return 1;
-    const start = new Date(checkInDate);
-    const end = new Date(checkOutDate);
-    const diff = Math.max(0, end.getTime() - start.getTime());
-    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    return Math.max(1, nightsBetween(checkInDate, checkOutDate) ?? 1);
   }, [checkInDate, checkOutDate]);
 
   // Extra Person Calculations (Infants are complimentary)
@@ -232,33 +247,52 @@ export default function ManualBookingModal({
     }
   }, [activeRoom, checkInDate, checkOutDate, mealPlan, extraAdultsCount, extraChildrenCount, calculateDynamicTariff]);
 
-  // Total tariff computed
+  // Total tariff computed.
+  // Standard mode = the live seasonal tariff from the canonical engine (matches the website to the rupee).
+  // Manual mode = staff-entered nightly rate / lump sum (explicit override).
+  const standardRoomRatePerNight = standardTariff
+    ? Math.round(standardTariff.baseAmount / Math.max(1, standardTariff.nights))
+    : null;
   const effectiveTotalAmount = useMemo(() => {
+    if (!useManualRate) {
+      return standardTariff ? standardTariff.totalAmount : 0;
+    }
     if (customTotalTariff !== null && customTotalTariff > 0) {
       return customTotalTariff;
     }
     return (totalNights * manualRatePerNight) + totalExtraCharges;
-  }, [totalNights, manualRatePerNight, totalExtraCharges, customTotalTariff]);
+  }, [useManualRate, standardTariff, totalNights, manualRatePerNight, totalExtraCharges, customTotalTariff]);
+
+  // GST on the room charges: standard mode taxes each night on its own value (same rules as
+  // the website); a manual total uses the average night value to pick the slab.
+  const roomGstAmount = useMemo(() => {
+    if (!useManualRate) return standardTariff ? calculateStayGst(standardTariff, gstConfig).gstAmount : 0;
+    return accommodationGstForTotal(effectiveTotalAmount, totalNights, gstConfig);
+  }, [useManualRate, standardTariff, gstConfig, effectiveTotalAmount, totalNights]);
+  const totalPayableWithGst = gstConfig.tariffsIncludeGst ? effectiveTotalAmount : effectiveTotalAmount + roomGstAmount;
+
+  // Any manual edit to a rate switches to explicit manual override
+  const enableManualOverride = () => {
+    if (!useManualRate) {
+      if (standardRoomRatePerNight !== null) setManualRatePerNight(standardRoomRatePerNight);
+      setUseManualRate(true);
+    }
+  };
 
   // File to base64 reader helper
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: string) => void
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('File is too large. Please upload an image under 5MB.', 'error');
-      return;
+    try {
+      setter(await readDocumentFile(file));
+      showToast('Document attached; it is saved privately with the booking');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not read this file', 'error');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setter(reader.result as string);
-      showToast('Document image uploaded successfully');
-    };
-    reader.readAsDataURL(file);
   };
 
   // Start Check-In Form Handler
@@ -287,22 +321,35 @@ export default function ManualBookingModal({
       return;
     }
 
+    if (!useManualRate && !standardTariff) {
+      showToast(
+        tariffsStatus === 'ready'
+          ? 'No live tariff is saved for this room, meal plan or occupancy. Set it in Rooms → Tariffs, or tick "Manual Rate Override".'
+          : 'Live tariffs have not loaded yet. Please wait a moment or tick "Manual Rate Override".',
+        'error'
+      );
+      setCurrentStep(1);
+      return;
+    }
+
     const newBooking = createManualBooking({
       roomId: selectedRoomId,
       checkInDate,
       checkOutDate,
-      roomRatePerNight: manualRatePerNight,
+      roomRatePerNight: useManualRate ? manualRatePerNight : (standardRoomRatePerNight ?? 0),
       totalRoomAmount: effectiveTotalAmount,
       mealPlan,
       adultsCount: 2 + extraAdultsCount,
       childrenCount: extraChildrenCount,
       infantsCount: infantsCount,
-      extraAdultChargePerNight,
-      extraChildChargePerNight,
+      extraAdultChargePerNight: useManualRate ? extraAdultChargePerNight : (standardTariff?.extraAdultRate ?? extraAdultChargePerNight),
+      extraChildChargePerNight: useManualRate ? extraChildChargePerNight : (standardTariff?.extraChildRate ?? extraChildChargePerNight),
       status: tapeStatus,
       specialRequests,
       notes: staffNotes,
       isManualRate: useManualRate,
+      gstAmount: roomGstAmount,
+      sourceBookingId: fromWebBooking?.id,
       advancePaid: advancePaid > 0 ? advancePaid : undefined,
       advancePaymentMethod: advancePaid > 0 ? advancePaymentMethod : undefined,
       guest: {
@@ -484,7 +531,10 @@ Wishing you a serene and memorable Himalayan stay!
           <div className="text-right hidden sm:block">
             <span className="text-[11px] text-forest-600 font-medium">Stay Total:</span>
             <span className="ml-1.5 font-bold font-mono text-sm text-forest-950">
-              ₹{effectiveTotalAmount.toLocaleString('en-IN')}
+              ₹{totalPayableWithGst.toLocaleString('en-IN')}
+            </span>
+            <span className="block text-[10px] text-forest-500">
+              {gstConfig.tariffsIncludeGst ? 'incl.' : 'incl. ₹' + roomGstAmount.toLocaleString('en-IN')} GST
             </span>
           </div>
         </div>
@@ -600,7 +650,14 @@ Wishing you a serene and memorable Himalayan stay!
                     <input
                       type="checkbox"
                       checked={useManualRate}
-                      onChange={(e) => setUseManualRate(e.target.checked)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          enableManualOverride();
+                        } else {
+                          setUseManualRate(false);
+                          setCustomTotalTariff(null);
+                        }
+                      }}
                       className="w-4 h-4 text-forest-800 rounded border-amber-300 focus:ring-amber-500"
                     />
                     <span className="text-xs font-bold text-amber-900">
@@ -632,8 +689,9 @@ Wishing you a serene and memorable Himalayan stay!
                         min="0"
                         step="100"
                         required
-                        value={manualRatePerNight}
+                        value={useManualRate ? manualRatePerNight : (standardRoomRatePerNight ?? '')}
                         onChange={(e) => {
+                          enableManualOverride();
                           setManualRatePerNight(Number(e.target.value));
                           setCustomTotalTariff(null);
                         }}
@@ -642,7 +700,13 @@ Wishing you a serene and memorable Himalayan stay!
                       />
                     </div>
                     <span className="text-[10px] text-amber-800 mt-1 block">
-                      Multiplied by {totalNights} night{totalNights > 1 ? 's' : ''} = ₹{(totalNights * manualRatePerNight).toLocaleString('en-IN')}
+                      {useManualRate
+                        ? `Multiplied by ${totalNights} night${totalNights > 1 ? 's' : ''} = ₹${(totalNights * manualRatePerNight).toLocaleString('en-IN')}`
+                        : standardTariff
+                          ? `Live seasonal tariff: average of ${totalNights} night${totalNights > 1 ? 's' : ''} (edit to override)`
+                          : tariffsStatus === 'ready'
+                            ? 'No live tariff saved for this room/plan. Tick Manual Rate Override.'
+                            : 'Loading live tariffs…'}
                     </span>
                   </div>
 
@@ -658,6 +722,7 @@ Wishing you a serene and memorable Himalayan stay!
                         value={customTotalTariff ?? ''}
                         onChange={(e) => {
                           const val = e.target.value ? Number(e.target.value) : null;
+                          enableManualOverride();
                           setCustomTotalTariff(val);
                           if (val && totalNights > 0) {
                             setManualRatePerNight(Math.round(val / totalNights));
@@ -669,6 +734,7 @@ Wishing you a serene and memorable Himalayan stay!
                     </div>
                     <span className="text-[10px] text-amber-800 mt-1 block">
                       Effective Tariff: <strong>₹{effectiveTotalAmount.toLocaleString('en-IN')}</strong>
+                      {!gstConfig.tariffsIncludeGst && <> + GST ₹{roomGstAmount.toLocaleString('en-IN')}</>}
                     </span>
                   </div>
                 </div>
@@ -822,7 +888,10 @@ Wishing you a serene and memorable Himalayan stay!
                             min="0"
                             step="100"
                             value={extraAdultChargePerNight}
-                            onChange={(e) => setExtraAdultChargePerNight(Number(e.target.value) || 0)}
+                            onChange={(e) => {
+                              enableManualOverride();
+                              setExtraAdultChargePerNight(Number(e.target.value) || 0);
+                            }}
                             className="w-full pl-8 pr-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-amber-300 bg-white"
                           />
                         </div>
@@ -850,7 +919,10 @@ Wishing you a serene and memorable Himalayan stay!
                             min="0"
                             step="100"
                             value={extraChildChargePerNight}
-                            onChange={(e) => setExtraChildChargePerNight(Number(e.target.value) || 0)}
+                            onChange={(e) => {
+                              enableManualOverride();
+                              setExtraChildChargePerNight(Number(e.target.value) || 0);
+                            }}
                             className="w-full pl-8 pr-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-emerald-300 bg-white"
                           />
                         </div>

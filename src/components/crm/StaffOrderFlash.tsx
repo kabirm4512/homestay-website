@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, Sparkles, Utensils, Check, X, Volume2, ArrowRight } from 'lucide-react';
-import { StaffAlert } from '@/lib/data-service';
+import type { StaffAlert } from '@/types/crm';
+
+const ALERT_LABELS: Record<string, string> = {
+  order: '🛎️ New Room Order',
+  special_request: '🎉 Celebration Request',
+  booking: '🗓️ New Website Booking',
+  inquiry: '✉️ New Inquiry',
+  checkin: '📋 Guest Check-In',
+};
 
 interface StaffOrderFlashProps {
   onViewOrders?: () => void;
@@ -138,7 +146,7 @@ export default function StaffOrderFlash({ onViewOrders }: StaffOrderFlashProps) 
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                {alert.type === 'special_request' ? '🎉 Celebration Request' : '🛎️ New Room Order'}
+                {ALERT_LABELS[alert.type] || '🛎️ New Room Order'}
               </span>
             </div>
 
@@ -167,25 +175,31 @@ export default function StaffOrderFlash({ onViewOrders }: StaffOrderFlashProps) 
             <div className="w-10 h-10 rounded-xl bg-forest-900 text-amber-300 flex items-center justify-center shrink-0 shadow-inner">
               {alert.type === 'special_request' ? (
                 <Sparkles className="w-5 h-5" />
-              ) : (
+              ) : alert.type === 'order' ? (
                 <Utensils className="w-5 h-5" />
+              ) : (
+                <Bell className="w-5 h-5" />
               )}
             </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between gap-1">
                 <h4 className="font-bold text-sm text-forest-950 truncate">
-                  Room {alert.roomNumber} • {alert.guestName}
+                  {alert.roomNumber ? `Room ${alert.roomNumber} • ` : ''}
+                  {alert.guestName}
                 </h4>
-                <span className="font-mono font-bold text-sm text-emerald-800 shrink-0">
-                  ₹{alert.totalAmount.toLocaleString('en-IN')}
-                </span>
+                {alert.totalAmount > 0 && (
+                  <span className="font-mono font-bold text-sm text-emerald-800 shrink-0">
+                    ₹{alert.totalAmount.toLocaleString('en-IN')}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-forest-700 mt-1 leading-snug break-words">
                 {alert.orderDetails}
               </p>
               <span className="text-[10px] text-forest-500 block mt-1">
-                {new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Auto-charged to room folio
+                {new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {alert.type === 'order' || alert.type === 'special_request' ? ' • Charged to the room folio (pending)' : ''}
               </span>
             </div>
           </div>
