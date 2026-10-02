@@ -364,7 +364,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const refreshState = useCallback(async () => {
     if (!isStaffRef.current) return;
     try {
-      const res = await fetch('/api/crm/state', { cache: 'no-store' });
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 25000);
+      const res = await fetch('/api/crm/state', { cache: 'no-store', signal: ctrl.signal }).finally(() => clearTimeout(timer));
       if (res.status === 401) {
         handleSignedOut();
         return;
@@ -471,7 +473,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // Load the staff working set BEFORE showing the staff screens, so they never render
       // with the public (partial) room list a signed-out visitor gets.
       isStaffRef.current = !user.mustChangePassword;
-      if (!user.mustChangePassword) await refreshState();
+      // Never leave the screen on "Verifying credentials" if the server is slow: show the
+      // staff screens after at most 15 s; the 8 s refresh fills in anything still missing.
+      if (!user.mustChangePassword) {
+        await Promise.race([refreshState(), new Promise<void>((resolve) => setTimeout(resolve, 15000))]);
+      }
       setCurrentUserState(user);
       setRoleState(user.role);
       setAuthStatus('signed_in');
