@@ -462,7 +462,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const loadStaffAccounts = useCallback(async () => {
     try {
-      const res = await fetch('/api/staff', { cache: 'no-store' });
+      const res = await fetch('/api/staff', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.success && Array.isArray(json.staff)) setStaffAccounts(json.staff);
     } catch {}
@@ -481,7 +481,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setCurrentUserState(user);
       setRoleState(user.role);
       setAuthStatus('signed_in');
-      if (!user.mustChangePassword && user.role === 'admin') await loadStaffAccounts();
+      if (!user.mustChangePassword && user.role === 'admin') void loadStaffAccounts();
     },
     [refreshState, loadStaffAccounts]
   );
@@ -1699,6 +1699,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: identifier.trim(), password }),
+          signal: AbortSignal.timeout(30000),
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.success || !json.user) {
@@ -1709,7 +1710,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         if (!user.mustChangePassword) showToast(`Signed in as ${user.fullName} (${user.role.replace('_', ' ').toUpperCase()})`);
         return { success: true, user };
       } catch {
-        return { success: false, error: 'Could not reach the server. Please check your connection.' };
+        return { success: false, error: 'Could not reach the server, or it took too long. Please try again.' };
       }
     },
     [startStaffSession, showToast]
@@ -1722,6 +1723,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ currentPassword, newPassword }),
+          signal: AbortSignal.timeout(30000),
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.success) return { success: false, error: json?.error || 'Could not change the password.' };
