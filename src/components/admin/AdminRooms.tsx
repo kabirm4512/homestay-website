@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Room } from '@/types';
 import { useCRM } from '@/context/CRMContext';
 import { SeasonalDateRange, RoomSeasonalTariffs, MealPlan } from '@/types/crm';
@@ -106,7 +106,15 @@ export default function AdminRooms({
     return 'inventory';
   });
 
+  // True while the tariff matrix has edits that are not saved to the server yet.
+  const tariffDirtyRef = useRef(false);
+  const confirmDiscardTariffEdits = () =>
+    !tariffDirtyRef.current ||
+    (typeof window !== 'undefined' &&
+      window.confirm('You have unsaved tariff changes. They are NOT on the website yet. Discard them?'));
+
   const handleSelectSubTab = (tab: 'inventory' | 'seasons' | 'tariffs' | 'simulator') => {
+    if (tab !== 'tariffs' && !confirmDiscardTariffEdits()) return;
     setActiveSubTabState(tab);
     if (typeof window !== 'undefined') {
       try {
@@ -178,6 +186,7 @@ export default function AdminRooms({
   });
 
   const handleSelectTariffRoom = (roomId: string) => {
+    if (roomId !== selectedTariffRoomId && !confirmDiscardTariffEdits()) return;
     setSelectedTariffRoomIdState(roomId);
     if (typeof window !== 'undefined') {
       try {
@@ -188,7 +197,7 @@ export default function AdminRooms({
 
   useEffect(() => {
     if (rooms.length > 0 && !rooms.some((r) => r.id === selectedTariffRoomId)) {
-      handleSelectTariffRoom(rooms[0].id);
+      setSelectedTariffRoomIdState(rooms[0].id);
     }
   }, [rooms, selectedTariffRoomId]);
 
@@ -226,6 +235,42 @@ export default function AdminRooms({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTariffRoomId, roomTariffs]);
+
+  // What the server has for the selected room (the website and inventory cards show this).
+  const savedTariffsForSelected = resolveRoomTariffs(selectedTariffRoomId, roomTariffs);
+  const tariffKey = (t: RoomSeasonalTariffs | null) =>
+    t
+      ? JSON.stringify([
+          (['regular', 'season', 'offSeason'] as const).map((tier) => (['EP', 'CP', 'MAP', 'AP'] as const).map((p) => Number(t[tier]?.[p]) || 0)),
+          Number(t.weekendSurchargePercent) || 0,
+          Number(t.extraAdultRate) || 0,
+          Number(t.extraChildRate) || 0,
+          Number(t.freeChildUnderAge) || 0,
+          Number(t.baseAdults) || 0,
+        ])
+      : '';
+  const tariffMatrixDirty = tariffsStatus === 'ready' && tariffKey(currentTariffs) !== tariffKey(savedTariffsForSelected);
+
+  useEffect(() => {
+    tariffDirtyRef.current = tariffMatrixDirty;
+    if (!tariffMatrixDirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [tariffMatrixDirty]);
+
+  /** Rates shown on an inventory card, read from the live tariffs (same engine as the website). */
+  const cardRates = (roomId: string) => {
+    const saved = resolveRoomTariffs(roomId, roomTariffs);
+    if (!saved) return null;
+    const today = todayInIST();
+    const tonight = calculateDynamicTariff(roomId, today, addCalendarDays(today, 1) || today, 'CP', 2, 0);
+    const label = tonight?.breakdown[0]?.seasonType === 'season' ? 'Peak' : tonight?.breakdown[0]?.seasonType === 'off_season' ? 'Off-season' : 'Regular';
+    return { saved, tonight: tonight?.avgRatePerNight ?? saved.regular.CP, label };
+  };
 
   // ==========================================
   // 4. RATE SIMULATOR STATES
@@ -716,10 +761,12 @@ export default function AdminRooms({
         {activeSubTab === 'tariffs' && (
           <button
             onClick={handleSaveTariffMatrix}
-            className="flex items-center space-x-1.5 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm"
+            className={`flex items-center space-x-1.5 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm ${
+              tariffMatrixDirty ? 'bg-terracotta-600 hover:bg-terracotta-700 ring-2 ring-amber-300' : 'bg-forest-800 hover:bg-forest-900'
+            }`}
           >
             <Save className="w-4 h-4 text-sand-300" />
-            <span>Save Tariffs Matrix</span>
+            <span>{tariffMatrixDirty ? 'Save Tariffs Matrix (unsaved changes)' : 'Save Tariffs Matrix'}</span>
           </button>
         )}
       </div>
@@ -830,15 +877,28 @@ export default function AdminRooms({
 
                     {/* Price Pill */}
                     <div className="absolute bottom-3 left-3 text-white">
-                      <div className="font-serif text-lg font-bold">
-                        ₹{Number(room.price_per_night).toLocaleString('en-IN')}
-                        <span className="text-xs font-normal text-sand-200"> / night</span>
-                      </div>
-                      {room.weekend_price && (
-                        <div className="text-[11px] text-sand-300">
-                          Weekend: ₹{Number(room.weekend_price).toLocaleString('en-IN')}
-                        </div>
-                      )}
+                      {(() => {
+                        const r = cardRates(room.id);
+                        if (!r) {
+                          return (
+                            <div className="text-xs font-semibold text-sand-200">
+                              {tariffsStatus === 'ready' ? 'No rates yet: set them in Tariffs & Meal Plans' : 'Loading rates…'}
+                            </div>
+                          );
+                        }
+                        return (
+                          <>
+                            <div className="font-serif text-lg font-bold">
+                              ₹{Math.round(r.tonight).toLocaleString('en-IN')}
+                              <span className="text-xs font-normal text-sand-200"> / night tonight · CP · {r.label}</span>
+                            </div>
+                            <div className="text-[11px] text-sand-300">
+                              CP: Regular ₹{r.saved.regular.CP.toLocaleString('en-IN')} · Peak ₹{r.saved.season.CP.toLocaleString('en-IN')} · Off ₹
+                              {r.saved.offSeason.CP.toLocaleString('en-IN')}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <button
@@ -1082,6 +1142,16 @@ export default function AdminRooms({
                 </select>
               </div>
             </div>
+
+            {tariffMatrixDirty ? (
+              <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 font-semibold">
+                Unsaved changes. The website, bookings and room cards still use the saved rates until you click “Save Tariffs Matrix”.
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900">
+                These are the live rates. The website, bookings, the rate simulator and the room cards all read them.
+              </div>
+            )}
 
             {/* Meal Plan Descriptions Explainer */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-sand-200 text-xs">
