@@ -13,8 +13,6 @@ import {
   upsertSeasonalRange,
   deleteSeasonalRange,
 } from '@/lib/server/repos/settings';
-import { mirrorDisplayPrices } from '@/lib/server/repos/rooms';
-import { normalizeCategoryId } from '@/lib/tariff-calculator';
 import { audit } from '@/lib/server/audit';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +26,8 @@ async function payload() {
 /** Public: live tariffs, seasonal calendar, GST rules and add-on rates (every price is computed from these). */
 export const GET = handler('tariffs.get', async () => ok(await payload()));
 
-const Rates = z.object({ EP: z.number().min(0), CP: z.number().min(0), MAP: z.number().min(0), AP: z.number().min(0) });
+const Price = z.number().positive('Every room price must be above ₹0').max(10_000_000);
+const Rates = z.object({ EP: Price, CP: Price, MAP: Price, AP: Price });
 const Tariffs = z.object({
   regular: Rates,
   season: Rates,
@@ -107,13 +106,5 @@ export const POST = handler('tariffs.save', async (request: Request) => {
 
   const { before } = await saveRoomTariff(body.roomId, body.tariffs, actor);
   await audit({ actor, action: 'update', entity: 'room_tariff', entityId: body.roomId, before, after: body.tariffs, ip });
-  // Display-only fields for the admin inventory list (never used for pricing)
-  const base = body.tariffs.regular.EP || body.tariffs.regular.CP;
-  await mirrorDisplayPrices(normalizeCategoryId(body.roomId), {
-    price_per_night: base,
-    weekend_price: body.tariffs.weekendSurchargePercent ? Math.round(base * (1 + body.tariffs.weekendSurchargePercent / 100)) : base,
-    extra_adult_charge: body.tariffs.extraAdultRate,
-    extra_child_charge: body.tariffs.extraChildRate,
-  });
   return ok({ message: 'Room tariffs saved', ...(await payload()) });
 });

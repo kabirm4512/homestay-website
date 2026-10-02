@@ -93,7 +93,11 @@ export default function AdminPage() {
     if (typeof window !== 'undefined') {
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const sub = urlParams.get('subtab') || urlParams.get('tab') || localStorage.getItem('wp_admin_subtab');
+        // Website Settings sections write their own name into ?tab= and their inner tab into
+        // ?subtab= (e.g. ?tab=rooms&subtab=tariffs), so a reload must read the section from ?tab=.
+        const tabParam = urlParams.get('tab');
+        if (tabParam && ['rooms', 'addons', 'cms', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return tabParam;
+        const sub = urlParams.get('subtab') || tabParam || localStorage.getItem('wp_admin_subtab');
         if (sub) return sub;
       } catch {}
     }

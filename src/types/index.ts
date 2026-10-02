@@ -8,12 +8,21 @@ export interface Room {
   tagline?: string;
   description: string;
   room_type: string;
-  price_per_night: number;
+  /**
+   * @deprecated Rooms carry no prices. All room prices live in Tariffs & Meal Plans
+   * (pms.settings room_tariffs) and are read through the pricing engine. The server
+   * strips these legacy fields from rooms on read and write.
+   */
+  price_per_night?: number;
+  /** @deprecated see price_per_night */
   weekend_price?: number;
   capacity_adults: number;
   capacity_children: number;
+  /** @deprecated set "Adults included in the price" in Tariffs & Meal Plans */
   base_adults?: number;
+  /** @deprecated see price_per_night */
   extra_adult_charge?: number;
+  /** @deprecated see price_per_night */
   extra_child_charge?: number;
   bed_type: string;
   room_size_sqft: number;
@@ -22,6 +31,7 @@ export interface Room {
   total_inventory: number;
   available_inventory: number;
   is_active: boolean;
+  /** @deprecated see price_per_night */
   tariffs?: RoomSeasonalTariffs;
   created_at?: string;
   updated_at?: string;

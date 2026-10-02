@@ -9,7 +9,6 @@ import {
   RentalVehicle,
   RouteSeasonalTariffs,
   VehicleSeasonalTariffs,
-  SeasonalDateRange,
 } from '@/types/crm';
 import {
   Utensils,
@@ -29,7 +28,6 @@ import {
   CheckCircle2,
   AlertCircle,
   QrCode,
-  Calendar,
   CalendarDays,
   TrendingUp,
   Sparkles,
@@ -38,14 +36,12 @@ import {
   Fuel,
 } from 'lucide-react';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
-import { todayInIST } from '@/lib/tariff-calculator';
 
 export default function AdminAddonsCMS() {
   const {
     menuItems,
     transferRoutes,
     rentalVehicles,
-    seasonalDateRanges,
     addMenuItem,
     updateMenuItem,
     deleteMenuItem,
@@ -56,24 +52,19 @@ export default function AdminAddonsCMS() {
     addRentalVehicle,
     updateRentalVehicle,
     deleteRentalVehicle,
-    addSeasonalRange,
-    deleteSeasonalRange,
-    getSeasonForDate,
-    calculateDynamicTransferRate,
-    calculateDynamicRentalRate,
     showToast,
   } = useCRM();
 
-  const [activeTab, setActiveTabState] = useState<'dining' | 'transfers' | 'rentals' | 'seasons' | 'qr_cards'>(() => {
+  const [activeTab, setActiveTabState] = useState<'dining' | 'transfers' | 'rentals' | 'qr_cards'>(() => {
     if (typeof window !== 'undefined') {
       try {
         const urlParams = new URLSearchParams(window.location.search);
         const sub = urlParams.get('subtab');
-        if (sub && ['dining', 'transfers', 'rentals', 'seasons', 'qr_cards'].includes(sub)) {
+        if (sub && ['dining', 'transfers', 'rentals', 'qr_cards'].includes(sub)) {
           return sub as any;
         }
         const saved = localStorage.getItem('wp_admin_addons_subtab');
-        if (saved && ['dining', 'transfers', 'rentals', 'seasons', 'qr_cards'].includes(saved)) {
+        if (saved && ['dining', 'transfers', 'rentals', 'qr_cards'].includes(saved)) {
           return saved as any;
         }
       } catch {}
@@ -81,7 +72,7 @@ export default function AdminAddonsCMS() {
     return 'dining';
   });
 
-  const setActiveTab = (tab: 'dining' | 'transfers' | 'rentals' | 'seasons' | 'qr_cards') => {
+  const setActiveTab = (tab: 'dining' | 'transfers' | 'rentals' | 'qr_cards') => {
     setActiveTabState(tab);
     if (typeof window !== 'undefined') {
       try {
@@ -159,17 +150,6 @@ export default function AdminAddonsCMS() {
       offSeasonRatePerDay: 700,
     },
   });
-
-  // ==========================================
-  // 4. SEASONAL CALENDAR STATES
-  // ==========================================
-  const [isSeasonModalOpen, setIsSeasonModalOpen] = useState(false);
-  const [newSeasonName, setNewSeasonName] = useState('');
-  const [newSeasonType, setNewSeasonType] = useState<'season' | 'off_season'>('season');
-  const [newSeasonStart, setNewSeasonStart] = useState('');
-  const [newSeasonEnd, setNewSeasonEnd] = useState('');
-  const [newSeasonDesc, setNewSeasonDesc] = useState('');
-  const [testDate, setTestDate] = useState(() => todayInIST());
 
   // ==========================================
   // DINING HANDLERS
@@ -445,34 +425,6 @@ export default function AdminAddonsCMS() {
     setIsVehicleModalOpen(false);
   };
 
-  // ==========================================
-  // SEASONAL CALENDAR HANDLERS
-  // ==========================================
-  const handleAddSeasonalRange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSeasonName.trim() || !newSeasonStart || !newSeasonEnd) {
-      showToast('Please enter season title, start date, and end date', 'error');
-      return;
-    }
-    if (newSeasonEnd < newSeasonStart) {
-      showToast('End date cannot be earlier than start date', 'error');
-      return;
-    }
-    addSeasonalRange({
-      name: newSeasonName.trim(),
-      seasonType: newSeasonType,
-      startDate: newSeasonStart,
-      endDate: newSeasonEnd,
-      description: newSeasonDesc.trim() || undefined,
-    });
-    // Success / failure toast is shown by the CRM context once the server confirms the save
-    setNewSeasonName('');
-    setNewSeasonStart('');
-    setNewSeasonEnd('');
-    setNewSeasonDesc('');
-    setIsSeasonModalOpen(false);
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Header & Sub-Navigation */}
@@ -520,17 +472,6 @@ export default function AdminAddonsCMS() {
           >
             <Bike className="w-4 h-4 text-forest-600" />
             <span>Scooty & Bikes ({rentalVehicles.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('seasons')}
-            className={`px-3 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
-              activeTab === 'seasons'
-                ? 'bg-white text-forest-900 shadow-sm'
-                : 'text-gray-600 hover:text-forest-900'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4 text-emerald-600" />
-            <span>Seasonal Calendar ({seasonalDateRanges.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('qr_cards')}
@@ -1047,206 +988,6 @@ export default function AdminAddonsCMS() {
 
       {/* ========================================================================= */}
       {/* 4. SEASONAL CALENDAR & TARIFF DATE RANGES TAB */}
-      {/* ========================================================================= */}
-      {activeTab === 'seasons' && (
-        <div className="space-y-6">
-          {/* Top Actions & Overview */}
-          <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-                  Dynamic Tariff Engine
-                </span>
-                <h3 className="font-bold text-base text-forest-950">
-                  Seasonal Calendar & Tariff Date Ranges
-                </h3>
-              </div>
-              <p className="text-xs text-gray-500 mt-1 max-w-2xl">
-                Define Himalayan peak seasons (Durga Puja, Diwali, Summer vacation, New Year) and monsoon off-seasons.
-                Transfers, bike rentals, and room bookings dynamically adjust tariffs when guests pick dates falling within these windows.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setIsSeasonModalOpen(true)}
-              className="flex items-center space-x-1.5 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm self-start md:self-auto"
-            >
-              <Plus className="w-4 h-4 text-sand-300" />
-              <span>Add Season Window</span>
-            </button>
-          </div>
-
-          {/* Interactive Date Checker / Simulator */}
-          <div className="bg-gradient-to-r from-sand-100/90 to-amber-50/70 p-5 rounded-2xl border border-sand-200 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-              <div>
-                <span className="text-xs font-bold text-forest-950 uppercase tracking-wide flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-700" />
-                  Live Tariff Simulator
-                </span>
-                <p className="text-xs text-gray-600">
-                  Select any travel date to see how the seasonal engine calculates airport cab and bike rental tariffs in real time.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <label className="text-xs font-bold text-forest-900 whitespace-nowrap">
-                  Test Travel Date:
-                </label>
-                <input
-                  type="date"
-                  value={testDate}
-                  onChange={(e) => setTestDate(e.target.value)}
-                  className="px-3 py-1.5 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950 shadow-xs"
-                />
-              </div>
-            </div>
-
-            {/* Simulator Output */}
-            {(() => {
-              const seasonInfo = getSeasonForDate(testDate);
-              const sampleRoute = transferRoutes[0];
-              const sampleVehicle = rentalVehicles[0];
-
-              const sampleRouteRate = sampleRoute
-                ? calculateDynamicTransferRate(sampleRoute, testDate, 'wagonr')
-                : null;
-              const sampleVehicleRate = sampleVehicle
-                ? calculateDynamicRentalRate(sampleVehicle, testDate)
-                : null;
-
-              return (
-                <div className="bg-white/90 rounded-xl p-4 border border-sand-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-sand-50 rounded-lg">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                      Active Tariff Rule
-                    </span>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          seasonInfo.seasonType === 'season'
-                            ? 'bg-rose-100 text-rose-800'
-                            : seasonInfo.seasonType === 'off_season'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-sand-200 text-forest-800'
-                        }`}
-                      >
-                        {seasonInfo.seasonName}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-gray-500 mt-1 block">
-                      {seasonInfo.seasonType === 'season'
-                        ? 'Surge pricing active (+20% or custom override)'
-                        : seasonInfo.seasonType === 'off_season'
-                        ? 'Monsoon/winter saver active (-15% discount)'
-                        : 'Standard regular tariffs apply'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-sand-50 rounded-lg">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                      Sample Transfer (Bagdogra WagonR)
-                    </span>
-                    <div className="text-lg font-bold text-forest-950 mt-1">
-                      ₹{sampleRouteRate?.rate.toLocaleString('en-IN') || 2800}
-                    </div>
-                    <span className="text-[10px] text-gray-500">
-                      Standard: ₹{sampleRoute?.priceWagonR || 2800} ({sampleRouteRate?.seasonName})
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-sand-50 rounded-lg">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                      Sample Bike (1 Day Rental)
-                    </span>
-                    <div className="text-lg font-bold text-forest-950 mt-1">
-                      ₹{sampleVehicleRate?.dailyAvgRate || sampleVehicle?.ratePerDay || 1000}
-                      <span className="text-[10px] font-normal text-gray-500"> /day</span>
-                    </div>
-                    <span className="text-[10px] text-gray-500">
-                      {sampleVehicle?.vehicleName}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Active Seasonal Date Ranges Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {seasonalDateRanges.map((range) => {
-              const isPeak = range.seasonType === 'season';
-              const startFmt = new Date(range.startDate).toLocaleDateString('en-IN', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              });
-              const endFmt = new Date(range.endDate).toLocaleDateString('en-IN', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              });
-
-              return (
-                <div
-                  key={range.id}
-                  className={`bg-white rounded-2xl border p-5 shadow-sm space-y-3 flex flex-col justify-between transition-all ${
-                    isPeak ? 'border-rose-200 hover:border-rose-300' : 'border-emerald-200 hover:border-emerald-300'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
-                          isPeak
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        }`}
-                      >
-                        {isPeak ? 'Peak High-Demand Period' : 'Off-Season Value Period'}
-                      </span>
-
-                      <button
-                        onClick={() => deleteSeasonalRange(range.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Delete seasonal date range"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <h4 className="font-serif text-base font-bold text-forest-950">
-                      {range.name}
-                    </h4>
-
-                    {range.description && (
-                      <p className="text-xs text-gray-600">{range.description}</p>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-sand-100 flex items-center justify-between text-xs">
-                    <div className="flex items-center space-x-1.5 text-forest-900 font-semibold">
-                      <Calendar className="w-4 h-4 text-forest-600" />
-                      <span>
-                        {startFmt} – {endFmt}
-                      </span>
-                    </div>
-
-                    <span
-                      className={`text-[11px] font-bold ${
-                        isPeak ? 'text-rose-700' : 'text-emerald-700'
-                      }`}
-                    >
-                      {isPeak ? '+20% Peak Tariff' : '-15% Off-Season'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* ========================================================================= */}
       {/* 5. IN-ROOM DINE-IN QR CARDS HUB (ALL 7 ROOMS) */}
       {/* ========================================================================= */}
@@ -2041,112 +1782,6 @@ export default function AdminAddonsCMS() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL: ADD SEASONAL DATE RANGE WINDOW */}
-      {/* ========================================================================= */}
-      {isSeasonModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-sand-200 animate-slide-up space-y-4">
-            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
-              <h3 className="font-serif text-lg font-bold text-forest-950">
-                Add Seasonal Date Window
-              </h3>
-              <button
-                onClick={() => setIsSeasonModalOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSeasonalRange} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Season Period Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newSeasonName}
-                  onChange={(e) => setNewSeasonName(e.target.value)}
-                  placeholder="e.g. Autumn Himalayan Festival (Oct 2026)"
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Season Type
-                </label>
-                <select
-                  value={newSeasonType}
-                  onChange={(e) => setNewSeasonType(e.target.value as 'season' | 'off_season')}
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
-                >
-                  <option value="season">Peak Season (High Tourist Inflow, Surge Pricing)</option>
-                  <option value="off_season">Off-Season (Monsoon / Low Inflow, Discount Pricing)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Start Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={newSeasonStart}
-                    onChange={(e) => setNewSeasonStart(e.target.value)}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    End Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={newSeasonEnd}
-                    onChange={(e) => setNewSeasonEnd(e.target.value)}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Notes / Description (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={newSeasonDesc}
-                  onChange={(e) => setNewSeasonDesc(e.target.value)}
-                  placeholder="e.g. High demand period during regional festivities, advance cab booking recommended."
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs resize-none"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-sand-200">
-                <button
-                  type="button"
-                  onClick={() => setIsSeasonModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-sand-300 text-xs font-semibold text-gray-600 hover:bg-sand-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-forest-800 hover:bg-forest-900 text-white text-xs font-semibold shadow-sm"
-                >
-                  Add Season Window
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

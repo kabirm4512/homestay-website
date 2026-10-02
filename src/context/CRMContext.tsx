@@ -1908,7 +1908,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateRoomTariffs = async (roomId: string, tariffs: RoomSeasonalTariffs): Promise<boolean> => {
-    return saveTariffChange({ roomId, tariffs }, 'Room seasonal tariffs saved to the live site');
+    return saveTariffChange({ roomId, tariffs }, 'Prices saved. The website, booking quotes and room cards use them now.');
   };
 
   // Canonical engine: identical maths to the public website and the booking API.

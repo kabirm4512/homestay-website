@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Room } from '@/types';
 import { useCRM } from '@/context/CRMContext';
-import { SeasonalDateRange, RoomSeasonalTariffs, MealPlan } from '@/types/crm';
+import { SeasonalDateRange } from '@/types/crm';
+import AdminTariffs from './AdminTariffs';
 import {
   Plus,
   Search,
@@ -19,21 +20,11 @@ import {
   Eye,
   EyeOff,
   Calendar,
-  Layers,
   Utensils,
-  Calculator,
-  Sliders,
-  CalendarRange,
   ArrowRight,
-  Info,
-  CheckCircle2,
-  Sparkles,
-  Percent,
-  Save,
   IndianRupee,
   Upload,
 } from 'lucide-react';
-import { INITIAL_ROOM_SEASONAL_TARIFFS } from '@/lib/crm-data';
 import { resolveRoomTariffs, todayInIST, addCalendarDays } from '@/lib/tariff-calculator';
 import { adminRequestJson } from '@/lib/admin-api';
 import {
@@ -86,22 +77,21 @@ export default function AdminRooms({
     addSeasonalRange,
     updateSeasonalRange,
     deleteSeasonalRange,
-    updateRoomTariffs,
     calculateDynamicTariff,
     tariffsStatus,
   } = useCRM();
 
-  const [activeSubTab, setActiveSubTabState] = useState<'inventory' | 'seasons' | 'tariffs' | 'simulator'>(() => {
+  type SubTab = 'inventory' | 'tariffs';
+  const toSubTab = (v: string | null): SubTab | null =>
+    v === 'inventory' ? 'inventory' : v === 'tariffs' || v === 'seasons' || v === 'simulator' ? 'tariffs' : null;
+  const [activeSubTab, setActiveSubTabState] = useState<SubTab>(() => {
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const sub = urlParams.get('subtab');
-      if (sub && ['inventory', 'seasons', 'tariffs', 'simulator'].includes(sub)) {
-        return sub as any;
-      }
-      const saved = localStorage.getItem('wp_admin_rooms_subtab');
-      if (saved && ['inventory', 'seasons', 'tariffs', 'simulator'].includes(saved)) {
-        return saved as any;
-      }
+      const fromUrl = toSubTab(new URLSearchParams(window.location.search).get('subtab'));
+      if (fromUrl) return fromUrl;
+      try {
+        const saved = toSubTab(localStorage.getItem('wp_admin_rooms_subtab'));
+        if (saved) return saved;
+      } catch {}
     }
     return 'inventory';
   });
@@ -111,9 +101,9 @@ export default function AdminRooms({
   const confirmDiscardTariffEdits = () =>
     !tariffDirtyRef.current ||
     (typeof window !== 'undefined' &&
-      window.confirm('You have unsaved tariff changes. They are NOT on the website yet. Discard them?'));
+      window.confirm('You have unsaved price changes. They are NOT on the website yet. Discard them?'));
 
-  const handleSelectSubTab = (tab: 'inventory' | 'seasons' | 'tariffs' | 'simulator') => {
+  const handleSelectSubTab = (tab: SubTab) => {
     if (tab !== 'tariffs' && !confirmDiscardTariffEdits()) return;
     setActiveSubTabState(tab);
     if (typeof window !== 'undefined') {
@@ -143,11 +133,6 @@ export default function AdminRooms({
     tagline: '',
     description: '',
     room_type: 'Deluxe Suite',
-    price_per_night: 4500,
-    weekend_price: 5200,
-    base_adults: 2,
-    extra_adult_charge: 1200,
-    extra_child_charge: 600,
     capacity_adults: 2,
     capacity_children: 1,
     bed_type: 'King Bed',
@@ -175,94 +160,14 @@ export default function AdminRooms({
   });
 
   // ==========================================
-  // 3. TARIFFS & MEAL PLANS STATES
+  // 3. TARIFFS & MEAL PLANS (component: AdminTariffs)
   // ==========================================
-  const [selectedTariffRoomId, setSelectedTariffRoomIdState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('wp_admin_rooms_tariff_room');
-      if (saved && rooms.some((r) => r.id === saved)) return saved;
-    }
-    return rooms.length > 0 ? rooms[0].id : 'room-cat-1';
-  });
+  const [tariffFocusRoomId, setTariffFocusRoomId] = useState<string | null>(null);
+  const handleTariffDirtyChange = useCallback((dirty: boolean) => {
+    tariffDirtyRef.current = dirty;
+  }, []);
 
-  const handleSelectTariffRoom = (roomId: string) => {
-    if (roomId !== selectedTariffRoomId && !confirmDiscardTariffEdits()) return;
-    setSelectedTariffRoomIdState(roomId);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('wp_admin_rooms_tariff_room', roomId);
-      } catch {}
-    }
-  };
-
-  useEffect(() => {
-    if (rooms.length > 0 && !rooms.some((r) => r.id === selectedTariffRoomId)) {
-      setSelectedTariffRoomIdState(rooms[0].id);
-    }
-  }, [rooms, selectedTariffRoomId]);
-
-  const [currentTariffs, setCurrentTariffs] = useState<RoomSeasonalTariffs>(() => {
-    const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
-    return (
-      resolveRoomTariffs(selectedTariffRoomId, roomTariffs) ||
-      foundRoom?.tariffs ||
-      INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
-        regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
-        season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
-        offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
-        weekendSurchargePercent: 10,
-        extraAdultRate: 1200,
-        extraChildRate: 600,
-      }
-    );
-  });
-
-  useEffect(() => {
-    if (selectedTariffRoomId) {
-      const foundRoom = rooms.find((r) => r.id === selectedTariffRoomId);
-      const found =
-        resolveRoomTariffs(selectedTariffRoomId, roomTariffs) ||
-        foundRoom?.tariffs ||
-        INITIAL_ROOM_SEASONAL_TARIFFS[selectedTariffRoomId] || {
-          regular: { EP: 4000, CP: 4500, MAP: 5500, AP: 6500 },
-          season: { EP: 5800, CP: 6500, MAP: 7800, AP: 9000 },
-          offSeason: { EP: 3200, CP: 3600, MAP: 4400, AP: 5200 },
-          weekendSurchargePercent: 10,
-          extraAdultRate: 1200,
-          extraChildRate: 600,
-        };
-      setCurrentTariffs(found);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTariffRoomId, roomTariffs]);
-
-  // What the server has for the selected room (the website and inventory cards show this).
-  const savedTariffsForSelected = resolveRoomTariffs(selectedTariffRoomId, roomTariffs);
-  const tariffKey = (t: RoomSeasonalTariffs | null) =>
-    t
-      ? JSON.stringify([
-          (['regular', 'season', 'offSeason'] as const).map((tier) => (['EP', 'CP', 'MAP', 'AP'] as const).map((p) => Number(t[tier]?.[p]) || 0)),
-          Number(t.weekendSurchargePercent) || 0,
-          Number(t.extraAdultRate) || 0,
-          Number(t.extraChildRate) || 0,
-          Number(t.freeChildUnderAge) || 0,
-          Number(t.baseAdults) || 0,
-        ])
-      : '';
-  const tariffMatrixDirty = tariffsStatus === 'ready' && tariffKey(currentTariffs) !== tariffKey(savedTariffsForSelected);
-
-  useEffect(() => {
-    tariffDirtyRef.current = tariffMatrixDirty;
-    if (!tariffMatrixDirty) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [tariffMatrixDirty]);
-
-  /** Rates shown on an inventory card, read from the live tariffs (same engine as the website). */
+  /** Prices shown on an inventory card: read from Tariffs & Meal Plans through the pricing engine. */
   const cardRates = (roomId: string) => {
     const saved = resolveRoomTariffs(roomId, roomTariffs);
     if (!saved) return null;
@@ -271,16 +176,6 @@ export default function AdminRooms({
     const label = tonight?.breakdown[0]?.seasonType === 'season' ? 'Peak' : tonight?.breakdown[0]?.seasonType === 'off_season' ? 'Off-season' : 'Regular';
     return { saved, tonight: tonight?.avgRatePerNight ?? saved.regular.CP, label };
   };
-
-  // ==========================================
-  // 4. RATE SIMULATOR STATES
-  // ==========================================
-  const [simRoomId, setSimRoomId] = useState<string>(rooms.length > 0 ? rooms[0].id : 'room-1');
-  const [simCheckIn, setSimCheckIn] = useState<string>(() => todayInIST());
-  const [simCheckOut, setSimCheckOut] = useState<string>(() => addCalendarDays(todayInIST(), 3) || todayInIST());
-  const [simMealPlan, setSimMealPlan] = useState<MealPlan>('CP');
-  const [simAdults, setSimAdults] = useState<number>(2);
-  const [simChildren, setSimChildren] = useState<number>(0);
 
   // Handle opening Add modal
   const handleOpenAdd = () => {
@@ -291,11 +186,6 @@ export default function AdminRooms({
       tagline: '',
       description: '',
       room_type: 'Deluxe Suite',
-      price_per_night: 4500,
-      weekend_price: 5200,
-      base_adults: 2,
-      extra_adult_charge: 1200,
-      extra_child_charge: 600,
       capacity_adults: 2,
       capacity_children: 1,
       bed_type: 'King Bed',
@@ -320,9 +210,6 @@ export default function AdminRooms({
     setEditingRoom(room);
     setFormData({
       ...room,
-      base_adults: room.base_adults || 2,
-      extra_adult_charge: room.extra_adult_charge ?? room.tariffs?.extraAdultRate ?? 1200,
-      extra_child_charge: room.extra_child_charge ?? room.tariffs?.extraChildRate ?? 600,
       amenities: [...(room.amenities || [])],
       // Hide placeholder images in the editor so new uploads are not saved behind them
       images: (room.images || []).filter((url) => !isPlaceholderImage(url)),
@@ -347,12 +234,6 @@ export default function AdminRooms({
     setSubmitting(true);
     try {
       const targetId = editingRoom?.id || (formData.id || `room-${Date.now()}`);
-      const savedLiveTariffs = resolveRoomTariffs(targetId, roomTariffs);
-      const existingTariffs = savedLiveTariffs || editingRoom?.tariffs;
-      const baseRate = editingRoom?.price_per_night || existingTariffs?.regular?.EP || Number(formData.price_per_night) || 4500;
-      const weekendRate = editingRoom?.weekend_price || (existingTariffs?.weekendSurchargePercent ? Math.round(baseRate * (1 + existingTariffs.weekendSurchargePercent / 100)) : baseRate);
-      const extraAdult = editingRoom?.extra_adult_charge ?? existingTariffs?.extraAdultRate ?? 1200;
-      const extraChild = editingRoom?.extra_child_charge ?? existingTariffs?.extraChildRate ?? 600;
 
       // Automatically include any pending image URL entered by the user, drop placeholders
       // (they used to be saved in front of real photos) and fall back to a local placeholder.
@@ -362,29 +243,25 @@ export default function AdminRooms({
       }
       const currentImages = normalizeRoomImages(pendingImages);
 
-      // Starting tariffs for a brand-new category only (existing live tariffs are never touched here)
-      const updatedTariffs: RoomSeasonalTariffs = existingTariffs || {
-        regular: { EP: baseRate, CP: Math.round(baseRate * 1.15), MAP: Math.round(baseRate * 1.35), AP: Math.round(baseRate * 1.55) },
-        season: { EP: Math.round(baseRate * 1.3), CP: Math.round(baseRate * 1.45), MAP: Math.round(baseRate * 1.7), AP: Math.round(baseRate * 1.95) },
-        offSeason: { EP: Math.round(baseRate * 0.85), CP: Math.round(baseRate * 0.95), MAP: Math.round(baseRate * 1.15), AP: Math.round(baseRate * 1.3) },
-        weekendSurchargePercent: 10,
-        extraAdultRate: extraAdult,
-        extraChildRate: extraChild,
-      };
-
+      // Rooms carry no prices: those are set only in Tariffs & Meal Plans
+      const {
+        price_per_night: _p,
+        weekend_price: _w,
+        base_adults: _b,
+        extra_adult_charge: _ea,
+        extra_child_charge: _ec,
+        tariffs: _t,
+        ...roomFields
+      } = formData;
+      void [_p, _w, _b, _ea, _ec, _t];
       const roomPayload: Room = {
-        ...formData,
+        ...roomFields,
         id: targetId,
         slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: formData.name.trim(),
         tagline: formData.tagline?.trim() || '',
         description: formData.description?.trim() || '',
         room_type: formData.room_type || 'Deluxe Suite',
-        price_per_night: baseRate,
-        weekend_price: weekendRate,
-        base_adults: Number(formData.base_adults) || 2,
-        extra_adult_charge: extraAdult,
-        extra_child_charge: extraChild,
         capacity_adults: Number(formData.capacity_adults) || 2,
         capacity_children: Number(formData.capacity_children) || 0,
         bed_type: formData.bed_type || 'King Bed',
@@ -394,7 +271,6 @@ export default function AdminRooms({
         is_active: formData.is_active !== undefined ? formData.is_active : true,
         amenities: formData.amenities || [],
         images: currentImages,
-        tariffs: updatedTariffs,
         updated_at: new Date().toISOString(),
       };
 
@@ -429,15 +305,17 @@ export default function AdminRooms({
         onUpdateRooms(nextRooms);
       }
 
-      // 3. A brand-new category gets starting tariffs, AFTER the room itself is saved (sequential,
-      //    so the two writes can never overwrite each other). Existing tariffs are left alone:
-      //    prices are edited only in the Tariffs tab.
-      if (!savedLiveTariffs && tariffsStatus === 'ready') {
-        await updateRoomTariffs(savedRoom.id, updatedTariffs);
-      }
-
-      showToast(editingRoom ? 'Room updated on the website.' : 'New room added to the website.');
+      const isNew = !editingRoom;
+      const hasPrices = Boolean(resolveRoomTariffs(savedRoom.id, roomTariffs));
       handleCloseModal();
+      if (isNew && !hasPrices) {
+        // New rooms have no prices until they are set in Tariffs & Meal Plans
+        showToast('Room added. Now set its prices: guests see “price on request” until you do.', 'info');
+        setTariffFocusRoomId(savedRoom.id);
+        handleSelectSubTab('tariffs');
+        return;
+      }
+      showToast(editingRoom ? 'Room updated on the website.' : 'New room added to the website.');
     } catch {
       showToast('Error saving room. Please try again.', 'error');
     } finally {
@@ -644,69 +522,6 @@ export default function AdminRooms({
     setIsSeasonModalOpen(false);
   };
 
-  // ==========================================
-  // TARIFF MATRIX SAVE HANDLER
-  // ==========================================
-  const handleSaveTariffMatrix = async () => {
-    if (!selectedTariffRoomId) return;
-
-    if (tariffsStatus !== 'ready') {
-      showToast('Live tariffs are still loading from the server. Please try again in a moment.', 'error');
-      return;
-    }
-
-    // 1. Save to the server FIRST. Only a confirmed save reaches the live website and CRM.
-    const saved = await updateRoomTariffs(selectedTariffRoomId, currentTariffs);
-    if (!saved) return; // the CRM context already showed the error
-
-    // 2. Update the display-only room fields (admin inventory list / cached room cards)
-    const targetRoom = rooms.find((r) => r.id === selectedTariffRoomId);
-    if (targetRoom) {
-      const baseRate = currentTariffs.regular.EP || currentTariffs.regular.CP || targetRoom.price_per_night;
-      const weekendRate = currentTariffs.weekendSurchargePercent
-        ? Math.round(baseRate * (1 + currentTariffs.weekendSurchargePercent / 100))
-        : targetRoom.weekend_price;
-
-      const updatedRoom: Room = {
-        ...targetRoom,
-        price_per_night: baseRate,
-        weekend_price: weekendRate,
-        extra_adult_charge: currentTariffs.extraAdultRate ?? targetRoom.extra_adult_charge,
-        extra_child_charge: currentTariffs.extraChildRate ?? targetRoom.extra_child_charge,
-        tariffs: currentTariffs,
-        updated_at: new Date().toISOString(),
-      };
-
-      const nextRooms = rooms.map((r) => (r.id === selectedTariffRoomId ? updatedRoom : r));
-
-
-      if (onUpdateRooms) {
-        onUpdateRooms(nextRooms);
-      }
-
-      // No separate /api/rooms write here: the server mirrors the display price fields when the
-      // tariff is saved. Re-posting the whole room from local state used to overwrite newer
-      // room photos with a stale copy.
-    }
-  };
-
-  const handleTariffRateChange = (
-    tier: 'regular' | 'season' | 'offSeason',
-    plan: 'EP' | 'CP' | 'MAP' | 'AP',
-    value: number
-  ) => {
-    setCurrentTariffs((prev) => ({
-      ...prev,
-      [tier]: {
-        ...prev[tier],
-        [plan]: Number(value) || 0,
-      },
-    }));
-  };
-
-  // Live simulation calculation
-  const simResult = calculateDynamicTariff(simRoomId, simCheckIn, simCheckOut, simMealPlan, simAdults, simChildren);
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Sub-tab Navigation */}
@@ -724,17 +539,6 @@ export default function AdminRooms({
             <span>Room Inventory ({rooms.length})</span>
           </button>
           <button
-            onClick={() => handleSelectSubTab('seasons')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
-              activeSubTab === 'seasons'
-                ? 'bg-white text-forest-900 shadow-sm'
-                : 'text-gray-600 hover:text-forest-900'
-            }`}
-          >
-            <CalendarRange className="w-4 h-4 text-amber-500" />
-            <span>Seasonal Date Ranges ({seasonalDateRanges.length})</span>
-          </button>
-          <button
             onClick={() => handleSelectSubTab('tariffs')}
             className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
               activeSubTab === 'tariffs'
@@ -743,32 +547,10 @@ export default function AdminRooms({
             }`}
           >
             <Utensils className="w-4 h-4 text-forest-600" />
-            <span>Tariffs & Meal Plans (EP/CP/MAP/AP)</span>
-          </button>
-          <button
-            onClick={() => handleSelectSubTab('simulator')}
-            className={`px-3.5 py-2 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 whitespace-nowrap ${
-              activeSubTab === 'simulator'
-                ? 'bg-white text-forest-900 shadow-sm'
-                : 'text-gray-600 hover:text-forest-900'
-            }`}
-          >
-            <Calculator className="w-4 h-4 text-emerald-600" />
-            <span>Rate Simulator</span>
+            <span>Tariffs & Meal Plans (all room prices)</span>
           </button>
         </div>
 
-        {activeSubTab === 'tariffs' && (
-          <button
-            onClick={handleSaveTariffMatrix}
-            className={`flex items-center space-x-1.5 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-sm ${
-              tariffMatrixDirty ? 'bg-terracotta-600 hover:bg-terracotta-700 ring-2 ring-amber-300' : 'bg-forest-800 hover:bg-forest-900'
-            }`}
-          >
-            <Save className="w-4 h-4 text-sand-300" />
-            <span>{tariffMatrixDirty ? 'Save Tariffs Matrix (unsaved changes)' : 'Save Tariffs Matrix'}</span>
-          </button>
-        )}
       </div>
 
       {/* ========================================================================= */}
@@ -1004,16 +786,25 @@ export default function AdminRooms({
       {/* ========================================================================= */}
       {/* 2. SEASONAL DATE RANGES SUB-TAB */}
       {/* ========================================================================= */}
-      {activeSubTab === 'seasons' && (
+      {activeSubTab === 'tariffs' && (
+        <AdminTariffs
+          rooms={rooms}
+          focusRoomId={tariffFocusRoomId}
+          onDirtyChange={handleTariffDirtyChange}
+          showToast={showToast}
+        />
+      )}
+
+      {activeSubTab === 'tariffs' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-sand-200 shadow-sm">
             <div>
               <h3 className="font-serif text-lg font-bold text-forest-950">
-                Seasonal Calendar & Tariff Date Ranges
+                When Peak and Off-season prices apply
               </h3>
               <p className="text-xs text-gray-500">
-                Configure multiple date ranges for Peak Season and Off-Season discount periods.
-                Stays crossing these dates automatically apply their respective meal plan tariffs.
+                Nights inside a Peak range use the Peak prices above; nights inside an Off-season range use the Off-season prices.
+                All other nights use Regular prices. If ranges overlap, Peak wins. Transfers and bike rentals use these dates too.
               </p>
             </div>
             <button
@@ -1111,608 +902,6 @@ export default function AdminRooms({
       )}
 
       {/* ========================================================================= */}
-      {/* 3. TARIFFS & MEAL PLANS MATRIX SUB-TAB */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'tariffs' && (
-        <div className="space-y-6">
-          {/* Room Selector Strip */}
-          <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-serif text-lg font-bold text-forest-950">
-                  Select Room for Tariff Matrix
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Configure EP, CP, MAP, and AP tariffs across Regular, Season, and Off-Season periods.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-forest-900">Room:</span>
-                <select
-                  value={selectedTariffRoomId}
-                  onChange={(e) => handleSelectTariffRoom(e.target.value)}
-                  className="px-3.5 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-semibold text-forest-950"
-                >
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name} ({r.room_type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {tariffMatrixDirty ? (
-              <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-xs text-amber-900 font-semibold">
-                Unsaved changes. The website, bookings and room cards still use the saved rates until you click “Save Tariffs Matrix”.
-              </div>
-            ) : (
-              <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900">
-                These are the live rates. The website, bookings, the rate simulator and the room cards all read them.
-              </div>
-            )}
-
-            {/* Meal Plan Descriptions Explainer */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-sand-200 text-xs">
-              <div className="p-2.5 bg-sand-50 rounded-xl">
-                <strong className="text-forest-950 block">EP (European Plan)</strong>
-                <span className="text-[11px] text-gray-500">Room Only (No Meals)</span>
-              </div>
-              <div className="p-2.5 bg-sand-50 rounded-xl">
-                <strong className="text-forest-950 block">CP (Continental Plan)</strong>
-                <span className="text-[11px] text-gray-500">Room + Gourmet Breakfast</span>
-              </div>
-              <div className="p-2.5 bg-sand-50 rounded-xl">
-                <strong className="text-forest-950 block">MAP (Modified American)</strong>
-                <span className="text-[11px] text-gray-500">Breakfast + Pahadi Dinner</span>
-              </div>
-              <div className="p-2.5 bg-sand-50 rounded-xl">
-                <strong className="text-forest-950 block">AP (American Plan)</strong>
-                <span className="text-[11px] text-gray-500">All Meals (Breakfast, Lunch, Dinner)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Matrix Card */}
-          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-6">
-            {/* 1. Regular Rates */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="w-3 h-3 rounded-full bg-forest-700" />
-                  <h4 className="font-serif text-base font-bold text-forest-950">
-                    1. Regular Standard Tariffs (₹ / night)
-                  </h4>
-                </div>
-                <span className="text-xs text-gray-500 font-medium">Applies on non-seasonal dates</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    EP (Room Only)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.regular.EP}
-                    onChange={(e) => handleTariffRateChange('regular', 'EP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    CP (Breakfast Included)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.regular.CP}
-                    onChange={(e) => handleTariffRateChange('regular', 'CP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    MAP (Breakfast + Dinner)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.regular.MAP}
-                    onChange={(e) => handleTariffRateChange('regular', 'MAP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    AP (Full Board - All Meals)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.regular.AP}
-                    onChange={(e) => handleTariffRateChange('regular', 'AP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Peak Season Rates */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="w-3 h-3 rounded-full bg-amber-500" />
-                  <h4 className="font-serif text-base font-bold text-amber-950">
-                    2. Peak Season Tariffs (₹ / night)
-                  </h4>
-                </div>
-                <span className="text-xs text-amber-800 font-medium">Applies during marked Peak Season ranges</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    EP (Room Only)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.season.EP}
-                    onChange={(e) => handleTariffRateChange('season', 'EP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    CP (Breakfast Included)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.season.CP}
-                    onChange={(e) => handleTariffRateChange('season', 'CP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    MAP (Breakfast + Dinner)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.season.MAP}
-                    onChange={(e) => handleTariffRateChange('season', 'MAP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    AP (Full Board - All Meals)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.season.AP}
-                    onChange={(e) => handleTariffRateChange('season', 'AP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Off-Season Rates */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-sand-200 pb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="w-3 h-3 rounded-full bg-emerald-600" />
-                  <h4 className="font-serif text-base font-bold text-emerald-950">
-                    3. Off-Season / Lean Discount Tariffs (₹ / night)
-                  </h4>
-                </div>
-                <span className="text-xs text-emerald-800 font-medium">Applies during marked Off-Season ranges</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    EP (Room Only)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.offSeason.EP}
-                    onChange={(e) => handleTariffRateChange('offSeason', 'EP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    CP (Breakfast Included)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.offSeason.CP}
-                    onChange={(e) => handleTariffRateChange('offSeason', 'CP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    MAP (Breakfast + Dinner)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.offSeason.MAP}
-                    onChange={(e) => handleTariffRateChange('offSeason', 'MAP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    AP (Full Board - All Meals)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={currentTariffs.offSeason.AP}
-                    onChange={(e) => handleTariffRateChange('offSeason', 'AP', Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Weekend Surcharge */}
-            <div className="p-4 bg-sand-50 rounded-xl border border-sand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center space-x-1.5 font-bold text-xs text-forest-950">
-                  <Percent className="w-3.5 h-3.5 text-forest-700" />
-                  <span>Weekend Surcharge Percentage</span>
-                </div>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Applied automatically to Friday & Saturday night stays during Regular periods.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={currentTariffs.weekendSurchargePercent || 0}
-                  onChange={(e) =>
-                    setCurrentTariffs({
-                      ...currentTariffs,
-                      weekendSurchargePercent: Number(e.target.value) || 0,
-                    })
-                  }
-                  className="w-24 px-3 py-1.5 bg-white border border-sand-300 rounded-xl text-xs font-bold text-center"
-                />
-                <span className="text-xs font-bold text-forest-900">% Surcharge</span>
-              </div>
-            </div>
-
-            {/* 5. Extra Guest Charges */}
-            <div className="p-4 bg-sand-50 rounded-xl border border-sand-200 space-y-3">
-              <div className="flex items-center justify-between border-b border-sand-200/70 pb-2">
-                <div className="flex items-center space-x-1.5 font-bold text-xs text-forest-950">
-                  <Users className="w-3.5 h-3.5 text-amber-700" />
-                  <span>5. Extra Guest Surcharges (₹ / night)</span>
-                </div>
-                <span className="text-[11px] text-gray-500">Base room rate includes 2 Adults</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Extra Adult Rate (₹ / night)
-                  </label>
-                  <div className="relative">
-                    <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={currentTariffs.extraAdultRate ?? 1200}
-                      onChange={(e) =>
-                        setCurrentTariffs({
-                          ...currentTariffs,
-                          extraAdultRate: Number(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">
-                    Applies per adult beyond the adults included in the rate.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Extra Child Rate (₹ / night)
-                  </label>
-                  <div className="relative">
-                    <IndianRupee className="w-3.5 h-3.5 text-forest-600 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={currentTariffs.extraChildRate ?? 600}
-                      onChange={(e) =>
-                        setCurrentTariffs({
-                          ...currentTariffs,
-                          extraChildRate: Number(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">
-                    Applies per child per night.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Adults included in the rate
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={currentTariffs.baseAdults ?? 2}
-                    onChange={(e) =>
-                      setCurrentTariffs({
-                        ...currentTariffs,
-                        baseAdults: Math.max(1, Math.min(10, Math.round(Number(e.target.value) || 2))),
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">Extra-adult charges start above this number.</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-forest-900 mb-1">
-                    Children stay free under age
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={17}
-                    value={currentTariffs.freeChildUnderAge ?? 0}
-                    onChange={(e) => {
-                      const v = Math.max(0, Math.min(17, Math.round(Number(e.target.value) || 0)));
-                      setCurrentTariffs({ ...currentTariffs, freeChildUnderAge: v > 0 ? v : undefined });
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-sand-300 rounded-xl text-xs font-bold text-forest-950"
-                  />
-                  <span className="text-[10px] text-gray-500 mt-0.5 block">0 = every child is charged. Uses the ages guests enter.</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={handleSaveTariffMatrix}
-                className="flex items-center space-x-2 bg-forest-800 hover:bg-forest-900 text-white text-xs sm:text-sm font-semibold px-6 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
-              >
-                <Save className="w-4 h-4 text-sand-300" />
-                <span>Save All Tariffs for this Room</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. DYNAMIC RATE SIMULATOR SUB-TAB */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'simulator' && (
-        <div className="space-y-6">
-          {/* Simulator Inputs Card */}
-          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
-            <div>
-              <h3 className="font-serif text-lg font-bold text-forest-950">
-                Dynamic Night-by-Night Rate Simulator
-              </h3>
-              <p className="text-xs text-gray-500">
-                Test any check-in/out date range and meal plan to evaluate exact seasonal transitions, weekend surcharges, and total quotation.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Select Room
-                </label>
-                <select
-                  value={simRoomId}
-                  onChange={(e) => setSimRoomId(e.target.value)}
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
-                >
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Check-in Date
-                </label>
-                <input
-                  type="date"
-                  value={simCheckIn}
-                  onChange={(e) => setSimCheckIn(e.target.value)}
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Check-out Date
-                </label>
-                <input
-                  type="date"
-                  value={simCheckOut}
-                  onChange={(e) => setSimCheckOut(e.target.value)}
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Meal Plan
-                </label>
-                <select
-                  value={simMealPlan}
-                  onChange={(e) => setSimMealPlan(e.target.value as MealPlan)}
-                  className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
-                >
-                  <option value="EP">EP (Room Only)</option>
-                  <option value="CP">CP (Gourmet Breakfast)</option>
-                  <option value="MAP">MAP (Breakfast + Dinner)</option>
-                  <option value="AP">AP (All Meals Included)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-forest-900 mb-1">
-                  Occupancy
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <select
-                    value={simAdults}
-                    onChange={(e) => setSimAdults(Number(e.target.value))}
-                    className="w-full px-2 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
-                    title="Adults"
-                  >
-                    <option value={1}>1 Ad</option>
-                    <option value={2}>2 Ad</option>
-                    <option value={3}>3 Ad</option>
-                    <option value={4}>4 Ad</option>
-                  </select>
-                  <select
-                    value={simChildren}
-                    onChange={(e) => setSimChildren(Number(e.target.value))}
-                    className="w-full px-2 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
-                    title="Children"
-                  >
-                    <option value={0}>0 Ch</option>
-                    <option value={1}>1 Ch</option>
-                    <option value={2}>2 Ch</option>
-                    <option value={3}>3 Ch</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Simulation Output Card */}
-          {!simResult ? (
-            <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm text-sm text-forest-800">
-              {tariffsStatus === 'ready'
-                ? 'This stay cannot be priced: no live tariff is saved for this room / meal plan / occupancy, or the dates are invalid. The website will show "Price on request".'
-                : 'Loading live tariffs from the server…'}
-            </div>
-          ) : (
-          <div className="bg-white p-6 rounded-2xl border border-sand-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sand-200 pb-4">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Dynamic Calculation Verified
-                </span>
-                <h4 className="font-serif text-2xl font-bold text-forest-950 mt-1">
-                  ₹{simResult.totalAmount.toLocaleString('en-IN')}{' '}
-                  <span className="text-xs font-normal text-gray-500">
-                    total for {simResult.nights} {simResult.nights === 1 ? 'night' : 'nights'}
-                  </span>
-                </h4>
-                {(simResult.extraAdultsCharge > 0 || simResult.extraChildrenCharge > 0) && (
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="text-xs px-2 py-0.5 bg-sand-100 text-forest-800 rounded-md font-semibold">
-                      Base Room: ₹{simResult.baseAmount.toLocaleString('en-IN')}
-                    </span>
-                    {simResult.extraAdultsCharge > 0 && (
-                      <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md font-bold">
-                        +{simResult.extraAdultsCount} Extra Adult(s): ₹{simResult.extraAdultsCharge.toLocaleString('en-IN')}
-                      </span>
-                    )}
-                    {simResult.extraChildrenCharge > 0 && (
-                      <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded-md font-bold">
-                        +{simResult.extraChildrenCount} Extra Child(ren): ₹{simResult.extraChildrenCharge.toLocaleString('en-IN')}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="text-left sm:text-right">
-                <span className="text-xs text-gray-500 block">Average Rate:</span>
-                <span className="font-bold text-base text-forest-900">
-                  ₹{simResult.avgRatePerNight.toLocaleString('en-IN')} / night
-                </span>
-              </div>
-            </div>
-
-            {/* Breakdown Table */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-forest-900 block">
-                Night-by-Night Seasonal Breakdown:
-              </span>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-sand-50 text-gray-500 font-semibold border-b border-sand-200">
-                    <tr>
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3">Season / Tariff Applied</th>
-                      <th className="py-2.5 px-3">Type</th>
-                      <th className="py-2.5 px-3 text-right">Night Tariff</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-sand-100 font-medium">
-                    {simResult.breakdown.map((b, idx) => (
-                      <tr key={idx} className="hover:bg-sand-50/50">
-                        <td className="py-2 px-3 font-mono text-gray-700">{b.date}</td>
-                        <td className="py-2 px-3 text-forest-950 font-semibold">{b.rateName}</td>
-                        <td className="py-2 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              b.seasonType === 'season'
-                                ? 'bg-amber-100 text-amber-900'
-                                : b.seasonType === 'off_season'
-                                ? 'bg-emerald-100 text-emerald-900'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {(b.seasonType || '').toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-right font-bold text-forest-950">
-                          ₹{b.amount.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
       {/* MODAL: ADD / EDIT ROOM */}
       {/* ========================================================================= */}
       {isModalOpen && (
@@ -1798,13 +987,11 @@ export default function AdminRooms({
                   </div>
                   <div>
                     <h5 className="font-bold text-xs text-[#142820] flex items-center space-x-2">
-                      <span>Dynamic Seasonal Pricing Active</span>
-                      <span className="text-[10px] font-mono bg-[#E8F2EC] text-[#1E3A2F] border border-[#C5DDCF] px-1.5 py-0.2 rounded font-semibold">
-                        Season &amp; Off-Season Sync
-                      </span>
+                      <span>Prices are not set here</span>
                     </h5>
                     <p className="text-[11px] text-[#5C6D66] mt-0.5 leading-relaxed">
-                      Nightly base rates, seasonal ranges (Peak, Standard, Green season), meal plans (EP, CP, MAP, AP), weekend adjustments, and extra guest surcharges are centrally governed in the <strong>Tariff Matrix</strong> tab to ensure rates never clash.
+                      All prices for this room (EP/CP/MAP/AP for Regular, Peak and Off-season, weekend surcharge, extra adult and child charges,
+                      adults included) are set only in <strong>Tariffs &amp; Meal Plans</strong>.
                     </p>
                   </div>
                 </div>
@@ -1816,26 +1003,13 @@ export default function AdminRooms({
                   }}
                   className="px-3.5 py-2 bg-[#142820] hover:bg-[#1E3A2F] text-[#FAF8F5] rounded-xl text-xs font-bold shrink-0 cursor-pointer transition-colors shadow-xs flex items-center space-x-1.5"
                 >
-                  <span>Open Tariff Matrix</span>
+                  <span>Set prices in Tariffs &amp; Meal Plans</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#C5A059]" />
                 </button>
               </div>
 
               {/* Room Capacity & Specifications */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-forest-900 mb-1">
-                    Base Adults
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={4}
-                    value={formData.base_adults ?? 2}
-                    onChange={(e) => setFormData({ ...formData, base_adults: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-bold text-forest-950 focus:ring-2 focus:ring-forest-600"
-                  />
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-forest-900 mb-1">
                     Adults Max
