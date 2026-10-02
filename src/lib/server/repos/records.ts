@@ -37,6 +37,38 @@ export async function listRecords<T = Record<string, unknown>>(collection: Recor
   return rows.map((r) => r.data);
 }
 
+/**
+ * Several collections in ONE database round trip (same ordering and limits as listRecords).
+ * The CRM working set uses this: the database is in another region, so round trips dominate.
+ */
+export async function listRecordsMany(
+  collections: RecordCollection[],
+  limits: Partial<Record<RecordCollection, number>> = {},
+  db?: SqlOrTx
+): Promise<Record<string, unknown[]>> {
+  const out: Record<string, unknown[]> = {};
+  for (const c of collections) out[c] = [];
+  if (collections.length === 0) return out;
+  await ensureSeeded();
+  const sql = db || getSql();
+  const limitMap: Record<string, number> = {};
+  for (const c of collections) limitMap[c] = limits[c] ?? 5000;
+  const rows = await sql<{ collection: string; data: unknown }[]>`
+    select collection, data from (
+      select collection, data,
+             row_number() over (
+               partition by collection
+               order by case when collection = any(${CATALOGS}) then seq else -seq end
+             ) as rn
+      from pms.records
+      where collection = any(${collections})
+    ) x
+    where rn <= coalesce((${sql.json(limitMap)}::jsonb ->> collection)::int, 5000)
+    order by collection, rn`;
+  for (const r of rows) out[r.collection].push(r.data);
+  return out;
+}
+
 export async function getRecord<T = Record<string, unknown>>(collection: RecordCollection, id: string, db?: SqlOrTx): Promise<T | null> {
   const sql = db || getSql();
   const rows = await sql<{ data: T }[]>`select data from pms.records where collection = ${collection} and id = ${id}`;

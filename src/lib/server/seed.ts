@@ -40,11 +40,15 @@ export function ensureSeeded(): Promise<void> {
 
 async function runSeed(): Promise<void> {
   const sql = getSql();
-  const exists = await sql<{ ok: boolean }[]>`select to_regclass('pms.settings') is not null as ok`;
-  if (!exists[0]?.ok) {
-    throw new Error('Database schema missing: run supabase/migrations/*.sql (see docs/SETUP.md).');
+  let done;
+  try {
+    done = await sql`select 1 from pms.settings where key = 'seeded_at'`;
+  } catch (err) {
+    if ((err as { code?: string }).code === '42P01') {
+      throw new Error('Database schema missing: run supabase/migrations/*.sql (see docs/SETUP.md).');
+    }
+    throw err;
   }
-  const done = await sql`select 1 from pms.settings where key = 'seeded_at'`;
   if (done.length > 0) return;
 
   await sql.begin(async (tx) => {

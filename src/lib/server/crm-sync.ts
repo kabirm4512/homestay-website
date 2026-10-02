@@ -8,7 +8,7 @@ import type {
 import { HttpError } from './http';
 import { audit } from './audit';
 import type { StaffContext } from './auth/staff-session';
-import { RecordCollection, isRecordCollection, getRecord, upsertRecord, deleteRecord, listRecords } from './repos/records';
+import { RecordCollection, isRecordCollection, getRecord, upsertRecord, deleteRecord, listRecords, listRecordsMany } from './repos/records';
 import { upsertCrmBooking, getCrmBooking, deleteBooking, listCrmBookings } from './repos/bookings';
 import { upsertPhysicalRoom, deletePhysicalRoom, findPhysicalRoom, listPhysicalRooms } from './repos/physical-rooms';
 import { getGstConfig, getTariffData } from './repos/settings';
@@ -243,14 +243,12 @@ export async function loadCrmState(staff: StaffContext) {
     activityLogs: 200,
     staffAlerts: 100,
   };
-  for (const c of readable) {
-    if (c === 'crmBookings' || c === 'physicalRooms') continue;
-    tasks.push(
-      listRecords(c as RecordCollection, { limit: recordLimits[c as RecordCollection] }).then((list) => {
-        state[c] = list;
-      })
-    );
-  }
+  const recordCollections = readable.filter((c) => c !== 'crmBookings' && c !== 'physicalRooms') as RecordCollection[];
+  tasks.push(
+    listRecordsMany(recordCollections, recordLimits).then((byCollection) => {
+      for (const c of recordCollections) state[c] = byCollection[c] || [];
+    })
+  );
   tasks.push(
     getTariffData().then((t) => {
       state.tariffs = t.tariffs;

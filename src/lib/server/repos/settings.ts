@@ -45,10 +45,12 @@ export interface TariffData {
 }
 
 export async function getTariffData(db?: SqlOrTx): Promise<TariffData> {
-  const [t, s] = await Promise.all([
-    getSetting<{ tariffs: unknown }>(SETTINGS.TARIFFS, db),
-    getSetting<{ ranges: unknown }>(SETTINGS.SEASONS, db),
-  ]);
+  await ensureSeeded();
+  const sql = db || getSql();
+  const rows = await sql<{ key: string; value: unknown }[]>`
+    select key, value from pms.settings where key in (${SETTINGS.TARIFFS}, ${SETTINGS.SEASONS})`;
+  const t = rows.find((r) => r.key === SETTINGS.TARIFFS)?.value as { tariffs: unknown } | undefined;
+  const s = rows.find((r) => r.key === SETTINGS.SEASONS)?.value as { ranges: unknown } | undefined;
   return {
     tariffs: sanitizeTariffsMap(t?.tariffs),
     seasonalDateRanges: sanitizeSeasonalRanges(s?.ranges),

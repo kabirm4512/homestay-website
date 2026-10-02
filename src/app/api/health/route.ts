@@ -6,7 +6,12 @@ export const dynamic = 'force-dynamic';
 /** Uptime check: app + database reachable and migrated. */
 export const GET = handler('health', async () => {
   const sql = getSql();
-  const [row] = await sql<{ ok: boolean }[]>`select to_regclass('pms.settings') is not null as ok`;
-  if (!row?.ok) return fail(503, 'Database not migrated');
-  return ok({ status: 'ok', time: new Date().toISOString() });
+  const started = Date.now();
+  try {
+    await sql`select 1 from pms.settings limit 1`;
+  } catch {
+    return fail(503, 'Database not reachable or not migrated');
+  }
+  const dbMs = Date.now() - started;
+  return ok({ status: 'ok', dbMs, region: process.env.VERCEL_REGION || null, time: new Date().toISOString() });
 });

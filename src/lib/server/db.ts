@@ -52,14 +52,12 @@ export function getSql(): Sql {
   if (!url) throw new DatabaseNotConfiguredError();
   const sql = postgres(url, {
     prepare: false,
-    max: Number(process.env.DATABASE_POOL_MAX || (process.env.VERCEL ? 3 : 5)),
-    // On Vercel an instance can be suspended between requests; a pooled socket kept open
-    // across a suspension can be dead on resume and hang the next query. Close idle
-    // connections almost at once and recycle them regularly (reconnecting to the
-    // Supabase pooler in the same region costs a few milliseconds).
-    idle_timeout: process.env.VERCEL ? 1 : 20,
+    max: Number(process.env.DATABASE_POOL_MAX || 5),
+    // Keep connections warm between requests: opening one costs several round trips
+    // (TCP + TLS + auth). Recycle them every few minutes so none goes stale.
+    idle_timeout: 30,
     max_lifetime: 60 * 5,
-    connect_timeout: 8,
+    connect_timeout: 10,
     ssl: needsSsl(url) ? 'require' : false,
     onnotice: () => {},
     transform: { undefined: null },
