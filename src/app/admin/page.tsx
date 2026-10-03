@@ -12,7 +12,7 @@ import {
   BedDouble,
   MessageSquareText,
   Sliders,
-  ExternalLink,
+  Smartphone,
   LogOut,
   ShieldCheck,
   RefreshCw,
@@ -43,7 +43,6 @@ import MasterBookingsList from '@/components/crm/MasterBookingsList';
 import OperationsHub from '@/components/crm/OperationsHub';
 import KitchenPortal from '@/components/crm/KitchenPortal';
 import FinancialLedger from '@/components/crm/FinancialLedger';
-import RoleSwitcher from '@/components/crm/RoleSwitcher';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import BottomNav from '@/components/pwa/BottomNav';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
@@ -258,18 +257,8 @@ export default function AdminPage() {
             </Link>
           </div>
 
-          {/* Header Quick Actions (+ Manual Check-In, + Quick Expense) & Staff Tools */}
+          {/* Header Quick Actions (+ Quick Expense) & Staff Tools */}
           <div className="flex items-center space-x-2 sm:space-x-2.5 overflow-x-auto no-scrollbar py-1">
-            {/* Quick Action 1: + Manual Check-In */}
-            <button
-              onClick={() => setIsManualCheckInOpen(true)}
-              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-500/40 transition-all shadow-sm cursor-pointer shrink-0"
-              title="Initiate manual check-in, assign room & generate guest portal link"
-            >
-              <Plus className="w-3.5 h-3.5 text-emerald-200 stroke-[3]" />
-              <span>Manual Check-In</span>
-            </button>
-
             {/* Quick Action 2: + Quick Expense in Warm Terracotta */}
             <button
               onClick={() => setIsQuickExpenseOpen(true)}
@@ -290,10 +279,19 @@ export default function AdminPage() {
               <span>QRs</span>
             </button>
 
-            {/* Fast Role Switcher */}
-            <RoleSwitcher />
+            {/* Expense Logger app (opens it; install it from there) */}
+            <a
+              href="/expenses"
+              target="_blank"
+              rel="noopener"
+              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-semibold text-gray-200 hover:text-white bg-[#1E3A2F] hover:bg-[#2A4E40] px-2.5 py-1.5 rounded-xl border border-[#C5A059]/30 transition-colors shrink-0"
+              title="Expense Logger app for phones: open it and tap Install"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-[#C5A059]" />
+              <span>Expense App</span>
+            </a>
 
-            {/* PWA Install Button */}
+            {/* PWA Install Button (hidden once installed) */}
             <PWAInstaller variant="button" />
 
             {/* Logged-in Staff Badge */}
@@ -321,17 +319,6 @@ export default function AdminPage() {
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
-
-            {/* View Live Website */}
-            <Link
-              href="/"
-              target="_blank"
-              className="min-h-[38px] px-2.5 py-1.5 text-xs font-semibold text-gray-200 hover:text-white rounded-xl hover:bg-[#1E3A2F] transition-colors hidden sm:flex items-center space-x-1.5 shrink-0"
-              title="View Public Website"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-[#C5A059]" />
-              <span>Site</span>
-            </Link>
 
             {/* Sign Out */}
             <button

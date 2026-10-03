@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whispering-pines-crm-v1';
+const CACHE_NAME = 'savera-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -33,6 +33,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Pass through non-GET and API/data calls with network-first
   if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    return;
+  }
+
+  // Pages: always try the network first so a new release (and new prices) shows at once;
+  // the cached copy is only used when offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          if (res && res.status === 200 && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(event.request).then((r) => r || caches.match('/')))
+    );
     return;
   }
 

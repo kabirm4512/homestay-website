@@ -14,12 +14,34 @@ declare global {
   }
 }
 
+/** Remembered per app so the button stays hidden after installing (localStorage). */
+export function markPwaInstalled(app: string) {
+  try {
+    localStorage.setItem(`wp_pwa_installed_${app}`, '1');
+  } catch {}
+}
+
+function rememberedInstalled(app: string): boolean {
+  try {
+    return localStorage.getItem(`wp_pwa_installed_${app}`) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function PWAInstaller({
   variant = 'button',
   className = '',
+  app = 'main',
+  appName = 'Savera Homestay App',
+  label = 'Install App',
 }: {
   variant?: 'button' | 'badge' | 'banner';
   className?: string;
+  /** Which installable app this page's manifest describes ('main' or 'expenses'). */
+  app?: string;
+  appName?: string;
+  label?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -29,34 +51,51 @@ export default function PWAInstaller({
 
   useEffect(() => {
     setMounted(true);
-    // 1. Check if already running in standalone PWA mode
+    // 1. Already running as the installed app, or installed earlier from this browser
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-
     if (isStandalone) {
+      markPwaInstalled(app);
+      setIsInstalled(true);
+      return;
+    }
+    if (rememberedInstalled(app)) {
       setIsInstalled(true);
       return;
     }
 
-    // 2. Browser detection
+    // 2. Chrome/Edge can tell us directly when the app (listed in the manifest) is installed
+    const nav = window.navigator as unknown as { getInstalledRelatedApps?: () => Promise<{ platform: string }[]> };
+    if (typeof nav.getInstalledRelatedApps === 'function') {
+      nav
+        .getInstalledRelatedApps()
+        .then((apps) => {
+          if (apps.some((a) => a.platform === 'webapp')) {
+            markPwaInstalled(app);
+            setIsInstalled(true);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 3. Browser detection
     const userAgent = window.navigator.userAgent.toLowerCase();
     if (/iphone|ipad|ipod/.test(userAgent)) {
       setBrowserType('ios');
-    } else if (/chrome|chromium|crios/.test(userAgent)) {
+    } else if (/chrome|chromium|crios|edg\//.test(userAgent)) {
       setBrowserType('chrome');
     } else {
       setBrowserType('other');
     }
 
-    // 3. Check for globally cached prompt
+    // 4. Prompt captured before this component mounted
     if (window.__wp_pwa_event) {
       setDeferredPrompt(window.__wp_pwa_event);
     }
 
-    // 4. Intercept Chrome beforeinstallprompt event
+    // 5. Chrome only fires this when the app can be installed (i.e. it is NOT installed)
     const handleBeforeInstall = (e: Event) => {
-      // Suppress default ambient infobar so we show our prominent Install button
       e.preventDefault();
       const pwaEvent = e as BeforeInstallPromptEvent;
       window.__wp_pwa_event = pwaEvent;
@@ -64,6 +103,7 @@ export default function PWAInstaller({
     };
 
     const handleAppInstalled = () => {
+      markPwaInstalled(app);
       setIsInstalled(true);
       setDeferredPrompt(null);
       window.__wp_pwa_event = null;
@@ -76,13 +116,10 @@ export default function PWAInstaller({
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [app]);
 
   const handleInstallClick = async () => {
-    if (isInstalled) {
-      alert('Savera Homestay App is already installed on your device!');
-      return;
-    }
+    if (isInstalled) return;
 
     const activePrompt = deferredPrompt || window.__wp_pwa_event;
 
@@ -91,6 +128,7 @@ export default function PWAInstaller({
         await activePrompt.prompt();
         const choice = await activePrompt.userChoice;
         if (choice.outcome === 'accepted') {
+          markPwaInstalled(app);
           setIsInstalled(true);
         }
         setDeferredPrompt(null);
@@ -108,6 +146,12 @@ export default function PWAInstaller({
   if (!mounted || isInstalled) {
     return null;
   }
+  // Chrome/Edge: show the button only while the browser offers installation (it stops
+  // offering once the app is installed). iPhone/iPad: show the Add-to-Home-Screen guide.
+  // Other desktop browsers cannot install apps, so nothing is shown.
+  if (browserType === 'other' || (browserType === 'chrome' && !deferredPrompt)) {
+    return null;
+  }
 
   return (
     <>
@@ -121,7 +165,7 @@ export default function PWAInstaller({
             </div>
             <div className="truncate">
               <p className="text-xs font-bold text-white flex items-center space-x-1">
-                <span>Install Savera Homestay App</span>
+                <span>Install {appName}</span>
                 <Sparkles className="w-3 h-3 text-amber-300" />
               </p>
               <p className="text-[11px] text-sand-300 truncate">
@@ -134,17 +178,17 @@ export default function PWAInstaller({
             className="min-h-[44px] px-4 py-2 bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 text-xs font-black rounded-xl shadow transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            <span>Install App</span>
+            <span>{label}</span>
           </button>
         </div>
       ) : (
         <button
           onClick={handleInstallClick}
-          aria-label="Install Savera Homestay App to home screen"
+          aria-label={`Install ${appName} to home screen`}
           className={`min-h-[44px] inline-flex items-center justify-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-amber-400 hover:bg-amber-300 active:scale-95 text-forest-950 shadow-md transition-all border border-amber-300/40 cursor-pointer ${className}`}
         >
           <Download className="w-4 h-4 text-forest-950" />
-          <span>Install App</span>
+          <span>{label}</span>
         </button>
       )}
 
@@ -165,7 +209,7 @@ export default function PWAInstaller({
             </div>
 
             <h3 className="font-serif font-bold text-lg text-forest-900 mb-1">
-              Install Savera Homestay App
+              Install {appName}
             </h3>
             <p className="text-xs text-forest-700 mb-4 leading-relaxed">
               Add our boutique mountain homestay app to your home screen for instant in-room concierge, offline access, and fast booking.
