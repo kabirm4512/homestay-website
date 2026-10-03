@@ -508,11 +508,11 @@ export default function DateRangePicker({
             className={`${
               mode === 'popover'
                 ? `fixed sm:absolute inset-x-3 bottom-3 sm:inset-x-auto ${
+                    // On larger screens the mobile 'bottom-3' must be cleared, otherwise top+bottom
+                    // squeeze the calendar to zero height (it looked like it never opened)
                     popoverPosition === 'top'
-                      ? 'sm:bottom-full sm:mb-2'
-                      : popoverPosition === 'bottom'
-                      ? 'sm:top-full sm:mt-2'
-                      : 'sm:top-full sm:mt-2'
+                      ? 'sm:top-auto sm:bottom-full sm:mb-2'
+                      : 'sm:bottom-auto sm:top-full sm:mt-2'
                   } sm:left-0 sm:w-[620px] max-w-[calc(100vw-24px)] z-50 bg-white rounded-3xl shadow-2xl border border-sand-300 overflow-hidden animate-slide-up sm:animate-fade-in`
                 : 'w-full bg-sand-50/50 rounded-3xl border border-sand-300/80 p-4 sm:p-6 overflow-hidden'
             }`}
