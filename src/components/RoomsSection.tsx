@@ -92,6 +92,26 @@ export default function RoomsSection({
     }
   }, [initialDates?.checkIn, initialDates?.checkOut]);
 
+  // If the page stays open past midnight (IST), move a past check-in date to today so the
+  // card always shows a bookable night's price.
+  useEffect(() => {
+    const roll = () => {
+      const today = getTodayStr();
+      setCheckIn((prev) => {
+        if (prev >= today) return prev;
+        setCheckOut((out) => (out > today ? out : addDays(today, 1)));
+        return today;
+      });
+    };
+    const id = setInterval(roll, 60_000);
+    document.addEventListener('visibilitychange', roll);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', roll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDatesChange = (range: { checkIn: string; checkOut: string; nights: number }) => {
     const safeIn = range.checkIn || getTodayStr();
     const safeOut = (!range.checkOut || range.checkOut <= safeIn) ? addDays(safeIn, 1) : range.checkOut;

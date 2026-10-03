@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ZodError, ZodSchema } from 'zod';
 import { log } from './logger';
-import { DatabaseNotConfiguredError } from './db';
+import { DatabaseNotConfiguredError, ensureHealthyPool, markPoolHealthy, resetSql } from './db';
 
 export const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' };
 
@@ -15,6 +15,9 @@ export class HttpError extends Error {
     this.code = code;
   }
 }
+
+/** Public, shared data: the CDN may serve it for a few seconds, then refreshes in the background. */
+export const PUBLIC_SHORT_CACHE = { 'Cache-Control': 'public, max-age=0, s-maxage=10, stale-while-revalidate=60' };
 
 export function ok(body: Record<string, unknown>, init: { status?: number; headers?: Record<string, string> } = {}) {
   return NextResponse.json({ success: true, ...body }, { status: init.status || 200, headers: { ...NO_STORE, ...(init.headers || {}) } });
@@ -47,18 +50,51 @@ function formatZodError(err: ZodError): string {
   return `Invalid request. ${path}${first.message}`;
 }
 
-/** Wraps a route handler: maps HttpError to its status, logs everything else as 500. */
-export function handler<A extends unknown[]>(name: string, fn: (...args: A) => Promise<Response>) {
+class RequestTimeout extends Error {}
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RequestTimeout()), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => timer && clearTimeout(timer));
+}
+
+export interface HandlerOptions {
+  /** Time limit for one attempt (default: 10 s for reads, 25 s for writes). */
+  timeoutMs?: number;
+}
+
+/**
+ * Wraps a route handler: maps HttpError to its status, logs everything else as 500, and
+ * never lets a request hang. Before work it checks a possibly stale database pool; a read
+ * that still times out gets a fresh pool and one retry; a write that times out gets a
+ * fresh pool and a 503 so the next attempt works (writes are never retried automatically).
+ */
+export function handler<A extends unknown[]>(name: string, fn: (...args: A) => Promise<Response>, options: HandlerOptions = {}) {
   return async (...args: A): Promise<Response> => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const request = args[0] instanceof Request ? args[0] : null;
+    const isRead = !request || request.method === 'GET' || request.method === 'HEAD';
+    const limit = options.timeoutMs ?? (isRead ? 10_000 : 25_000);
     try {
-      // Never leave a request hanging: answer 503 after 25 s so the screen can recover.
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new HttpError(503, 'The server is taking too long. Please try again.', 'TIMEOUT')), 25000);
-      });
-      return await Promise.race([fn(...args), timeout]);
+      await ensureHealthyPool();
+      let response: Response;
+      try {
+        response = await withTimeout(fn(...args), limit);
+      } catch (err) {
+        if (!(err instanceof RequestTimeout)) throw err;
+        log.error(`${name}.timeout`, err);
+        resetSql();
+        if (!isRead) throw new HttpError(503, 'The server took too long. Nothing may have been saved; please try again.', 'TIMEOUT');
+        response = await withTimeout(fn(...args), limit);
+      }
+      markPoolHealthy();
+      return response;
     } catch (err) {
-      if (err instanceof HttpError && err.code === 'TIMEOUT') log.error(`${name}.timeout`, err);
+      if (err instanceof RequestTimeout) {
+        resetSql();
+        return fail(503, 'The server is taking too long. Please try again.', 'TIMEOUT');
+      }
       if (err instanceof HttpError) return fail(err.status, err.message, err.code);
       if (err instanceof DatabaseNotConfiguredError) {
         log.error(`${name}.db_not_configured`, err);
@@ -66,8 +102,6 @@ export function handler<A extends unknown[]>(name: string, fn: (...args: A) => P
       }
       log.error(`${name}.failed`, err);
       return fail(500, 'Something went wrong. Please try again.');
-    } finally {
-      if (timer) clearTimeout(timer);
     }
   };
 }

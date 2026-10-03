@@ -52,4 +52,4 @@ export const POST = handler('uploads.create', async (request: Request) => {
     actor,
   });
   return ok({ file: stored }, { status: 201 });
-});
+}, { timeoutMs: 60_000 });

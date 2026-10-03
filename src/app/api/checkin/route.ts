@@ -293,4 +293,4 @@ export const POST = handler('checkin.post', async (request: Request) => {
     },
     { status: 201 }
   );
-});
+}, { timeoutMs: 60_000 });

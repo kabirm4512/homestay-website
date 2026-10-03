@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handler, ok, readJson, HttpError, clientIp } from '@/lib/server/http';
+import { handler, ok, readJson, HttpError, clientIp, PUBLIC_SHORT_CACHE } from '@/lib/server/http';
 import { getStaff, requireStaff, ROLES } from '@/lib/server/auth/staff-session';
 import { listRoomCategories, saveRoomCategory, deleteRoomCategory } from '@/lib/server/repos/rooms';
 import { persistDataUrl } from '@/lib/server/repos/files';
@@ -12,7 +12,8 @@ export const revalidate = 0;
 export const GET = handler('rooms.list', async (request: Request) => {
   const all = new URL(request.url).searchParams.get('all') === '1';
   const includeInactive = all && Boolean(await getStaff(request));
-  return ok({ data: await listRoomCategories({ includeInactive }) });
+  // The public list is the same for everyone and can be served from the CDN briefly
+  return ok({ data: await listRoomCategories({ includeInactive }) }, all ? {} : { headers: PUBLIC_SHORT_CACHE });
 });
 
 const RoomInput = z
@@ -39,7 +40,7 @@ export const POST = handler('rooms.save', async (request: Request) => {
   const { before, after } = await saveRoomCategory({ ...(body as Record<string, unknown>), name: body.name, images } as never);
   await audit({ actor, action: before ? 'update' : 'create', entity: 'room_category', entityId: after.id, before, after, ip: clientIp(request) });
   return ok({ data: after });
-});
+}, { timeoutMs: 60_000 });
 
 /** Admin: delete a room category. */
 export const DELETE = handler('rooms.delete', async (request: Request) => {

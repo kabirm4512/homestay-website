@@ -75,9 +75,23 @@ export async function fetchLiveTariffs(force = false): Promise<LiveTariffData> {
 
   inFlight = (async () => {
     try {
-      const res = await fetch('/api/tariffs', { cache: 'no-store' });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || `Live tariffs request failed (${res.status})`);
+      // Up to 3 quick attempts: a slow or failed first answer is retried instead of
+      // leaving guests on "price on request".
+      let json: unknown = null;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch('/api/tariffs', { cache: 'no-store', signal: AbortSignal.timeout(attempt === 0 ? 8000 : 12000) });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) throw new Error((body as { error?: string } | null)?.error || `Live tariffs request failed (${res.status})`);
+          json = body;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        }
+      }
+      if (!json) throw lastError instanceof Error ? lastError : new Error('Live tariffs unavailable');
       const data: LiveTariffData = { ...parseTariffResponse(json), fetchedAt: Date.now() };
       cached = data;
       listeners.forEach((fn) => fn(data));
@@ -122,8 +136,19 @@ export function useLiveTariffs(): LiveTariffState {
     };
     listeners.add(listener);
     load(false);
+    // Pick up price changes when the guest comes back to the tab (cached copy older than a minute)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    // A failed load is retried automatically every 20 s
+    const retry = setInterval(() => {
+      if (!cached || Date.now() - cached.fetchedAt > MAX_AGE_MS * 5) load(true);
+    }, 20_000);
     return () => {
       listeners.delete(listener);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(retry);
     };
   }, [load]);
 
@@ -138,4 +163,9 @@ export function useLiveTariffs(): LiveTariffState {
     error,
     reload,
   };
+}
+
+// Warm the cache as early as possible on page load (the rooms section reads it when it mounts)
+if (typeof window !== 'undefined') {
+  fetchLiveTariffs().catch(() => {});
 }

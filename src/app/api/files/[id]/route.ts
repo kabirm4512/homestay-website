@@ -31,4 +31,4 @@ export const GET = handler('files.get', async (request: Request, ctx: { params: 
       'X-Content-Type-Options': 'nosniff',
     },
   });
-});
+}, { timeoutMs: 60_000 });

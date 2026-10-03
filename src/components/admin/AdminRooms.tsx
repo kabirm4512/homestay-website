@@ -472,7 +472,7 @@ export default function AdminRooms({
     setEditingSeason(null);
     setSeasonForm({
       name: '',
-      seasonType: 'season',
+      seasonType: undefined,
       startDate: todayInIST(),
       endDate: addCalendarDays(todayInIST(), 30) || todayInIST(),
       description: '',
@@ -495,6 +495,11 @@ export default function AdminRooms({
 
     if (seasonForm.startDate > seasonForm.endDate) {
       showToast('Start date cannot be after end date', 'error');
+      return;
+    }
+
+    if (seasonForm.seasonType !== 'season' && seasonForm.seasonType !== 'off_season') {
+      showToast('Choose whether these dates use Peak or Off-season prices', 'error');
       return;
     }
 
@@ -1282,7 +1287,7 @@ export default function AdminRooms({
                   Season Type *
                 </label>
                 <select
-                  value={seasonForm.seasonType || 'season'}
+                  value={seasonForm.seasonType || ''}
                   onChange={(e) =>
                     setSeasonForm({
                       ...seasonForm,
@@ -1291,9 +1296,15 @@ export default function AdminRooms({
                   }
                   className="w-full px-3 py-2 bg-sand-50 border border-sand-300 rounded-xl text-xs font-semibold"
                 >
-                  <option value="season">Peak Season (Higher Tariffs)</option>
-                  <option value="off_season">Off-Season / Lean (Discount Tariffs)</option>
+                  <option value="" disabled>Choose which prices these dates use…</option>
+                  <option value="season">Peak season prices</option>
+                  <option value="off_season">Off-season prices</option>
                 </select>
+                {seasonForm.seasonType === 'season' && /off|lean|low/i.test(seasonForm.name || '') && (
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    The name says off-season, but these dates are set to use Peak prices. Check the choice above.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

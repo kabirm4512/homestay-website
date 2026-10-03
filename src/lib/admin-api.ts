@@ -22,6 +22,7 @@ export async function adminRequestJson<T = unknown>(
       headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
       credentials: 'same-origin',
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      signal: AbortSignal.timeout(65_000),
     });
     const json = await res.json().catch(() => null);
     if (res.ok && json?.success) return { ok: true, status: res.status, data: json as T };
@@ -35,7 +36,7 @@ export async function adminRequestJson<T = unknown>(
         : `Request failed (${res.status})`;
     return { ok: false, status: res.status, data: json as T, error: json?.error || fallback };
   } catch {
-    return { ok: false, status: 0, data: null, error: 'Network error: the change was not saved.' };
+    return { ok: false, status: 0, data: null, error: 'Could not reach the server (or it took too long). The change may not be saved; please try again.' };
   }
 }
 

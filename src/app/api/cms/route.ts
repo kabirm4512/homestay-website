@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handler, ok, readJson, clientIp } from '@/lib/server/http';
+import { handler, ok, readJson, clientIp, PUBLIC_SHORT_CACHE } from '@/lib/server/http';
 import { requireStaff, ROLES } from '@/lib/server/auth/staff-session';
 import { getCmsContent, putSetting, getSetting, SETTINGS } from '@/lib/server/repos/settings';
 import { persistDataUrl } from '@/lib/server/repos/files';
@@ -8,7 +8,7 @@ import { audit } from '@/lib/server/audit';
 export const dynamic = 'force-dynamic';
 
 /** Public: website copy (hero slides, about, site info, reviews). */
-export const GET = handler('cms.get', async () => ok({ data: await getCmsContent() }));
+export const GET = handler('cms.get', async () => ok({ data: await getCmsContent() }, { headers: PUBLIC_SHORT_CACHE }));
 
 const Body = z.object({
   type: z.enum(['hero_carousel', 'about_section', 'site_info', 'reviews']),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handler, ok, readJson, HttpError, clientIp } from '@/lib/server/http';
+import { handler, ok, readJson, HttpError, clientIp, PUBLIC_SHORT_CACHE } from '@/lib/server/http';
 import { requireStaff, ROLES } from '@/lib/server/auth/staff-session';
 import { sanitizeGstConfig } from '@/lib/gst';
 import {
@@ -24,7 +24,7 @@ async function payload() {
 }
 
 /** Public: live tariffs, seasonal calendar, GST rules and add-on rates (every price is computed from these). */
-export const GET = handler('tariffs.get', async () => ok(await payload()));
+export const GET = handler('tariffs.get', async () => ok(await payload(), { headers: PUBLIC_SHORT_CACHE }));
 
 const Price = z.number().positive('Every room price must be above ₹0').max(10_000_000);
 const Rates = z.object({ EP: Price, CP: Price, MAP: Price, AP: Price });
