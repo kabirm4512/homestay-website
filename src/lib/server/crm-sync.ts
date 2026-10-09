@@ -11,10 +11,12 @@ import type { StaffContext } from './auth/staff-session';
 import { RecordCollection, isRecordCollection, getRecord, upsertRecord, deleteRecord, listRecords, listRecordsMany } from './repos/records';
 import { upsertCrmBooking, getCrmBooking, deleteBooking, listCrmBookings } from './repos/bookings';
 import { upsertPhysicalRoom, deletePhysicalRoom, findPhysicalRoom, listPhysicalRooms } from './repos/physical-rooms';
-import { getGstConfig, getTariffData } from './repos/settings';
-import { recalculateFolioTotals } from '@/lib/folio';
-import { addCalendarDays, todayInIST } from '@/lib/tariff-calculator';
-import { lastClosedDate } from './day-close';
+import { getTariffData } from './repos/settings';
+import { addCalendarDays, isCalendarDate, todayInIST } from '@/lib/tariff-calculator';
+import { saveFolioFromDevice, setLinkedChargeStatus } from './folio-store';
+import { createExpense, reviewExpense } from './expenses';
+import { ensureGstModeApplied } from './gst-sweep';
+import type { Expense, RoomBlock } from '@/types/crm';
 
 /**
  * Server side of the CRM's data sync. The browser sends upserts/deletes per record;
@@ -43,12 +45,14 @@ export interface SyncResult {
 
 const MANAGER_WRITE: SyncCollection[] = [
   'crmBookings', 'physicalRooms', 'folios', 'foodOrders', 'dispatchRequests', 'housekeepingTasks',
-  'expenses', 'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts',
+  'expenses', 'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts', 'roomBlocks',
 ];
 const KITCHEN_WRITE: SyncCollection[] = ['foodOrders', 'menuItems', 'staffAlerts'];
 const ADMIN_ONLY_DELETE: SyncCollection[] = ['crmBookings', 'physicalRooms', 'expenses', 'folios', 'activityLogs'];
 
 function canWrite(role: StaffRole, c: SyncCollection, op: 'upsert' | 'delete'): boolean {
+  // Recorded money is never deleted, by anyone: an admin voids it with a reason instead.
+  if (op === 'delete' && (c === 'expenses' || c === 'folios')) return false;
   if (role === 'admin') return true;
   if (op === 'delete' && ADMIN_ONLY_DELETE.includes(c)) return false;
   if (role === 'manager') return MANAGER_WRITE.includes(c);
@@ -60,27 +64,10 @@ export function readableCollections(role: StaffRole): SyncCollection[] {
   if (role === 'kitchen_staff') return ['foodOrders', 'menuItems', 'physicalRooms', 'staffAlerts'];
   const all: SyncCollection[] = [
     'crmBookings', 'physicalRooms', 'folios', 'foodOrders', 'dispatchRequests', 'housekeepingTasks',
-    'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts',
+    'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts', 'roomBlocks',
   ];
-  return role === 'admin' ? [...all, 'expenses'] : all;
-}
-
-/** Folio rules: non-admins can add payments but not change or remove existing ones, and can only void charges. */
-function checkFolioChange(before: GuestFolio | null, after: GuestFolio, role: StaffRole) {
-  if (!before || role === 'admin') return;
-  for (const p of before.payments || []) {
-    const now = (after.payments || []).find((x) => x.id === p.id);
-    if (!now || now.amount !== p.amount || now.paymentMethod !== p.paymentMethod) {
-      throw new HttpError(403, 'Recorded payments cannot be changed or removed. Ask an admin to make a correction.', 'LEDGER_LOCKED');
-    }
-  }
-  for (const c of before.charges || []) {
-    const now = (after.charges || []).find((x) => x.id === c.id);
-    if (!now) throw new HttpError(403, 'Charges cannot be deleted; void them instead.', 'LEDGER_LOCKED');
-    if (c.chargeStatus !== 'void' && now.chargeStatus !== 'void' && now.amount !== c.amount) {
-      throw new HttpError(403, 'Posted charge amounts cannot be edited; void and re-post instead.', 'LEDGER_LOCKED');
-    }
-  }
+  // Managers see their own expenses (the server filters them); admins see all.
+  return [...all, 'expenses'];
 }
 
 /** Kitchen accounts may only change one field per collection; everything else is kept from the stored record. */
@@ -111,7 +98,7 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
       }
       const record = op.record as unknown as CRMBooking;
       if (!record || record.id !== op.id) throw new HttpError(400, 'Record id mismatch.');
-      const { before, after } = await upsertCrmBooking(record, actor);
+      const { before, after } = await upsertCrmBooking(record, actor, { role: staff.role });
       await audit({ actor, action: before ? 'update' : 'create', entity: 'booking', entityId: op.id, before, after, ip });
       return { ...base, ok: true, record: after };
     }
@@ -122,10 +109,24 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
         await audit({ actor, action: 'delete', entity: 'physical_room', entityId: op.id, before, ip });
         return { ...base, ok: true, deleted: true };
       }
-      const record = op.record as unknown as PhysicalRoom;
+      let record = op.record as unknown as PhysicalRoom;
       if (!record || record.id !== op.id || typeof record.roomNumber !== 'number') throw new HttpError(400, 'Invalid room record.');
       const existing = await findPhysicalRoom({ id: op.id });
       if (!existing && staff.role !== 'admin') throw new HttpError(403, 'Only admins can add rooms.', 'FORBIDDEN');
+      if (existing && staff.role !== 'admin') {
+        // Desk staff change status, housekeeping and notes only. Room number, category
+        // (which drives website inventory) and the QR secret stay as the admin set them.
+        record = {
+          ...record,
+          roomNumber: existing.roomNumber,
+          name: existing.name,
+          categoryId: existing.categoryId,
+          categoryCode: existing.categoryCode,
+          categoryName: existing.categoryName,
+          floorLevel: existing.floorLevel,
+          qrSecretToken: existing.qrSecretToken,
+        };
+      }
       const { before, after } = await upsertPhysicalRoom(record);
       await audit({ actor, action: before ? 'update' : 'create', entity: 'physical_room', entityId: op.id, before, after, ip });
       return { ...base, ok: true, record: after };
@@ -149,29 +150,35 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
     if (collection === 'activityLogs' && before && staff.role !== 'admin') {
       throw new HttpError(403, 'Activity log entries cannot be edited.', 'LEDGER_LOCKED');
     }
-    if (collection === 'expenses' && before && staff.role !== 'admin') {
-      throw new HttpError(403, 'Only admins can edit recorded expenses.', 'LEDGER_LOCKED');
+    if (collection === 'expenses') {
+      // Managers log (signed, server-stamped); admins approve or void. Same rules as /api/expenses.
+      const saved = before
+        ? await reviewExpense(op.id, record as unknown as Partial<Expense>, staff, ip)
+        : (await createExpense(record as unknown as Expense, staff, ip)).expense;
+      return { ...base, ok: true, record: saved };
+    }
+    if (collection === 'roomBlocks') {
+      const b = record as unknown as RoomBlock;
+      if (!isCalendarDate(String(b.fromDate)) || !isCalendarDate(String(b.toDate)) || b.toDate <= b.fromDate) {
+        throw new HttpError(400, 'A block needs a start date and an end date after it.');
+      }
+      const reason = typeof b.reason === 'string' ? b.reason.trim().slice(0, 200) : '';
+      if (reason.length < 3) throw new HttpError(400, 'Please give a reason for blocking the room.');
+      const room = await findPhysicalRoom({ id: b.roomId });
+      if (!room) throw new HttpError(400, 'Unknown room.');
+      const clash = (await listCrmBookings()).find(
+        (k) => k.roomId === b.roomId && !['cancelled', 'checked_out'].includes(k.bookingStatus) && k.checkInDate < b.toDate && k.checkOutDate > b.fromDate
+      );
+      if (clash) throw new HttpError(409, `Room ${room.roomNumber} is booked for ${clash.guest?.fullName || 'a guest'} (${clash.checkInDate} → ${clash.checkOutDate}). Move that stay first.`, 'ROOM_CONFLICT');
+      record = { ...b, reason, roomNumber: room.roomNumber, createdByName: (before as RoomBlock | null)?.createdByName || staff.fullName, createdAt: (before as RoomBlock | null)?.createdAt || new Date().toISOString() } as unknown as typeof record;
     }
     if (collection === 'foodOrders' && !before && staff.role !== 'admin') {
       throw new HttpError(400, 'New orders must be placed through the ordering screen.', 'USE_ORDER_API');
     }
     if (collection === 'folios') {
-      const folio = record as unknown as GuestFolio;
-      checkFolioChange(before as unknown as GuestFolio | null, folio, staff.role);
-      // Totals are always recomputed on the server (GST included); stamp who posted what.
-      const gst = await getGstConfig();
-      const charges = (folio.charges || []).map((c) => (c.postedByName ? c : { ...c, postedByName: staff.fullName }));
-      const payments = (folio.payments || []).map((p) =>
-        p.collectedById ? p : { ...p, collectedById: staff.id, collectedByName: p.collectedByName || staff.fullName }
-      );
-      record = recalculateFolioTotals(folio, charges, payments, gst) as unknown as typeof record;
-    }
-    if (collection === 'expenses' && !before) {
-      const closedUpTo = staff.role === 'admin' ? null : await lastClosedDate();
-      if (closedUpTo && typeof record.expenseDate === 'string' && record.expenseDate <= closedUpTo) {
-        throw new HttpError(403, `The books are closed up to ${closedUpTo}. Ask an admin to record this expense.`, 'DAY_CLOSED');
-      }
-      record = { ...record, loggedByName: (record.loggedByName as string) || staff.fullName, loggedById: staff.id };
+      // Locked, merged and rule-checked against the stored bill (see folio-store.ts)
+      const saved = await saveFolioFromDevice(record as unknown as GuestFolio, staff, ip);
+      return { ...base, ok: true, record: saved };
     }
 
     await upsertRecord(collection, record, actor);
@@ -204,17 +211,13 @@ async function syncLinkedFolioCharge(
   const target = status === 'cancelled' ? 'void' : posted.includes(status) ? 'posted' : null;
   if (!target) return;
   const folioId = after.folioId as string | undefined;
-  const folios = folioId ? [await getRecord<GuestFolio>('folios', folioId)].filter(Boolean) as GuestFolio[] : [];
-  for (const folio of folios) {
-    if (!folio.charges.some((c) => c.sourceReferenceId === after.id && c.chargeStatus !== target)) continue;
-    const charges = folio.charges.map((c) => (c.sourceReferenceId === after.id ? { ...c, chargeStatus: target as 'posted' | 'void' } : c));
-    const gst = await getGstConfig();
-    await upsertRecord('folios', recalculateFolioTotals(folio, charges, folio.payments, gst), actor);
-  }
+  if (!folioId) return;
+  await setLinkedChargeStatus(folioId, String(after.id), target as 'posted' | 'void', actor, target === 'void' ? String(after.rejectionReason || 'Order / request cancelled') : undefined);
 }
 
 /** The CRM working set for a role (recent and upcoming data; older history stays in the database). */
 export async function loadCrmState(staff: StaffContext) {
+  await ensureGstModeApplied();
   const readable = readableCollections(staff.role);
   const since = addCalendarDays(todayInIST(), -120);
   const state: Record<string, unknown> = {};
@@ -242,6 +245,7 @@ export async function loadCrmState(staff: StaffContext) {
     expenses: 5000,
     activityLogs: 200,
     staffAlerts: 100,
+    roomBlocks: 500,
   };
   const recordCollections = readable.filter((c) => c !== 'crmBookings' && c !== 'physicalRooms') as RecordCollection[];
   tasks.push(
@@ -257,6 +261,9 @@ export async function loadCrmState(staff: StaffContext) {
   );
   await Promise.all(tasks);
 
+  if (staff.role === 'manager' && Array.isArray(state.expenses)) {
+    state.expenses = (state.expenses as Expense[]).filter((e) => e.loggedById === staff.id);
+  }
   if (staff.role === 'kitchen_staff' && Array.isArray(state.foodOrders)) {
     // Kitchen sees orders, not guest phone numbers or folio links
     state.foodOrders = (state.foodOrders as FoodOrder[]).map((o) => ({ ...o, folioId: '' }));

@@ -19,6 +19,8 @@ import {
   Share2,
 } from 'lucide-react';
 import ManualBookingModal from '@/components/crm/ManualBookingModal';
+import { useCRM } from '@/context/CRMContext';
+import type { PaymentMethod } from '@/types/crm';
 
 interface AdminBookingsProps {
   bookings: Booking[];
@@ -37,6 +39,18 @@ export default function AdminBookings({
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isManualBookingModalOpen, setIsManualBookingModalOpen] = useState(false);
   const [assignFrom, setAssignFrom] = useState<Booking | null>(null);
+  const { currentUser, folios, recordWebAdvance } = useCRM();
+  const isManager = currentUser?.role === 'manager';
+  const [advanceFor, setAdvanceFor] = useState<string | null>(null);
+  const [advAmount, setAdvAmount] = useState('');
+  const [advMethod, setAdvMethod] = useState<PaymentMethod>('upi');
+  const [advRef, setAdvRef] = useState('');
+  const [advSign, setAdvSign] = useState(false);
+  /** Advances already recorded (signed) for a website request. */
+  const advanceOf = (bookingId: string) => {
+    const f = folios.find((x) => x.bookingId === bookingId && x.status !== 'void');
+    return f ? f.totalPaid : 0;
+  };
 
   // Update Status via API
   const handleUpdateStatus = async (
@@ -286,23 +300,56 @@ export default function AdminBookings({
                     <option value="cancelled">Cancelled</option>
                   </select>
 
-                  <select
-                    value={b.payment_status}
-                    disabled={updatingId === b.id}
-                    onChange={(e) =>
-                      handleUpdateStatus(
-                        b.id,
-                        b.status,
-                        e.target.value as Booking['payment_status']
-                      )
-                    }
-                    className="bg-sand-50 border border-sand-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-forest-900 focus:ring-2 focus:ring-forest-600"
-                  >
-                    <option value="unpaid">Unpaid</option>
-                    <option value="deposit_paid">Deposit Paid</option>
-                    <option value="fully_paid">Fully Paid</option>
-                  </select>
+                  {/* Money received is recorded as a signed advance (it counts in collections and moves to the room bill) */}
+                  <span className="text-[11px] font-semibold text-forest-800 bg-sand-50 border border-sand-200 rounded-lg px-2.5 py-1.5">
+                    Advance: ₹{advanceOf(b.id).toLocaleString('en-IN')}
+                  </span>
+                  {isManager && (b.status === 'pending' || b.status === 'confirmed') && (
+                    <button
+                      onClick={() => {
+                        setAdvanceFor(advanceFor === b.id ? null : b.id);
+                        setAdvAmount('');
+                        setAdvRef('');
+                        setAdvSign(false);
+                      }}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-[#142820] text-white"
+                    >
+                      + Record advance
+                    </button>
+                  )}
                 </div>
+                {advanceFor === b.id && (
+                  <div className="w-full mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <input value={advAmount} onChange={(e) => setAdvAmount(e.target.value)} inputMode="decimal" placeholder="Amount ₹" className="w-28 px-2 py-1.5 rounded-lg border border-sand-300 font-mono bg-white" />
+                      <select value={advMethod} onChange={(e) => setAdvMethod(e.target.value as PaymentMethod)} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white">
+                        <option value="upi">UPI</option>
+                        <option value="bank_transfer">Bank</option>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                      </select>
+                      <input value={advRef} onChange={(e) => setAdvRef(e.target.value)} placeholder="UTR / reference" className="flex-1 min-w-[120px] px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                    </div>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input type="checkbox" checked={advSign} onChange={(e) => setAdvSign(e.target.checked)} className="mt-0.5" />
+                      <span>I, <strong>{currentUser?.fullName}</strong>, confirm I received ₹{(Number(advAmount) || 0).toLocaleString('en-IN')} from {b.guest_name}.</span>
+                    </label>
+                    <button
+                      onClick={async () => {
+                        const amount = Number(advAmount);
+                        if (!(amount > 0)) return showToast('Enter the amount received.', 'error');
+                        if (!advSign) return showToast('Tick the confirmation to sign this advance.', 'error');
+                        if (await recordWebAdvance(b.id, { amount, paymentMethod: advMethod, transactionReference: advRef.trim() || undefined, signOffConfirmed: true })) {
+                          setAdvanceFor(null);
+                          onRefresh();
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#142820] text-white font-bold"
+                    >
+                      Record advance (signed)
+                    </button>
+                  </div>
+                )}
 
                 {/* Direct Action buttons */}
                 <div className="flex items-center space-x-2">

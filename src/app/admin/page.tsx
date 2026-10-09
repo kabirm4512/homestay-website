@@ -42,6 +42,7 @@ import TapeChart from '@/components/crm/TapeChart';
 import MasterBookingsList from '@/components/crm/MasterBookingsList';
 import OperationsHub from '@/components/crm/OperationsHub';
 import KitchenPortal from '@/components/crm/KitchenPortal';
+import ManagerCashbook from '@/components/crm/ManagerCashbook';
 import FinancialLedger from '@/components/crm/FinancialLedger';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
 import BottomNav from '@/components/pwa/BottomNav';
@@ -59,7 +60,7 @@ import { INITIAL_HERO_SLIDES, INITIAL_ABOUT_DATA, INITIAL_SITE_INFO, INITIAL_REV
 type PrimaryWorkspace = 'front_desk' | 'orders_concierge' | 'operations' | 'ledger' | 'settings';
 
 export default function AdminPage() {
-  const { role, currentUser, dispatchRequests, foodOrders, authStatus, signOut } = useCRM();
+  const { role, currentUser, dispatchRequests, foodOrders, authStatus, signOut, showToast: crmShowToast } = useCRM();
 
   // Authentication comes from the server session (httpOnly cookie); nothing in localStorage grants access.
   const isAuthenticated = authStatus === 'signed_in' && Boolean(currentUser) && !currentUser?.mustChangePassword;
@@ -160,11 +161,11 @@ export default function AdminPage() {
   }, []);
 
   // Toast feedback
-  const [localToast, setLocalToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setLocalToast({ message, type });
-    setTimeout(() => setLocalToast(null), 4000);
-  }, []);
+  // One toast system for the whole app (rendered by <ToastHost /> in the root layout)
+  const showToast = useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'success') => crmShowToast(message, type),
+    [crmShowToast]
+  );
 
   // Auto-switch for kitchen role
   useEffect(() => {
@@ -228,7 +229,7 @@ export default function AdminPage() {
   }
 
   const pendingDispatchCount = dispatchRequests.filter((d) => d.dispatchStatus === 'pending_confirmation').length;
-  const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending').length;
+  const pendingKitchenCount = foodOrders.filter((o) => o.status === 'pending' || o.status === 'pending_manager_approval').length;
   const totalOrdersBadge = pendingKitchenCount + pendingDispatchCount;
 
   return (
@@ -259,7 +260,8 @@ export default function AdminPage() {
 
           {/* Header Quick Actions (+ Quick Expense) & Staff Tools */}
           <div className="flex items-center space-x-2 sm:space-x-2.5 overflow-x-auto no-scrollbar py-1">
-            {/* Quick Action 2: + Quick Expense in Warm Terracotta */}
+            {/* Quick Action 2: + Quick Expense (managers log expenses; admins review them) */}
+            {currentUser?.role === 'manager' && (
             <button
               onClick={() => setIsQuickExpenseOpen(true)}
               className="min-h-[38px] flex items-center space-x-1.5 text-xs font-bold text-white bg-[#C85A32] hover:bg-[#B34D28] active:scale-95 px-3 py-1.5 rounded-xl shadow-[0_2px_8px_rgba(200,90,50,0.35)] transition-all cursor-pointer shrink-0"
@@ -268,6 +270,7 @@ export default function AdminPage() {
               <Receipt className="w-3.5 h-3.5 text-white" />
               <span>Quick Expense</span>
             </button>
+            )}
 
             {/* Dine-In QR Standees Generator */}
             <button
@@ -648,9 +651,10 @@ export default function AdminPage() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-sand-200">
                   <div>
-                    <h3 className="font-serif font-bold text-lg text-forest-950">Manager Expenses</h3>
-                    <p className="text-xs text-forest-600">Quickly record daily homestay expenses or review financial ledger.</p>
+                    <h3 className="font-serif font-bold text-lg text-forest-950">{currentUser?.role === 'manager' ? 'My expenses & cash' : 'Expenses & manager cash'}</h3>
+                    <p className="text-xs text-forest-600">{currentUser?.role === 'manager' ? 'Log signed expenses; see your collections and cash in hand.' : 'Managers log and sign every expense and collection; you review, approve or void them here.'}</p>
                   </div>
+                  {currentUser?.role === 'manager' && (
                   <button
                     onClick={() => setIsQuickExpenseOpen(true)}
                     className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-forest-950 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 cursor-pointer"
@@ -658,8 +662,9 @@ export default function AdminPage() {
                     <Plus className="w-4 h-4" />
                     <span>Log New Expense</span>
                   </button>
+                  )}
                 </div>
-                <FinancialLedger />
+                {currentUser?.role === 'admin' ? <FinancialLedger /> : <ManagerCashbook />}
               </div>
             )}
           </>

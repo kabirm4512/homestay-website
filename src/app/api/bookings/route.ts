@@ -123,6 +123,14 @@ export const POST = handler('bookings.create', async (request: Request) => {
     ]
       .filter(Boolean)
       .join(' '),
+    addons: [
+      ...(body.addons?.airport_transfer
+        ? [{ code: 'airport_transfer' as const, title: 'Airport / station transfer (booked online)', amount: addonRates.airportTransfer }]
+        : []),
+      ...(body.addons?.bike_rental
+        ? [{ code: 'bike_rental' as const, title: `Scooty / bike rental, ${nights} day${nights === 1 ? '' : 's'} (booked online)`, amount: addonRates.bikeRentalPerNight * nights }]
+        : []),
+    ],
     totals: {
       roomSubtotal: totals.roomSubtotal,
       gstAmount: totals.gstAmount,

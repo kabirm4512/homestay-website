@@ -214,7 +214,7 @@ export const POST = handler('checkin.post', async (request: Request) => {
       body.action === 'check_in'
         ? { ...booking, bookingStatus: 'checked_in', tapeStatus: 'checked_in', checkedInAt: booking.checkedInAt || now, checkedInByManagerId: staff.id, checkedInByManagerName: staff.fullName }
         : { ...booking, bookingStatus: 'checked_out', tapeStatus: 'available', checkedOutAt: now, checkedOutByManagerId: staff.id, checkedOutByManagerName: staff.fullName };
-    const { after } = await upsertCrmBooking(next, actor);
+    const { after } = await upsertCrmBooking(next, actor, { role: staff.role });
     const room = await findPhysicalRoom({ id: booking.roomId });
     if (room) {
       await upsertPhysicalRoom({

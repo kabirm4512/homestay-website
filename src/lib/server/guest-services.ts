@@ -19,7 +19,7 @@ import { raiseStaffAlert } from './alerts';
 import { listRecords, upsertRecord, getRecord } from './repos/records';
 import { upsertCrmBooking, getCrmBooking } from './repos/bookings';
 import { getGstConfig, getTariffData } from './repos/settings';
-import { recalculateFolioTotals } from '@/lib/folio';
+import { ensureFolioTx, findFolioByBookingId, postChargeLocked, withFolioLock } from './folio-store';
 import { findCelebration } from '@/lib/celebrations';
 import { rentalRate, transferRate, VehicleTier } from '@/lib/transport-pricing';
 import { roundMoney } from '@/lib/gst';
@@ -30,45 +30,17 @@ import { roundMoney } from '@/lib/gst';
  */
 
 async function findFolioForBooking(booking: CRMBooking): Promise<GuestFolio | null> {
-  const folios = await listRecords<GuestFolio>('folios');
-  return folios.find((f) => f.bookingId === booking.id) || null;
+  return findFolioByBookingId(booking.id);
 }
 
-/** Returns the booking's folio, creating an empty one if the front desk hasn't yet. */
-export async function ensureFolio(booking: CRMBooking, actor: string): Promise<GuestFolio> {
-  const existing = await findFolioForBooking(booking);
-  if (existing) return existing;
-  const n = await nextCounter(getSql(), 'folio', 1001);
-  const folio: GuestFolio = {
-    id: `fol-${crypto.randomUUID()}`,
-    bookingId: booking.id,
-    guestId: booking.guestId,
-    guestName: booking.guest?.fullName || 'Guest',
-    roomNumber: booking.roomNumber,
-    roomName: booking.roomName,
-    folioNumber: `FOL-${new Date().getFullYear()}-${n}`,
-    status: 'open',
-    totalRoomCharges: 0,
-    totalFbCharges: 0,
-    totalAddonCharges: 0,
-    totalTax: 0,
-    discountAmount: 0,
-    netPayable: 0,
-    totalPaid: 0,
-    balanceDue: 0,
-    charges: [],
-    payments: [],
-  };
-  await upsertRecord('folios', folio, actor);
-  return folio;
+/** Posts a charge to the booking's bill under the bill's lock (created if missing). */
+async function postCharge(booking: CRMBooking, charge: Omit<FolioCharge, 'id' | 'folioId' | 'postedAt'>, actor: string): Promise<GuestFolio> {
+  return postChargeLocked(booking, charge, actor);
 }
 
-async function postCharge(folio: GuestFolio, charge: Omit<FolioCharge, 'id' | 'folioId' | 'postedAt'>, actor: string): Promise<GuestFolio> {
-  const gst = await getGstConfig();
-  const newCharge: FolioCharge = { ...charge, id: `chg-${crypto.randomUUID()}`, folioId: folio.id, postedAt: new Date().toISOString() };
-  const updated = recalculateFolioTotals(folio, [newCharge, ...folio.charges], folio.payments, gst);
-  await upsertRecord('folios', updated, actor);
-  return updated;
+/** The bill id for a new order/request (the bill is created under the lock if needed). */
+async function folioIdFor(booking: CRMBooking, actor: string): Promise<string> {
+  return withFolioLock(booking.id, async (tx, current) => (await ensureFolioTx(tx, current, booking, actor)).id);
 }
 
 function requireInHouse(booking: CRMBooking, allowConfirmed = false) {
@@ -107,7 +79,7 @@ export async function placeFoodOrder(input: {
   }
   if (items.length === 0) throw new HttpError(400, 'Your order is empty.');
   const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
-  const folio = await ensureFolio(input.booking, input.actor);
+  const folioId = await folioIdFor(input.booking, input.actor);
   const n = await nextCounter(getSql(), 'order', 1001);
   const order: FoodOrder = {
     id: `ord-${crypto.randomUUID()}`,
@@ -116,7 +88,7 @@ export async function placeFoodOrder(input: {
     roomNumber: input.booking.roomNumber,
     roomName: input.booking.roomName,
     bookingId: input.booking.id,
-    folioId: folio.id,
+    folioId,
     guestName: input.booking.guest?.fullName || 'Guest',
     status: 'pending_manager_approval',
     specialInstructions: input.specialInstructions?.slice(0, 500),
@@ -130,7 +102,7 @@ export async function placeFoodOrder(input: {
   };
   await upsertRecord('foodOrders', order, input.actor);
   const updatedFolio = await postCharge(
-    folio,
+    input.booking,
     {
       category: 'food_beverage',
       chargeStatus: 'pending',
@@ -156,7 +128,7 @@ export async function placeCelebration(input: { booking: CRMBooking; celebration
   requireInHouse(input.booking, true);
   const option = findCelebration(input.celebrationId);
   if (!option) throw new HttpError(400, 'Unknown celebration option.');
-  const folio = await ensureFolio(input.booking, input.actor);
+  const folioId = await folioIdFor(input.booking, input.actor);
   const n = await nextCounter(getSql(), 'celebration', 1001);
   const order: FoodOrder = {
     id: `ord-cel-${crypto.randomUUID()}`,
@@ -165,7 +137,7 @@ export async function placeCelebration(input: { booking: CRMBooking; celebration
     roomNumber: input.booking.roomNumber,
     roomName: input.booking.roomName,
     bookingId: input.booking.id,
-    folioId: folio.id,
+    folioId,
     guestName: input.booking.guest?.fullName || 'Guest',
     status: 'pending_manager_approval',
     specialInstructions: `🎉 Special Celebration: ${option.title}${input.notes ? ` — ${input.notes.slice(0, 300)}` : ''}`,
@@ -179,7 +151,7 @@ export async function placeCelebration(input: { booking: CRMBooking; celebration
   };
   await upsertRecord('foodOrders', order, input.actor);
   const updatedFolio = await postCharge(
-    folio,
+    input.booking,
     {
       category: 'miscellaneous',
       chargeStatus: 'pending',
@@ -252,7 +224,7 @@ export async function requestTransport(input: {
       vendorCost: Math.round(quotedPrice * 0.65),
     };
   }
-  const folio = await ensureFolio(input.booking, input.actor);
+  const folioId = await folioIdFor(input.booking, input.actor);
   const n = await nextCounter(getSql(), 'dispatch', 501);
   const full: TransportRequest = {
     id: `dsp-${crypto.randomUUID()}`,
@@ -261,7 +233,7 @@ export async function requestTransport(input: {
     roomNumber: input.booking.roomNumber,
     roomName: input.booking.roomName,
     bookingId: input.booking.id,
-    folioId: folio.id,
+    folioId,
     guestName: input.booking.guest?.fullName || 'Guest',
     guestContactPhone: (input.guestContactPhone || input.booking.guest?.phone || '').slice(0, 20),
     serviceType: input.serviceType,
@@ -280,7 +252,7 @@ export async function requestTransport(input: {
   full.homestayCommission = full.quotedPrice - full.vendorCost;
   await upsertRecord('dispatchRequests', full, input.actor);
   const updatedFolio = await postCharge(
-    folio,
+    input.booking,
     {
       category: input.serviceType === 'point_to_point' ? 'transport_transfer' : 'vehicle_rental',
       chargeStatus: 'pending',

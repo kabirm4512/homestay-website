@@ -57,7 +57,8 @@ export default function ManualBookingModal({
   onBookingCreated,
   fromWebBooking,
 }: ManualBookingModalProps) {
-  const { rooms, calculateDynamicTariff, createManualBooking, showToast, roomTariffs, tariffsStatus, gstConfig } = useCRM();
+  const { rooms, calculateDynamicTariff, createManualBooking, showToast, roomTariffs, tariffsStatus, gstConfig, currentUser } = useCRM();
+  const isManager = currentUser?.role === 'manager';
 
   // Selected room
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -76,6 +77,8 @@ export default function ManualBookingModal({
   // Extra Occupants (defaults to 0 as requested)
   const [extraAdultsCount, setExtraAdultsCount] = useState<number>(0);
   const [extraChildrenCount, setExtraChildrenCount] = useState<number>(0);
+  // Child ages (blank = unknown): children under the room type's free age are not charged
+  const [childAges, setChildAges] = useState<(number | null)[]>([]);
   const [infantsCount, setInfantsCount] = useState<number>(0);
   const [extraAdultChargePerNight, setExtraAdultChargePerNight] = useState<number>(1200);
   const [extraChildChargePerNight, setExtraChildChargePerNight] = useState<number>(600);
@@ -84,6 +87,7 @@ export default function ManualBookingModal({
   // Advance Payment
   const [advancePaid, setAdvancePaid] = useState<number>(0);
   const [advancePaymentMethod, setAdvancePaymentMethod] = useState<PaymentMethod>('upi');
+  const [advanceSignOff, setAdvanceSignOff] = useState(false);
 
   // Stage 2: Guest Contact Details
   const [guestName, setGuestName] = useState<string>('');
@@ -136,6 +140,7 @@ export default function ManualBookingModal({
       setMealPlan('CP');
       setExtraAdultsCount(0);
       setExtraChildrenCount(0);
+      setChildAges([]);
       setInfantsCount(0);
       setTapeStatus('checked_in');
       setAdvancePaid(0);
@@ -171,6 +176,7 @@ export default function ManualBookingModal({
         if (match) setSelectedRoomId(match.id);
         setExtraAdultsCount(Math.max(0, (first?.adults ?? 2) - 2));
         setExtraChildrenCount(first?.children ?? 0);
+        setChildAges(Array.isArray(first?.child_ages) ? first!.child_ages!.map((a) => (Number.isFinite(a) ? a : null)) : []);
         setGuestName(w.guest_name || '');
         setGuestPhone(w.phone || '');
         setGuestEmail(w.email || '');
@@ -231,6 +237,11 @@ export default function ManualBookingModal({
   const totalExtraCharges = totalExtraAdultCharges + totalExtraChildCharges;
 
   // Standard tariff suggestion from dynamic pricing engine
+  const knownChildAges = useMemo(() => {
+    const ages = childAges.slice(0, extraChildrenCount);
+    return ages.length === extraChildrenCount && ages.every((a) => typeof a === 'number') ? (ages as number[]) : undefined;
+  }, [childAges, extraChildrenCount]);
+
   const standardTariff = useMemo(() => {
     if (!activeRoom || !checkInDate || !checkOutDate) return null;
     try {
@@ -240,12 +251,13 @@ export default function ManualBookingModal({
         checkOutDate,
         mealPlan,
         2 + extraAdultsCount,
-        extraChildrenCount
+        extraChildrenCount,
+        knownChildAges
       );
     } catch {
       return null;
     }
-  }, [activeRoom, checkInDate, checkOutDate, mealPlan, extraAdultsCount, extraChildrenCount, calculateDynamicTariff]);
+  }, [activeRoom, checkInDate, checkOutDate, mealPlan, extraAdultsCount, extraChildrenCount, knownChildAges, calculateDynamicTariff]);
 
   // Total tariff computed.
   // Standard mode = the live seasonal tariff from the canonical engine (matches the website to the rupee).
@@ -321,6 +333,12 @@ export default function ManualBookingModal({
       return;
     }
 
+    if (isManager && advancePaid > 0 && !advanceSignOff) {
+      showToast('Tick the confirmation to sign the advance you received.', 'error');
+      setCurrentStep(1);
+      return;
+    }
+
     if (!useManualRate && !standardTariff) {
       showToast(
         tariffsStatus === 'ready'
@@ -341,6 +359,16 @@ export default function ManualBookingModal({
       mealPlan,
       adultsCount: 2 + extraAdultsCount,
       childrenCount: extraChildrenCount,
+      childAges: knownChildAges,
+      pricedExtras:
+        !useManualRate && standardTariff
+          ? {
+              extraAdultsCount: standardTariff.extraAdultsCount,
+              extraAdultsCharge: standardTariff.extraAdultsCharge,
+              extraChildrenCount: standardTariff.extraChildrenCount,
+              extraChildrenCharge: standardTariff.extraChildrenCharge,
+            }
+          : undefined,
       infantsCount: infantsCount,
       extraAdultChargePerNight: useManualRate ? extraAdultChargePerNight : (standardTariff?.extraAdultRate ?? extraAdultChargePerNight),
       extraChildChargePerNight: useManualRate ? extraChildChargePerNight : (standardTariff?.extraChildRate ?? extraChildChargePerNight),
@@ -350,8 +378,9 @@ export default function ManualBookingModal({
       isManualRate: useManualRate,
       gstAmount: roomGstAmount,
       sourceBookingId: fromWebBooking?.id,
-      advancePaid: advancePaid > 0 ? advancePaid : undefined,
-      advancePaymentMethod: advancePaid > 0 ? advancePaymentMethod : undefined,
+      advancePaid: isManager && advancePaid > 0 ? advancePaid : undefined,
+      advancePaymentMethod: isManager && advancePaid > 0 ? advancePaymentMethod : undefined,
+      advanceSignOffConfirmed: isManager && advancePaid > 0 ? advanceSignOff : undefined,
       guest: {
         fullName: guestName.trim(),
         phone: guestPhone.trim(),
@@ -534,7 +563,7 @@ Wishing you a serene and memorable Himalayan stay!
               ₹{totalPayableWithGst.toLocaleString('en-IN')}
             </span>
             <span className="block text-[10px] text-forest-500">
-              {gstConfig.tariffsIncludeGst ? 'incl.' : 'incl. ₹' + roomGstAmount.toLocaleString('en-IN')} GST
+              {!gstConfig.enabled ? 'No GST' : gstConfig.tariffsIncludeGst ? 'incl. GST' : `incl. ₹${roomGstAmount.toLocaleString('en-IN')} GST`}
             </span>
           </div>
         </div>
@@ -734,7 +763,7 @@ Wishing you a serene and memorable Himalayan stay!
                     </div>
                     <span className="text-[10px] text-amber-800 mt-1 block">
                       Effective Tariff: <strong>₹{effectiveTotalAmount.toLocaleString('en-IN')}</strong>
-                      {!gstConfig.tariffsIncludeGst && <> + GST ₹{roomGstAmount.toLocaleString('en-IN')}</>}
+                      {gstConfig.enabled && !gstConfig.tariffsIncludeGst && <> + GST ₹{roomGstAmount.toLocaleString('en-IN')}</>}
                     </span>
                   </div>
                 </div>
@@ -829,6 +858,28 @@ Wishing you a serene and memorable Himalayan stay!
                     <span className="text-[10px] text-forest-600 mt-1 block text-center">
                       {extraChildrenCount === 0 ? 'No extra children' : `+${extraChildrenCount} child${extraChildrenCount > 1 ? 'ren' : ''}`}
                     </span>
+                    {extraChildrenCount > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
+                        {Array.from({ length: extraChildrenCount }, (_, i) => (
+                          <select
+                            key={i}
+                            aria-label={`Age of child ${i + 1}`}
+                            value={childAges[i] ?? ''}
+                            onChange={(e) => {
+                              const next = [...childAges];
+                              next[i] = e.target.value === '' ? null : Number(e.target.value);
+                              setChildAges(next);
+                            }}
+                            className="text-[10px] px-1.5 py-1 rounded-lg border border-sand-300 bg-white"
+                          >
+                            <option value="">Age?</option>
+                            {Array.from({ length: 18 }, (_, a) => (
+                              <option key={a} value={a}>{a} yr</option>
+                            ))}
+                          </select>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Infants Counter (Default 0, Complimentary) */}
@@ -952,6 +1003,11 @@ Wishing you a serene and memorable Himalayan stay!
                   </select>
                 </div>
 
+                {!isManager ? (
+                  <p className="sm:col-span-2 text-[11px] text-forest-700 bg-sand-50 border border-sand-200 rounded-xl p-3">
+                    Advances are collections: a manager records and signs them (bookings list → folio → Record advance).
+                  </p>
+                ) : (<>
                 <div>
                   <label className="text-xs font-bold text-forest-800 block mb-1">
                     Advance Collected (₹)
@@ -959,6 +1015,8 @@ Wishing you a serene and memorable Himalayan stay!
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
+                    inputMode="decimal"
                     value={advancePaid || ''}
                     onChange={(e) => setAdvancePaid(Number(e.target.value) || 0)}
                     placeholder="0"
@@ -982,6 +1040,15 @@ Wishing you a serene and memorable Himalayan stay!
                     <option value="card">Credit / Debit Card POS</option>
                   </select>
                 </div>
+                {advancePaid > 0 && (
+                  <label className="sm:col-span-2 flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 cursor-pointer">
+                    <input type="checkbox" checked={advanceSignOff} onChange={(e) => setAdvanceSignOff(e.target.checked)} className="mt-0.5 w-4 h-4" />
+                    <span>
+                      I, <strong>{currentUser?.fullName}</strong>, confirm I received this advance of <strong>₹{advancePaid.toLocaleString('en-IN')}</strong>. Signed with my account and the server time.
+                    </span>
+                  </label>
+                )}
+                </>)}
               </div>
 
               {/* Step 1 Footer */}

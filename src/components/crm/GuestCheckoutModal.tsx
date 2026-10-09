@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, PaymentMethod } from '@/types/crm';
+import { folioForBooking } from '@/lib/folio-links';
+import { SERVICE_GROUP_NAMES, serviceGroup } from '@/lib/guest-bills';
+import FolioLinesPanel from './FolioLinesPanel';
 
 interface GuestCheckoutModalProps {
   isOpen: boolean;
@@ -32,108 +35,18 @@ interface GuestCheckoutModalProps {
 export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCheckoutModalProps) {
   const {
     folios,
-    foodOrders,
-    dispatchRequests,
     currentUser,
-    staffAccounts,
     completeCheckoutWithSettlement,
+    addFolioPayment,
     showToast,
   } = useCRM();
+  const isManager = currentUser?.role === 'manager';
 
   // Find folio for this booking
-  const folio = useMemo(() => {
-    if (!booking) return null;
-    return (
-      folios.find(
-        (f) =>
-          f.bookingId === booking.id ||
-          (booking.roomNumber && f.roomNumber === booking.roomNumber)
-      ) || null
-    );
-  }, [folios, booking]);
+  const folio = useMemo(() => folioForBooking(folios, booking), [folios, booking]);
 
-  // Active Manager info (support multi-manager handover)
-  const [selectedManagerId, setSelectedManagerId] = useState<string>(() => {
-    return currentUser?.id || 'staff-1';
-  });
-
-  const activeManager = useMemo(() => {
-    return (
-      staffAccounts.find((s) => s.id === selectedManagerId) ||
-      currentUser || {
-        id: 'staff-1',
-        fullName: 'Boutique Duty Manager',
-        role: 'manager',
-      }
-    );
-  }, [staffAccounts, selectedManagerId, currentUser]);
-
-  // Calculate bill items
-  const billBreakdown = useMemo(() => {
-    if (!folio) {
-      return {
-        roomCharges: [] as any[],
-        fbCharges: [] as any[],
-        specialCharges: [] as any[],
-        transportCharges: [] as any[],
-        miscCharges: [] as any[],
-      };
-    }
-
-    const roomCharges = folio.charges.filter(
-      (c) => c.category === 'room_tariff' && c.chargeStatus !== 'void'
-    );
-    const fbCharges = folio.charges.filter(
-      (c) => c.category === 'food_beverage' && c.chargeStatus !== 'void'
-    );
-    const transportCharges = folio.charges.filter(
-      (c) =>
-        ['transport_transfer', 'vehicle_rental'].includes(c.category) &&
-        c.chargeStatus !== 'void'
-    );
-    const specialCharges = folio.charges.filter(
-      (c) =>
-        c.title.toLowerCase().includes('celebration') ||
-        c.title.includes('🎉') ||
-        (c.category === 'miscellaneous' && c.chargeStatus !== 'void')
-    );
-    const miscCharges = folio.charges.filter(
-      (c) =>
-        c.category === 'laundry' ||
-        (!c.title.toLowerCase().includes('celebration') &&
-          !c.title.includes('🎉') &&
-          c.category === 'miscellaneous' &&
-          c.chargeStatus !== 'void')
-    );
-
-    return {
-      roomCharges,
-      fbCharges,
-      specialCharges,
-      transportCharges,
-      miscCharges,
-    };
-  }, [folio]);
-
-  // Related orders list
-  const relatedFoodOrders = useMemo(() => {
-    if (!booking) return [];
-    return foodOrders.filter(
-      (o) =>
-        (o.bookingId === booking.id || o.roomNumber === booking.roomNumber) &&
-        o.status !== 'cancelled'
-    );
-  }, [foodOrders, booking]);
-
-  // Related dispatches
-  const relatedDispatches = useMemo(() => {
-    if (!booking) return [];
-    return dispatchRequests.filter(
-      (d) =>
-        (d.bookingId === booking.id || d.roomNumber === booking.roomNumber) &&
-        d.dispatchStatus !== 'cancelled'
-    );
-  }, [dispatchRequests, booking]);
+  // The signer is always the signed-in account (no switching to another person's name)
+  const activeManager = currentUser || { id: '', fullName: 'Staff', role: 'manager' as const };
 
   const balanceDue = folio ? folio.balanceDue : 0;
 
@@ -144,6 +57,7 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSettledSuccess, setIsSettledSuccess] = useState(false);
+  const [signOff, setSignOff] = useState(false);
 
   // Sync default collection amount when folio changes
   React.useEffect(() => {
@@ -154,10 +68,50 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
 
   if (!isOpen || !booking) return null;
 
+  const isInHouse = booking.bookingStatus === 'checked_in';
+  const canCollect = isManager && booking.bookingStatus !== 'checked_out' && booking.bookingStatus !== 'cancelled';
+
+  /** Manager records a signed collection without checking the guest out (advance / part payment). */
+  const handleCollectOnly = () => {
+    const amount = Number(collectionAmount) || 0;
+    if (!folio || amount <= 0) {
+      showToast('Enter the amount received.', 'error');
+      return;
+    }
+    if (!signOff) {
+      showToast('Tick the confirmation to sign this collection.', 'error');
+      return;
+    }
+    addFolioPayment(folio.id, {
+      folioId: folio.id,
+      amount,
+      paymentMethod,
+      transactionReference: transactionRef.trim() || undefined,
+      receiptNotes: checkoutNotes.trim() || 'Collection recorded at the desk',
+      signOffConfirmed: true,
+    });
+    setSignOff(false);
+    setTransactionRef('');
+    setCheckoutNotes('');
+  };
+
   const handleCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isInHouse) {
+      showToast('Only an in-house guest can be checked out.', 'error');
+      return;
+    }
+    if ((folio?.pendingTotal || 0) > 0) {
+      showToast('Some orders or transfers are still awaiting confirmation. Approve or reject them first.', 'error');
+      return;
+    }
     if (collectionAmount < 0) {
       alert('Collection amount cannot be negative.');
+      return;
+    }
+    const amountToCollect = isManager ? Number(collectionAmount) || 0 : 0;
+    if (amountToCollect > 0 && !signOff) {
+      showToast('Tick the confirmation to sign the amount collected.', 'error');
       return;
     }
 
@@ -175,11 +129,12 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
     try {
       completeCheckoutWithSettlement(booking.id, {
         paymentMethod,
-        amountCollected: Number(collectionAmount) || 0,
+        amountCollected: amountToCollect,
         transactionReference: transactionRef.trim() || undefined,
         notes: checkoutNotes.trim() || undefined,
         managerId: activeManager.id,
         managerName: activeManager.fullName,
+        signOffConfirmed: signOff,
       });
 
       setIsSettledSuccess(true);
@@ -272,213 +227,44 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
             </div>
           </div>
 
-          {/* ITEM AUDIT 1: ROOM CHARGES */}
-          <div className="border border-sand-200 rounded-2xl overflow-hidden shadow-2xs">
-            <div className="bg-sand-100/60 px-4 py-2.5 flex items-center justify-between border-b border-sand-200">
-              <span className="text-xs font-bold text-forest-950 flex items-center space-x-1.5">
-                <BedDouble className="w-4 h-4 text-primary-700" />
-                <span>Room Stay &amp; Extra Guest Charges</span>
-              </span>
-              <span className="font-mono text-xs font-bold text-forest-950">
-                ₹{folio ? folio.totalRoomCharges : booking.totalRoomAmount}
-              </span>
-            </div>
-            <div className="p-3 bg-white text-xs space-y-1.5">
-              <div className="flex justify-between text-forest-700">
-                <span>
-                  Room Stay ({booking.totalNights} nights @ ₹{booking.roomRatePerNight.toLocaleString('en-IN')})
-                </span>
-                <span className="font-mono">
-                  ₹{(booking.totalNights * booking.roomRatePerNight).toLocaleString('en-IN')}
-                </span>
-              </div>
-              {(booking.totalExtraCharges || 0) > 0 && (
-                <div className="flex justify-between text-emerald-800">
-                  <span>Additional Guests / Child Rollaway Surcharge</span>
-                  <span className="font-mono font-semibold">
-                    ₹{booking.totalExtraCharges?.toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* The bill exactly as stored, with the desk actions */}
+          <FolioLinesPanel folio={folio} booking={booking} />
 
-          {/* ITEM AUDIT 2: FOOD & BEVERAGE BILLS */}
-          <div className="border border-sand-200 rounded-2xl overflow-hidden shadow-2xs">
-            <div className="bg-sand-100/60 px-4 py-2.5 flex items-center justify-between border-b border-sand-200">
-              <span className="text-xs font-bold text-forest-950 flex items-center space-x-1.5">
-                <UtensilsCrossed className="w-4 h-4 text-amber-600" />
-                <span>In-Room Dining &amp; QR Food Bills</span>
+          {(folio?.pendingTotal || 0) > 0 && booking.bookingStatus === 'checked_in' && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 flex gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-700" />
+              <span>
+                ₹{(folio?.pendingTotal || 0).toLocaleString('en-IN')} of orders or transfers are still awaiting confirmation. Approve (to bill them) or reject them in Orders before checking out.
               </span>
-              <span className="font-mono text-xs font-bold text-forest-950">
-                ₹{folio ? folio.totalFbCharges : 0}
-              </span>
-            </div>
-            <div className="p-3 bg-white text-xs space-y-2">
-              {relatedFoodOrders.length === 0 ? (
-                <p className="text-forest-500 italic">No food orders recorded during this stay.</p>
-              ) : (
-                relatedFoodOrders.map((ord) => (
-                  <div
-                    key={ord.id}
-                    className="flex items-start justify-between border-b border-sand-100 pb-1.5 last:border-0 last:pb-0"
-                  >
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-[11px] bg-sand-200 px-1.5 py-0.2 rounded text-forest-800">
-                          {ord.orderNumber}
-                        </span>
-                        <span className="font-semibold text-forest-900">
-                          {ord.items?.map((i) => `${i.quantity}x ${i.itemName || (i as any).name}`).join(', ')}
-                        </span>
-                      </div>
-                      {ord.specialInstructions && (
-                        <p className="text-[10px] text-forest-600 mt-0.5">
-                          Note: {ord.specialInstructions}
-                        </p>
-                      )}
-                    </div>
-                    <span className="font-mono font-bold text-forest-950">₹{ord.totalAmount}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* ITEM AUDIT 3: SPECIAL CELEBRATIONS & TRANSFERS */}
-          {(billBreakdown.specialCharges.length > 0 || relatedDispatches.length > 0) && (
-            <div className="border border-sand-200 rounded-2xl overflow-hidden shadow-2xs">
-              <div className="bg-sand-100/60 px-4 py-2.5 flex items-center justify-between border-b border-sand-200">
-                <span className="text-xs font-bold text-forest-950 flex items-center space-x-1.5">
-                  <Sparkles className="w-4 h-4 text-[#FE6E00]" />
-                  <span>Celebration Add-ons, Transfers &amp; Rentals</span>
-                </span>
-                <span className="font-mono text-xs font-bold text-forest-950">
-                  ₹{folio ? folio.totalAddonCharges : 0}
-                </span>
-              </div>
-              <div className="p-3 bg-white text-xs space-y-2">
-                {billBreakdown.specialCharges.map((chg, idx) => (
-                  <div key={idx} className="flex justify-between text-forest-800">
-                    <span className="font-semibold flex items-center space-x-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>{chg.title}</span>
-                    </span>
-                    <span className="font-mono font-bold">₹{chg.amount}</span>
-                  </div>
-                ))}
-                {relatedDispatches.map((disp) => (
-                  <div key={disp.id} className="flex justify-between text-forest-800">
-                    <span className="font-semibold flex items-center space-x-1">
-                      <Car className="w-3.5 h-3.5 text-primary-600" />
-                      <span>
-                        {disp.serviceType === 'point_to_point' ? 'Transfer' : 'Rental'}:{' '}
-                        {disp.routeTitle || disp.rentalVehicleName}
-                      </span>
-                    </span>
-                    <span className="font-mono font-bold">₹{disp.quotedPrice}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
-
-          {/* FINANCIAL SUMMARY & BALANCE BANNER */}
-          <div className="bg-sand-50 p-4 rounded-2xl border border-sand-300 space-y-2">
-            <div className="flex justify-between text-xs text-forest-700">
-              <span>Total Stay &amp; Services Subtotal</span>
-              <span className="font-mono">
-                ₹{((folio?.totalRoomCharges || 0) + (folio?.totalFbCharges || 0) + (folio?.totalAddonCharges || 0)).toLocaleString('en-IN')}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-forest-700">
-              <span>Applicable GST / Homestay Surcharges (5%)</span>
-              <span className="font-mono">₹{(folio?.totalTax || 0).toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold text-forest-950 pt-2 border-t border-sand-200">
-              <span>Net Payable Stay Total</span>
-              <span className="font-mono text-base text-primary-900">
-                ₹{(folio?.netPayable || booking.totalRoomAmount).toLocaleString('en-IN')}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-emerald-800 font-medium">
-              <span>Advance &amp; Prior Payments Received</span>
-              <span className="font-mono">
-                - ₹{(folio?.totalPaid || booking.advancePaid || 0).toLocaleString('en-IN')}
-              </span>
-            </div>
-
-            {/* Dues Highlight Banner */}
-            <div
-              className={`p-3.5 rounded-xl border mt-2 flex items-center justify-between ${
-                balanceDue > 0
-                  ? 'bg-rose-50 border-rose-300 text-rose-950'
-                  : 'bg-emerald-50 border-emerald-300 text-emerald-950'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                {balanceDue > 0 ? (
-                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                )}
-                <div>
-                  <span className="font-bold text-xs block">
-                    {balanceDue > 0 ? 'Outstanding Balance Due for Settlement' : 'Folio Fully Settled & Clear'}
-                  </span>
-                  <span className="text-[11px] opacity-80">
-                    {balanceDue > 0
-                      ? 'Collect remaining dues before handing over final clearance.'
-                      : 'No pending charges. Ready for final departure confirmation.'}
-                  </span>
-                </div>
-              </div>
-              <span className="font-serif font-bold text-xl font-mono">
-                ₹{balanceDue.toLocaleString('en-IN')}
-              </span>
-            </div>
-          </div>
 
           {/* CHECKOUT SETTLEMENT FORM */}
           {!isSettledSuccess ? (
             <form onSubmit={handleCheckoutSubmit} className="space-y-4 pt-2">
-              {/* Manager Profile Assignment */}
-              <div className="bg-primary-50/60 p-4 rounded-2xl border border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center space-x-2.5">
-                  <UserCheck className="w-5 h-5 text-primary-700 shrink-0" />
-                  <div>
-                    <span className="text-[10px] font-bold text-primary-900 uppercase tracking-wider block">
-                      Duty Manager Handling Checkout
+              {/* Who signs: the signed-in account (collections are manager-only) */}
+              <div className="bg-primary-50/60 p-4 rounded-2xl border border-primary-200 flex items-center gap-2.5">
+                <UserCheck className="w-5 h-5 text-primary-700 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-primary-900 uppercase tracking-wider block">
+                    {isManager ? 'Signed by (your account)' : 'Viewing as'}
+                  </span>
+                  <span className="text-xs font-bold text-forest-950">
+                    {activeManager.fullName} ({activeManager.role})
+                  </span>
+                  {!isManager && (
+                    <span className="block text-[11px] text-forest-700 mt-0.5">
+                      Collections are recorded only by a manager account, with their sign-off.
                     </span>
-                    <span className="text-xs font-bold text-forest-950">
-                      {activeManager.fullName} ({activeManager.role})
-                    </span>
-                  </div>
+                  )}
                 </div>
-
-                {staffAccounts.length > 1 && (
-                  <div className="flex items-center space-x-1.5 self-start sm:self-auto">
-                    <span className="text-[10px] text-forest-600 font-semibold">Switch Profile:</span>
-                    <select
-                      value={selectedManagerId}
-                      onChange={(e) => setSelectedManagerId(e.target.value)}
-                      className="text-xs font-semibold px-2 py-1 rounded-lg border border-primary-300 bg-white text-forest-900 focus:outline-none"
-                    >
-                      {staffAccounts.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.fullName} ({s.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
               {/* Payment Collection Inputs */}
-              {balanceDue > 0 && (
+              {canCollect && (
                 <div className="space-y-3 p-4 rounded-2xl border border-sand-200 bg-white">
                   <h4 className="font-serif font-bold text-xs uppercase text-forest-950 tracking-wider">
-                    Log Final Payment Collection
+                    {isInHouse ? 'Record collection' : 'Record advance / payment'}
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -489,6 +275,8 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                       <input
                         type="number"
                         min="0"
+                        step="0.01"
+                        inputMode="decimal"
                         value={collectionAmount}
                         onChange={(e) => setCollectionAmount(Number(e.target.value))}
                         className="w-full px-3 py-2 text-sm font-mono font-bold border border-sand-300 rounded-xl focus:ring-2 focus:ring-[#25479E] focus:outline-none"
@@ -579,6 +367,32 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                       />
                     </div>
                   </div>
+
+                  {Number(collectionAmount) > 0 && (
+                    <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={signOff}
+                        onChange={(e) => setSignOff(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-[#142820]"
+                      />
+                      <span>
+                        I, <strong>{currentUser?.fullName}</strong>, confirm I received{' '}
+                        <strong>₹{Number(collectionAmount).toLocaleString('en-IN')}</strong> by {paymentMethod.replace('_', ' ')} from this guest.
+                        This entry is signed with my account and the server time.
+                      </span>
+                    </label>
+                  )}
+
+                  {!isInHouse && (
+                    <button
+                      type="button"
+                      onClick={handleCollectOnly}
+                      className="w-full min-h-[44px] rounded-xl bg-[#142820] text-white text-xs font-bold hover:bg-[#1E3A2F]"
+                    >
+                      Record ₹{(Number(collectionAmount) || 0).toLocaleString('en-IN')} (signed)
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -592,6 +406,16 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                   Cancel &amp; Keep In-House
                 </button>
 
+                {isInHouse && canCollect && Number(collectionAmount) > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCollectOnly}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#142820] text-xs font-bold text-[#142820] hover:bg-sand-100"
+                  >
+                    Record payment only
+                  </button>
+                )}
+                {isInHouse && (
                 <button
                   type="submit"
                   disabled={isProcessing}
@@ -601,11 +425,12 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                   <span>
                     {isProcessing
                       ? 'Recording Settlement...'
-                      : balanceDue > 0
-                      ? `Collect ₹${collectionAmount.toLocaleString('en-IN')} & Complete Checkout`
+                      : isManager && Number(collectionAmount) > 0
+                      ? `Collect ₹${Number(collectionAmount).toLocaleString('en-IN')} & Check out`
                       : 'Complete Checkout & Release Room'}
                   </span>
                 </button>
+                )}
               </div>
             </form>
           ) : (
@@ -648,13 +473,15 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                 <p className="text-xs text-gray-600 mt-0.5">
                   Lava - Rishyap Hilltop Ridge, Kalimpong District, West Bengal - 734319
                 </p>
-                <p className="text-xs text-gray-600">
-                  GSTIN: 19AAAFS8821Q1Z8 • Phone: +91 98320 44556 • reservations@saverahomestay.in
-                </p>
+                {(folio?.totalTax || 0) > 0 && (
+                  <p className="text-xs text-gray-600">
+                    GSTIN: 19AAAFS8821Q1Z8 • Phone: +91 98320 44556 • reservations@saverahomestay.in
+                  </p>
+                )}
               </div>
               <div className="text-right">
                 <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">
-                  Official Guest Tax Invoice
+                  {(folio?.totalTax || 0) > 0 ? 'Official Guest Tax Invoice' : 'Guest Bill'}
                 </span>
                 <span className="text-base font-mono font-bold block text-[#142820]">
                   {folio?.folioNumber || `INV-${booking.bookingReference}`}
@@ -691,51 +518,24 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                <tr>
-                  <td className="py-2.5">
-                    Room Stay ({booking.totalNights} nights @ ₹{booking.roomRatePerNight.toLocaleString('en-IN')})
-                  </td>
-                  <td className="py-2.5 text-gray-600">Room Accommodation</td>
-                  <td className="py-2.5 text-right font-mono font-semibold">
-                    ₹{(booking.totalNights * booking.roomRatePerNight).toLocaleString('en-IN')}
-                  </td>
-                </tr>
-                {(booking.totalExtraCharges || 0) > 0 && (
+                {(folio?.charges || [])
+                  .filter((c) => c.chargeStatus === 'posted')
+                  .map((c) => (
+                    <tr key={c.id}>
+                      <td className="py-2.5">{c.title}</td>
+                      <td className="py-2.5 text-gray-600">
+                        {c.category === 'room_tariff' ? 'Room accommodation' : SERVICE_GROUP_NAMES[serviceGroup(c)]}
+                      </td>
+                      <td className="py-2.5 text-right font-mono font-semibold">₹{c.amount.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                {(folio?.discountAmount || 0) > 0 && (
                   <tr>
-                    <td className="py-2.5">Extra Guest &amp; Rollaway Charges</td>
-                    <td className="py-2.5 text-gray-600">Extra Occupancy</td>
-                    <td className="py-2.5 text-right font-mono font-semibold">
-                      ₹{booking.totalExtraCharges?.toLocaleString('en-IN')}
-                    </td>
+                    <td className="py-2.5">Discount{folio?.discountReason ? ` (${folio.discountReason})` : ''}</td>
+                    <td className="py-2.5 text-gray-600">Discount</td>
+                    <td className="py-2.5 text-right font-mono font-semibold">−₹{(folio?.discountAmount || 0).toLocaleString('en-IN')}</td>
                   </tr>
                 )}
-                {relatedFoodOrders.map((ord) => (
-                  <tr key={ord.id}>
-                    <td className="py-2.5">
-                      F&amp;B Order #{ord.orderNumber}: {ord.items?.map((i) => `${i.quantity}x ${i.itemName || (i as any).name}`).join(', ')}
-                    </td>
-                    <td className="py-2.5 text-gray-600">Dining &amp; Beverages</td>
-                    <td className="py-2.5 text-right font-mono font-semibold">
-                      ₹{ord.totalAmount.toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                ))}
-                {billBreakdown.specialCharges.map((chg, idx) => (
-                  <tr key={idx}>
-                    <td className="py-2.5">{chg.title}</td>
-                    <td className="py-2.5 text-gray-600">Experiences &amp; Add-ons</td>
-                    <td className="py-2.5 text-right font-mono font-semibold">₹{chg.amount.toLocaleString('en-IN')}</td>
-                  </tr>
-                ))}
-                {relatedDispatches.map((disp) => (
-                  <tr key={disp.id}>
-                    <td className="py-2.5">
-                      {disp.serviceType === 'point_to_point' ? 'Transfer' : 'Rental'}: {disp.routeTitle || disp.rentalVehicleName}
-                    </td>
-                    <td className="py-2.5 text-gray-600">Transport &amp; Transfers</td>
-                    <td className="py-2.5 text-right font-mono font-semibold">₹{disp.quotedPrice.toLocaleString('en-IN')}</td>
-                  </tr>
-                ))}
               </tbody>
             </table>
 
@@ -748,20 +548,24 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                     ₹{((folio?.totalRoomCharges || 0) + (folio?.totalFbCharges || 0) + (folio?.totalAddonCharges || 0)).toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>CGST (2.5%):</span>
-                  <span className="font-mono">₹{Math.round((folio?.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>SGST (2.5%):</span>
-                  <span className="font-mono">₹{Math.round((folio?.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
-                </div>
+                {(folio?.totalTax || 0) > 0 && (
+                  <>
+                    <div className="flex justify-between text-gray-600">
+                      <span>CGST:</span>
+                      <span className="font-mono">₹{((folio?.totalTax || 0) / 2).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>SGST:</span>
+                      <span className="font-mono">₹{((folio?.totalTax || 0) / 2).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-bold text-sm text-[#142820] pt-1 border-t border-gray-200">
                   <span>Grand Total:</span>
                   <span className="font-mono">₹{(folio?.netPayable || booking.totalRoomAmount).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-emerald-800 font-semibold">
-                  <span>Advance Received:</span>
+                  <span>Payments Received:</span>
                   <span className="font-mono">- ₹{(folio?.totalPaid || booking.advancePaid || 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-gray-800 font-semibold">
@@ -770,7 +574,7 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                 </div>
                 <div className="flex justify-between font-bold text-sm text-emerald-900 bg-emerald-50 p-2 rounded border border-emerald-200">
                   <span>Balance Due:</span>
-                  <span className="font-mono">₹0.00 (Fully Settled)</span>
+                  <span className="font-mono">{(folio?.balanceDue || 0) > 0 ? `₹${(folio?.balanceDue || 0).toLocaleString('en-IN')}` : '₹0.00 (Fully Settled)'}</span>
                 </div>
               </div>
             </div>

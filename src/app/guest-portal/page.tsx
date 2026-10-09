@@ -44,6 +44,7 @@ import {
 import { CRMBooking, GuestFolio, MenuItem } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
 import { findCelebration } from '@/lib/celebrations';
+import GuestBills from '@/components/guest/GuestBills';
 import { INDIAN_STATES, getTimeBasedGreeting } from '@/lib/booking-id';
 import { readDocumentFile } from '@/lib/image-upload';
 
@@ -99,7 +100,7 @@ function GuestPortalContent() {
   const urlName = searchParams.get('name') || '';
 
   // Live menu / transfers / rentals from the server (never the seed data)
-  const { menuItems, transferRoutes, rentalVehicles } = useCRM();
+  const { menuItems, transferRoutes, rentalVehicles, gstConfig } = useCRM();
   const liveMenu = useMemo(() => menuItems.filter((m) => m.isAvailable !== false), [menuItems]);
 
   // Auth / Session State
@@ -1053,9 +1054,6 @@ function GuestPortalContent() {
   const timeGreeting = getTimeBasedGreeting();
 
   // Balance Due calculation
-  const totalRoomBill = activeFolio ? activeFolio.totalRoomCharges : activeBooking.totalRoomAmount;
-  const totalFbBill = activeFolio ? activeFolio.totalFbCharges : 0;
-  const totalAddonBill = activeFolio ? activeFolio.totalAddonCharges : 0;
   const netPayable = activeFolio ? activeFolio.netPayable : activeBooking.totalRoomAmount;
   const totalPaid = activeFolio ? activeFolio.totalPaid : (activeBooking.advancePaid || 0);
   const balanceDue = activeFolio ? activeFolio.balanceDue : Math.max(0, netPayable - totalPaid);
@@ -1233,7 +1231,7 @@ function GuestPortalContent() {
             }`}
           >
             <IndianRupee className="w-4 h-4" />
-            <span>Stay Billing &amp; Folio</span>
+            <span>My bills</span>
             {balanceDue > 0 && (
               <span className="ml-1 text-[10px] bg-rose-600 text-white font-mono px-1.5 py-0.2 rounded-full">
                 ₹{balanceDue}
@@ -1297,123 +1295,8 @@ function GuestPortalContent() {
 
         {/* 5. TAB CONTENT */}
 
-        {/* ================= TAB 1: BILLING & FOLIO ================= */}
-        {activeTab === 'billing' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-sand-300 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-sand-200 pb-4">
-                <div>
-                  <h3 className="font-serif font-bold text-xl text-[#0B1733]">
-                    Live Stay Folio &amp; Itemized Bill
-                  </h3>
-                  <p className="text-xs text-gray-600">
-                    Transparent accounting of all room charges, in-room dining, celebrations, and transfers.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl border border-sand-300 hover:bg-sand-100 text-[#0B1733] text-xs font-bold flex items-center space-x-1.5 self-start sm:self-auto cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Print Tax Invoice</span>
-                </button>
-              </div>
-
-              {/* Itemized Table */}
-              <div className="space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-500 block">
-                  Itemized Stay Charges
-                </span>
-
-                <div className="divide-y divide-sand-200 text-xs">
-                  {/* Room Charge */}
-                  <div className="py-3 flex items-center justify-between">
-                    <div>
-                      <strong className="text-[#0B1733] block text-sm">{activeBooking.roomName}</strong>
-                      <span className="text-gray-500">
-                        {activeBooking.totalNights} Night(s) tariff • {activeBooking.mealPlan} Plan
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold text-sm text-[#0B1733]">
-                      ₹{totalRoomBill.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-
-                  {/* Food & Beverage Orders */}
-                  {myOrders.length > 0 ? (
-                    myOrders.map((ord) => (
-                      <div key={ord.id} className="py-3 flex items-center justify-between">
-                        <div>
-                          <strong className="text-[#0B1733] block">
-                            Food Order #{ord.orderNumber}
-                          </strong>
-                          <span className="text-gray-500">
-                            {ord.items?.map((i: any) => `${i.name || i.itemName} x${i.quantity}`).join(', ')}
-                          </span>
-                        </div>
-                        <span className="font-mono font-bold text-[#0B1733]">
-                          ₹{ord.totalAmount?.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    ))
-                  ) : totalFbBill > 0 ? (
-                    <div className="py-3 flex items-center justify-between">
-                      <div>
-                        <strong className="text-[#0B1733] block">In-Room Dining Orders</strong>
-                        <span className="text-gray-500">Food &amp; Beverage charges logged to room</span>
-                      </div>
-                      <span className="font-mono font-bold text-[#0B1733]">
-                        ₹{totalFbBill.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  {/* Addon Charges (Transfers / Celebrations) */}
-                  {totalAddonBill > 0 && (
-                    <div className="py-3 flex items-center justify-between">
-                      <div>
-                        <strong className="text-[#0B1733] block">Special Experiences &amp; Transfers</strong>
-                        <span className="text-gray-500">Celebration setup, transfers, or rentals</span>
-                      </div>
-                      <span className="font-mono font-bold text-[#0B1733]">
-                        ₹{totalAddonBill.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Totals Summary */}
-                <div className="pt-4 border-t-2 border-sand-300 space-y-2 text-xs">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Net Bill Amount:</span>
-                    <span className="font-mono font-bold">₹{netPayable.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Advance / Payments Received:</span>
-                    <span className="font-mono font-bold">− ₹{totalPaid.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-sand-200 text-sm sm:text-base font-bold text-[#0B1733]">
-                    <span>Outstanding Balance Due:</span>
-                    <span className={`font-mono ${balanceDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      ₹{balanceDue.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Settlement Instructions */}
-                {balanceDue > 0 && (
-                  <div className="bg-sand-50 p-4 rounded-2xl border border-sand-200 text-xs text-gray-700 space-y-1">
-                    <p className="font-bold text-[#0B1733]">Payment &amp; Dues Settlement</p>
-                    <p>
-                      All dues can be settled during check-out at the reception via UPI, Credit/Debit card POS, or Cash. For advance settlement or receipts, please contact the manager.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ================= TAB 1: BILLS (room and services, separately) ================= */}
+        {activeTab === 'billing' && <GuestBills booking={activeBooking} folio={activeFolio} gstConfig={gstConfig} />}
 
         {/* ================= TAB 2: ROOM DINE-IN MENU ================= */}
         {activeTab === 'dining' && (

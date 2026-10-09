@@ -3,7 +3,7 @@ import { getSql, SqlOrTx, Tx, withTx, lockInventory } from '../db';
 import { HttpError } from '../http';
 import { nextCounter } from '../counters';
 import type { Booking } from '@/types';
-import type { CRMBooking, Guest } from '@/types/crm';
+import type { CRMBooking, Guest, RoomBlock, StaffRole } from '@/types/crm';
 import { addCalendarDays, nightsBetween, normalizeCategoryId, todayInIST } from '@/lib/tariff-calculator';
 import { formatYearCode } from '@/lib/booking-id';
 import { normalizePhone, normalizeReference } from '@/lib/phone';
@@ -108,15 +108,19 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
   if (nights === null || nights < 1) throw new HttpError(400, 'Check-out must be after check-in.');
   if (nights > 60) throw new HttpError(400, 'Stays longer than 60 nights need a direct enquiry.');
 
-  const [categories, physicalRooms, rows] = await Promise.all([
+  const [categories, physicalRooms, rows, blockRows] = await Promise.all([
     listRoomCategories({ includeInactive: true }, sql),
     listPhysicalRooms(sql),
     sql<BookingRow[]>`select * from pms.bookings where check_in < ${checkOut} and check_out > ${checkIn}`,
+    sql<{ data: RoomBlock }[]>`
+      select data from pms.records
+      where collection = 'roomBlocks' and data->>'fromDate' < ${checkOut} and data->>'toDate' > ${checkIn}`,
   ]);
 
+  // Inventory = every physical room. Rooms out of service are subtracted per NIGHT below:
+  // dated blocks for their nights, and the "maintenance" room flag only for tonight.
   const inventory: Record<string, number> = {};
   for (const pr of physicalRooms) {
-    if (pr.currentStatus === 'maintenance') continue;
     const cat = normalizeCategoryId(pr.categoryId);
     inventory[cat] = (inventory[cat] || 0) + 1;
   }
@@ -125,8 +129,16 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
   }
 
   const now = new Date();
-  const linkedWebIds = new Set(rows.filter((r) => r.kind === 'crm' && r.linked_booking_id).map((r) => r.linked_booking_id!));
+  // Desk bookings that fulfil (part of) a website request: only those rooms stop being held by
+  // the request. A 3-room request with 1 room assigned still holds the other 2.
+  const assignedByWeb = new Map<string, string[]>();
   const physicalCategory = new Map(physicalRooms.map((p) => [p.id, normalizeCategoryId(p.categoryId)]));
+  for (const r of rows) {
+    if (r.kind !== 'crm' || !r.linked_booking_id || CRM_INACTIVE.includes(r.status)) continue;
+    const cat = (r.physical_room_id && physicalCategory.get(r.physical_room_id)) || normalizeCategoryId(r.category_ids[0] || '');
+    assignedByWeb.set(r.linked_booking_id, [...(assignedByWeb.get(r.linked_booking_id) || []), cat]);
+  }
+  const today = todayInIST();
 
   const occupied: Record<string, number[]> = {};
   const add = (cat: string, from: string, to: string) => {
@@ -142,13 +154,31 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
     const from = asDateStr(r.check_in);
     const to = asDateStr(r.check_out);
     if (r.kind === 'web') {
-      if (linkedWebIds.has(r.id) || !webBlocksInventory(r, now)) continue;
-      for (const cat of r.category_ids) add(normalizeCategoryId(cat), from, to);
+      if (!webBlocksInventory(r, now)) continue;
+      const assigned = [...(assignedByWeb.get(r.id) || [])];
+      for (const raw of r.category_ids) {
+        const cat = normalizeCategoryId(raw);
+        const i = assigned.indexOf(cat);
+        if (i >= 0) {
+          assigned.splice(i, 1); // this room of the request is already a desk booking (counted there)
+          continue;
+        }
+        add(cat, from, to);
+      }
     } else {
       if (CRM_INACTIVE.includes(r.status)) continue;
       const cat = (r.physical_room_id && physicalCategory.get(r.physical_room_id)) || normalizeCategoryId(r.category_ids[0] || '');
       if (cat) add(cat, from, to);
     }
+  }
+
+  for (const b of blockRows.map((x) => x.data)) {
+    const cat = physicalCategory.get(b.roomId);
+    if (cat) add(cat, b.fromDate, b.toDate);
+  }
+  for (const pr of physicalRooms) {
+    // Under maintenance right now: out of service tonight only (use a dated block for longer)
+    if (pr.currentStatus === 'maintenance') add(normalizeCategoryId(pr.categoryId), today, addCalendarDays(today, 1));
   }
 
   const result: Record<string, CategoryAvailability> = {};
@@ -187,6 +217,7 @@ export interface NewWebBooking {
   rooms: { roomId: string; adults: number; children: number; childAges?: number[] }[];
   meal_plan: string;
   special_requests?: string;
+  addons?: { code: 'airport_transfer' | 'bike_rental'; title: string; amount: number }[];
   totals: {
     roomSubtotal: number;
     gstAmount: number;
@@ -245,6 +276,7 @@ export async function createWebBooking(input: NewWebBooking): Promise<{ booking:
       room_subtotal: input.totals.roomSubtotal,
       gst_amount: input.totals.gstAmount,
       addons_total: input.totals.addonsTotal,
+      addons: input.addons && input.addons.length ? input.addons : undefined,
       meal_plan: input.meal_plan,
       rooms_config: input.rooms.map((r) => ({ room_id: normalizeCategoryId(r.roomId), adults: r.adults, children: r.children, child_ages: r.childAges })),
       status: 'pending',
@@ -316,7 +348,26 @@ async function persistGuestDocuments(guest: Guest, bookingId: string, actor: str
   };
 }
 
-export async function upsertCrmBooking(input: CRMBooking, actor: string): Promise<{ before: CRMBooking | null; after: CRMBooking }> {
+/** Allowed status changes for front-desk bookings (admins may also re-open). */
+const CRM_TRANSITIONS: Record<string, string[]> = {
+  hold: ['confirmed', 'checked_in', 'cancelled'],
+  confirmed: ['hold', 'checked_in', 'cancelled'],
+  checked_in: ['checked_out'],
+  checked_out: [],
+  cancelled: [],
+};
+const ADMIN_REOPEN: Record<string, string[]> = {
+  checked_in: ['confirmed'],
+  checked_out: ['checked_in'],
+  cancelled: ['confirmed', 'hold'],
+};
+
+export interface CrmBookingWriteOptions {
+  /** The signed-in staff role; when given, status rules and availability are enforced. */
+  role?: StaffRole;
+}
+
+export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: CrmBookingWriteOptions = {}): Promise<{ before: CRMBooking | null; after: CRMBooking }> {
   if (!input?.id) throw new HttpError(400, 'Booking id is required.');
   const checkIn = (input.checkInDate || '').slice(0, 10);
   const checkOut = (input.checkOutDate || '').slice(0, 10);
@@ -330,6 +381,42 @@ export async function upsertCrmBooking(input: CRMBooking, actor: string): Promis
     if (existingRow && existingRow.kind !== 'crm') throw new HttpError(409, 'Booking id conflict.');
     const before = existingRow ? crmFromRow(existingRow) : null;
     const status = input.bookingStatus || 'confirmed';
+
+    if (opts.role) {
+      // Status rules: no checking out a future stay, no re-opening without an admin, etc.
+      if (before && before.bookingStatus !== status) {
+        const allowed = [...(CRM_TRANSITIONS[before.bookingStatus] || []), ...(opts.role === 'admin' ? ADMIN_REOPEN[before.bookingStatus] || [] : [])];
+        if (!allowed.includes(status)) {
+          throw new HttpError(409, `A ${before.bookingStatus.replace('_', ' ')} booking cannot be changed to ${status.replace('_', ' ')}.`, 'INVALID_TRANSITION');
+        }
+      }
+      if (!before && (status === 'checked_out' || status === 'cancelled')) throw new HttpError(400, 'A new booking cannot start as checked out or cancelled.');
+      if (status === 'checked_in' && (!before || before.bookingStatus !== 'checked_in') && checkIn > todayInIST()) {
+        throw new HttpError(409, `This stay starts on ${checkIn}. Guests can be checked in from their arrival day.`, 'TOO_EARLY');
+      }
+      // Category availability (website requests hold a room type, not a room number)
+      const datesOrRoomChanged = !before || before.checkInDate !== checkIn || before.checkOutDate !== checkOut || before.roomId !== input.roomId || CRM_INACTIVE.includes(before.bookingStatus);
+      if (input.roomId && !CRM_INACTIVE.includes(status) && datesOrRoomChanged) {
+        const room = await tx<{ category_id: string }[]>`select category_id from pms.physical_rooms where id = ${input.roomId}`;
+        const cat = room[0] ? normalizeCategoryId(room[0].category_id) : null;
+        if (cat) {
+          const avail = await getAvailability(checkIn, checkOut, { excludeBookingId: input.id }, tx);
+          // The website request this booking fulfils is released by this booking itself
+          let held = avail[cat]?.available ?? 0;
+          if (input.sourceBookingId) {
+            const src = await getBookingRow(input.sourceBookingId, tx);
+            if (src && src.kind === 'web' && webBlocksInventory(src, new Date()) && src.category_ids.map(normalizeCategoryId).includes(cat)) held += 1;
+          }
+          if (held < 1) {
+            throw new HttpError(
+              409,
+              'No room of this type is free for these dates: they are held by other bookings or website requests. Assign the waiting website request instead, or choose other dates.',
+              'SOLD_OUT'
+            );
+          }
+        }
+      }
+    }
 
     // A physical room can only hold one active booking per night.
     if (input.roomId && !CRM_INACTIVE.includes(status)) {
@@ -408,8 +495,11 @@ export async function findActiveBookingForRoom(roomId: string): Promise<CRMBooki
   const today = todayInIST();
   const rows = await sql<BookingRow[]>`
     select * from pms.bookings
-    where kind = 'crm' and physical_room_id = ${roomId} and status in ('checked_in', 'confirmed', 'hold')
-      and check_in <= ${addCalendarDays(today, 1)} and check_out >= ${today}
+    where kind = 'crm' and physical_room_id = ${roomId}
+      and (
+        (status = 'checked_in' and check_out >= ${today})
+        or (status in ('confirmed', 'hold') and check_in = ${today})
+      )
     order by (status = 'checked_in') desc, check_in desc
     limit 1`;
   return rows[0] ? crmFromRow(rows[0]) : null;

@@ -76,6 +76,8 @@ export interface Booking {
   room_subtotal?: number;
   gst_amount?: number;
   addons_total?: number;
+  /** Add-ons booked on the website (before GST); posted to the guest's bill when a room is assigned. */
+  addons?: { code: 'airport_transfer' | 'bike_rental'; title: string; amount: number }[];
   meal_plan?: string;
   rooms_config?: { room_id: string; adults: number; children: number; child_ages?: number[] }[];
   /** Pending requests hold inventory until this time, then expire. */

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GST_CONFIG, calculateBookingTotals, calculateStayGst, sanitizeGstConfig } from '@/lib/gst';
-import { accommodationGstForTotal, apportionTax, chargeTax, recalculateFolioTotals } from '@/lib/folio';
+import * as gst from '@/lib/gst';
+import * as folioLib from '@/lib/folio';
+import type { GstConfig } from '@/lib/gst';
+
+// These tests cover the GST maths with GST switched ON (the shipped default is OFF; see gst-off.test.ts).
+const DEFAULT_GST_CONFIG: GstConfig = { ...gst.DEFAULT_GST_CONFIG, enabled: true };
+const ON = DEFAULT_GST_CONFIG;
+const { sanitizeGstConfig } = gst;
+const calculateStayGst = (r: DynamicTariffResult, cfg: GstConfig = ON) => gst.calculateStayGst(r, cfg);
+const calculateBookingTotals = (r: DynamicTariffResult[], addons: number, cfg: GstConfig = ON) => gst.calculateBookingTotals(r, addons, cfg);
+const accommodationGstForTotal = (t: number, n: number, cfg: GstConfig = ON) => folioLib.accommodationGstForTotal(t, n, cfg);
+const apportionTax = (l: FolioCharge[], t: number, cfg: GstConfig = ON) => folioLib.apportionTax(l, t, cfg);
+const chargeTax = (c: FolioCharge, cfg: GstConfig = ON) => folioLib.chargeTax(c, cfg);
+const recalculateFolioTotals = (f: GuestFolio, c: FolioCharge[], p: GuestFolio['payments'] = f.payments, cfg: GstConfig = ON) =>
+  folioLib.recalculateFolioTotals(f, c, p, cfg);
 import type { DynamicTariffResult } from '@/lib/tariff-calculator';
 import type { FolioCharge, GuestFolio } from '@/types/crm';
 
@@ -47,7 +60,7 @@ describe('accommodation GST (per room-night slab)', () => {
     expect(g.taxableAmount).toBe(5000);
   });
   it('sanitizes bad config back to defaults', () => {
-    expect(sanitizeGstConfig({ accommodationLowRate: -1, foodRate: 'x' })).toEqual(DEFAULT_GST_CONFIG);
+    expect(sanitizeGstConfig({ accommodationLowRate: -1, foodRate: 'x' })).toEqual(gst.DEFAULT_GST_CONFIG);
   });
   it('manual totals use the average night value', () => {
     expect(accommodationGstForTotal(10000, 2)).toBe(500);

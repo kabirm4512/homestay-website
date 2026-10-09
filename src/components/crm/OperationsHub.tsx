@@ -45,6 +45,7 @@ export default function OperationsHub() {
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
+  const [vendorFare, setVendorFare] = useState('');
 
   // 1. Front Desk calculations for today (dynamic live date)
   const getTodayDateStr = () => {
@@ -72,9 +73,10 @@ export default function OperationsHub() {
 
   const handleOpenDispatchModal = (req: TransportRequest) => {
     setSelectedDispatch(req);
-    setDriverName(req.assignedDriverName || 'Pemba Sherpa');
-    setDriverPhone(req.assignedDriverPhone || '+91 98320 44556');
-    setPlateNumber(req.vehiclePlateNumber || 'WB 74 D 4419');
+    setDriverName(req.assignedDriverName || '');
+    setDriverPhone(req.assignedDriverPhone || '');
+    setPlateNumber(req.vehiclePlateNumber || '');
+    setVendorFare('');
   };
 
   const handleConfirmDispatch = (e: React.FormEvent) => {
@@ -84,6 +86,8 @@ export default function OperationsHub() {
       assignedDriverName: driverName,
       assignedDriverPhone: driverPhone,
       vehiclePlateNumber: plateNumber,
+      // What the driver / vendor is actually paid (the real margin; log the payment as a Transport expense)
+      vendorCost: vendorFare.trim() ? Math.max(0, Number(vendorFare)) : undefined,
     });
     setSelectedDispatch(null);
   };
@@ -510,7 +514,7 @@ export default function OperationsHub() {
                       ₹{req.quotedPrice.toLocaleString('en-IN')}
                     </span>
                     <span className="text-[10px] text-emerald-700 block font-medium">
-                      Est. Homestay Comm: ₹{req.homestayCommission}
+                      {req.confirmedAt ? 'Margin' : 'Est. margin'}: ₹{req.homestayCommission}
                     </span>
                   </div>
 
@@ -610,6 +614,21 @@ export default function OperationsHub() {
                   className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 uppercase font-mono"
                   placeholder="WB 74 BK 1234"
                 />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-forest-800 block mb-1">
+                  Driver / vendor fare (₹, what we pay them)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={vendorFare}
+                  onChange={(e) => setVendorFare(e.target.value.replace(/[^0-9.]/g, ''))}
+                  className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50 font-mono"
+                  placeholder={selectedDispatch ? `Guest pays ₹${selectedDispatch.quotedPrice.toLocaleString('en-IN')}` : ''}
+                />
+                <span className="text-[10px] text-forest-600">Shows the real margin. Pay the driver through the Expense Logger (Transport).</span>
               </div>
 
               <div className="pt-2 flex items-center justify-end space-x-2">

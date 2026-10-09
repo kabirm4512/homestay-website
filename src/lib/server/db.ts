@@ -132,3 +132,11 @@ export async function withTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
 export async function lockInventory(tx: Tx): Promise<void> {
   await tx`select pg_advisory_xact_lock(7311001)`;
 }
+
+/**
+ * Serialises every change to ONE folio (desk devices, guest orders, the kitchen) so two
+ * writers never read the same copy and overwrite each other's lines or payments.
+ */
+export async function lockFolio(tx: Tx, key: string): Promise<void> {
+  await tx`select pg_advisory_xact_lock(7311002, hashtext(${key}))`;
+}

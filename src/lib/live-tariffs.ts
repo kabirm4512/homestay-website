@@ -21,6 +21,8 @@ export interface LiveTariffData {
   seasonalDateRanges: SeasonalDateRange[];
   gstConfig: GstConfig;
   addonRates: AddonRates | null;
+  /** Server change token (see GET /api/tariffs?only=version). */
+  version: string | null;
   fetchedAt: number;
 }
 
@@ -47,7 +49,7 @@ const listeners = new Set<(data: LiveTariffData) => void>();
 export function parseTariffResponse(json: unknown): Omit<LiveTariffData, 'fetchedAt'> {
   const body = json as {
     success?: boolean;
-    data?: { tariffs?: unknown; seasonalDateRanges?: unknown; gstConfig?: unknown; addonRates?: AddonRates };
+    data?: { tariffs?: unknown; seasonalDateRanges?: unknown; gstConfig?: unknown; addonRates?: AddonRates; version?: unknown };
     error?: string;
   };
   if (!body || body.success !== true || !body.data) {
@@ -65,6 +67,7 @@ export function parseTariffResponse(json: unknown): Omit<LiveTariffData, 'fetche
       rates && typeof rates.airportTransfer === 'number' && typeof rates.bikeRentalPerNight === 'number'
         ? { airportTransfer: rates.airportTransfer, bikeRentalPerNight: rates.bikeRentalPerNight }
         : null,
+    version: typeof body.data.version === 'string' ? body.data.version : null,
   };
 }
 
@@ -104,10 +107,86 @@ export async function fetchLiveTariffs(force = false): Promise<LiveTariffData> {
   return inFlight;
 }
 
-/** Pushes freshly saved data (e.g. from an admin save) to every mounted consumer. */
+/** Pushes freshly saved data (e.g. from an admin save) to every mounted consumer, in every tab. */
 export function publishLiveTariffs(data: Omit<LiveTariffData, 'fetchedAt'>): void {
   cached = { ...data, fetchedAt: Date.now() };
   listeners.forEach((fn) => fn(cached!));
+  try {
+    channel()?.postMessage({ type: 'tariffs-changed', version: data.version });
+  } catch {}
+}
+
+/** Subscribes to every live update (returns an unsubscribe function). */
+export function subscribeLiveTariffs(fn: (data: LiveTariffData) => void): () => void {
+  listeners.add(fn);
+  startLiveSync();
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+// ----------------------------------------------------------------------------------------
+// Live sync: every open page checks a tiny change token every few seconds (and at once when
+// the tab becomes visible, regains focus or comes back online). Only when the token changes
+// is the full pricing data fetched again. Admin saves are also broadcast to other tabs of
+// the same browser instantly. The API is never cached (no-store), so a saved price is live
+// for every visitor within POLL_MS.
+// ----------------------------------------------------------------------------------------
+const POLL_MS = 8_000;
+let syncStarted = false;
+let checking = false;
+let bc: BroadcastChannel | null | undefined;
+
+function channel(): BroadcastChannel | null {
+  if (bc !== undefined) return bc;
+  try {
+    bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('savera-live-tariffs') : null;
+  } catch {
+    bc = null;
+  }
+  return bc;
+}
+
+/** Fetches the change token and refetches the full data when it differs from what we have. */
+export async function checkForTariffUpdate(): Promise<void> {
+  if (checking || typeof window === 'undefined') return;
+  checking = true;
+  try {
+    if (!cached) {
+      await fetchLiveTariffs(true);
+      return;
+    }
+    const res = await fetch('/api/tariffs?only=version', { cache: 'no-store', signal: AbortSignal.timeout(6000) });
+    const body = (await res.json().catch(() => null)) as { success?: boolean; version?: string } | null;
+    if (res.ok && body?.success && typeof body.version === 'string' && body.version !== cached.version) {
+      await fetchLiveTariffs(true);
+    }
+  } catch {
+    // offline or slow: the next tick tries again
+  } finally {
+    checking = false;
+  }
+}
+
+function startLiveSync() {
+  if (syncStarted || typeof window === 'undefined') return;
+  syncStarted = true;
+  const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+  setInterval(() => {
+    if (visible()) void checkForTariffUpdate();
+  }, POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (visible()) void checkForTariffUpdate();
+  });
+  window.addEventListener('focus', () => void checkForTariffUpdate());
+  window.addEventListener('online', () => void checkForTariffUpdate());
+  const ch = channel();
+  if (ch) {
+    ch.onmessage = (e: MessageEvent) => {
+      const v = (e.data as { version?: string | null } | null)?.version;
+      if (!cached || !v || v !== cached.version) void fetchLiveTariffs(true).catch(() => {});
+    };
+  }
 }
 
 /** React hook: live tariffs + seasonal ranges with an explicit loading/error status. */
@@ -129,25 +208,18 @@ export function useLiveTariffs(): LiveTariffState {
   }, []);
 
   useEffect(() => {
-    const listener = (fresh: LiveTariffData) => {
+    const unsubscribe = subscribeLiveTariffs((fresh: LiveTariffData) => {
       setData(fresh);
       setStatus('ready');
       setError(null);
-    };
-    listeners.add(listener);
+    });
     load(false);
-    // Pick up price changes when the guest comes back to the tab (cached copy older than a minute)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') load(false);
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    // A failed load is retried automatically every 20 s
+    // A failed first load is retried automatically (the live sync handles later changes)
     const retry = setInterval(() => {
-      if (!cached || Date.now() - cached.fetchedAt > MAX_AGE_MS * 5) load(true);
-    }, 20_000);
+      if (!cached) load(true);
+    }, 10_000);
     return () => {
-      listeners.delete(listener);
-      document.removeEventListener('visibilitychange', onVisible);
+      unsubscribe();
       clearInterval(retry);
     };
   }, [load]);
@@ -168,4 +240,5 @@ export function useLiveTariffs(): LiveTariffState {
 // Warm the cache as early as possible on page load (the rooms section reads it when it mounts)
 if (typeof window !== 'undefined') {
   fetchLiveTariffs().catch(() => {});
+  startLiveSync();
 }

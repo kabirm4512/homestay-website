@@ -16,6 +16,7 @@ export const RECORD_COLLECTIONS = [
   'rentalVehicles',
   'activityLogs',
   'staffAlerts',
+  'roomBlocks',
 ] as const;
 
 export type RecordCollection = (typeof RECORD_COLLECTIONS)[number];

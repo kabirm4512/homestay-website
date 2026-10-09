@@ -1,9 +1,10 @@
 import { getSql } from './db';
 import { HttpError } from './http';
 import { listRecords } from './repos/records';
-import { todayInIST } from '@/lib/tariff-calculator';
+import { addCalendarDays, todayInIST } from '@/lib/tariff-calculator';
+import { moneySummary } from './reports';
 import { roundMoney } from '@/lib/gst';
-import type { Expense, GuestFolio } from '@/types/crm';
+import type { Expense } from '@/types/crm';
 
 /**
  * Day close: an immutable end-of-day snapshot of money in and out (by payment method),
@@ -29,51 +30,39 @@ export interface DayCloseRecord extends DayCloseSummary {
   notes?: string;
 }
 
-/** IST calendar date of an ISO timestamp. */
-function istDate(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : todayInIST(d);
-}
-
 export async function summarizeDay(date: string): Promise<DayCloseSummary> {
-  const [folios, expenses] = await Promise.all([
-    listRecords<GuestFolio>('folios', { limit: 5000 }),
-    listRecords<Expense>('expenses', { limit: 5000 }),
-  ]);
+  // The same definitions as the dashboard (lib/reports-core.ts): revenue by the night/day the
+  // service was given, GST on every billed line, collections recorded that day, voids excluded.
+  const [{ current }, expenses] = await Promise.all([moneySummary(date, date), listRecords<Expense>('expenses', { limit: 20000 })]);
   const add = (m: Record<string, number>, k: string, v: number) => (m[k] = roundMoney((m[k] || 0) + v));
-
-  const payments = { byMethod: {} as Record<string, number>, total: 0, count: 0 };
-  const charges = { byCategory: {} as Record<string, number>, total: 0, tax: 0 };
-  let openFolios = 0;
-  let balanceDueOpen = 0;
-  for (const f of folios) {
-    for (const p of f.payments || []) {
-      if (istDate(p.collectedAt) !== date) continue;
-      add(payments.byMethod, p.paymentMethod || 'other', p.amount);
-      payments.total = roundMoney(payments.total + p.amount);
-      payments.count += 1;
-    }
-    for (const c of f.charges || []) {
-      if (c.chargeStatus === 'void' || istDate(c.postedAt) !== date) continue;
-      add(charges.byCategory, c.category, c.amount);
-      charges.total = roundMoney(charges.total + c.amount);
-      charges.tax = roundMoney(charges.tax + (c.taxAmount || 0));
-    }
-    if (f.status !== 'settled' && (f.balanceDue || 0) > 0) {
-      openFolios += 1;
-      balanceDueOpen = roundMoney(balanceDueOpen + f.balanceDue);
-    }
-  }
+  const payments = {
+    byMethod: Object.fromEntries(Object.entries(current.collections.byMethod).filter(([, v]) => v > 0)) as Record<string, number>,
+    total: current.collections.net,
+    count: current.collections.count,
+  };
+  if (current.collections.refunds > 0) payments.byMethod.refunds = -current.collections.refunds;
+  const charges = {
+    byCategory: Object.fromEntries(Object.entries(current.revenue.byStream).filter(([, v]) => v > 0)) as Record<string, number>,
+    total: current.revenue.total,
+    tax: current.gst,
+  };
   const exp = { byMethod: {} as Record<string, number>, total: 0, count: 0 };
   for (const e of expenses) {
-    if (e.expenseDate !== date) continue;
+    if (e.status === 'void' || e.expenseDate !== date) continue;
     add(exp.byMethod, e.paymentMethod || 'other', e.amount);
     exp.total = roundMoney(exp.total + e.amount);
     exp.count += 1;
   }
-  const netCash = roundMoney((payments.byMethod.cash || 0) - (exp.byMethod.cash || 0));
-  return { date, payments, charges, expenses: exp, netCash, openFolios, balanceDueOpen };
+  const netCash = roundMoney((current.collections.byMethod.cash || 0) - (exp.byMethod.cash || 0));
+  return {
+    date,
+    payments,
+    charges,
+    expenses: exp,
+    netCash,
+    openFolios: current.topOutstanding.length,
+    balanceDueOpen: current.receivables,
+  };
 }
 
 export async function getDayClose(date: string): Promise<DayCloseRecord | null> {
@@ -92,6 +81,11 @@ export async function closeDay(date: string, staff: { id: string; fullName: stri
   if (date > todayInIST()) throw new HttpError(400, 'You cannot close a day in the future.');
   const existing = await getDayClose(date);
   if (existing) throw new HttpError(409, `${date} was already closed by ${existing.closedByName}.`, 'ALREADY_CLOSED');
+  // Days are closed in order, so no day is locked without its own snapshot
+  const last = await lastClosedDate();
+  if (last && date > last && addCalendarDays(last, 1) !== date) {
+    throw new HttpError(409, `Close ${addCalendarDays(last, 1)} first (days are closed in order).`, 'CLOSE_IN_ORDER');
+  }
   const summary = await summarizeDay(date);
   const record: DayCloseRecord = {
     ...summary,

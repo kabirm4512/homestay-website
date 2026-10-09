@@ -13,6 +13,12 @@ import type { DynamicTariffResult } from './tariff-calculator';
  */
 
 export interface GstConfig {
+  /**
+   * Master switch. When false, NO GST is charged anywhere: website quotes, desk bookings,
+   * guest orders and every open folio carry ₹0 tax. Settled bills keep the tax they were
+   * issued with. The rates below are kept so GST can be switched back on later.
+   */
+  enabled: boolean;
   /** If true, saved tariffs already include GST (GST is shown, not added). */
   tariffsIncludeGst: boolean;
   accommodationThreshold: number; // ₹ per room per night
@@ -24,6 +30,9 @@ export interface GstConfig {
 }
 
 export const DEFAULT_GST_CONFIG: GstConfig = {
+  // GST is switched off for now (owner's decision, Oct 2026). Admins can switch it on in
+  // Website Settings → Dine-in Menu & Add-ons → GST rules.
+  enabled: false,
   tariffsIncludeGst: false,
   accommodationThreshold: 7500,
   accommodationLowRate: 5,
@@ -37,6 +46,7 @@ export function sanitizeGstConfig(input: unknown): GstConfig {
   const src = (input && typeof input === 'object' ? input : {}) as Partial<GstConfig>;
   const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback);
   return {
+    enabled: typeof src.enabled === 'boolean' ? src.enabled : DEFAULT_GST_CONFIG.enabled,
     tariffsIncludeGst: typeof src.tariffsIncludeGst === 'boolean' ? src.tariffsIncludeGst : DEFAULT_GST_CONFIG.tariffsIncludeGst,
     accommodationThreshold: num(src.accommodationThreshold, DEFAULT_GST_CONFIG.accommodationThreshold),
     accommodationLowRate: num(src.accommodationLowRate, DEFAULT_GST_CONFIG.accommodationLowRate),
@@ -47,12 +57,28 @@ export function sanitizeGstConfig(input: unknown): GstConfig {
   };
 }
 
+/**
+ * The rules actually applied: when GST is switched off every rate is 0 and prices are
+ * treated as final (nothing is "included" or added).
+ */
+export function activeGst(cfg: GstConfig = DEFAULT_GST_CONFIG): GstConfig {
+  if (cfg.enabled) return cfg;
+  return { ...cfg, tariffsIncludeGst: false, accommodationLowRate: 0, accommodationHighRate: 0, foodRate: 0, transportRate: 0, otherRate: 0 };
+}
+
+/** Short label shown next to guest-facing prices: '+ GST', 'incl. GST', or '' when GST is off. */
+export function gstPriceNote(cfg: GstConfig = DEFAULT_GST_CONFIG): string {
+  if (!cfg.enabled) return '';
+  return cfg.tariffsIncludeGst ? 'incl. GST' : '+ GST';
+}
+
 /** Rounds to paise. */
 export function roundMoney(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
 export function accommodationRateFor(nightValue: number, cfg: GstConfig = DEFAULT_GST_CONFIG): number {
+  cfg = activeGst(cfg);
   return nightValue <= cfg.accommodationThreshold ? cfg.accommodationLowRate : cfg.accommodationHighRate;
 }
 
@@ -71,6 +97,7 @@ export interface StayGst {
  * crosses the ₹7,500 line (e.g. a suite in peak season) is taxed correctly night by night.
  */
 export function calculateStayGst(result: DynamicTariffResult, cfg: GstConfig = DEFAULT_GST_CONFIG): StayGst {
+  cfg = activeGst(cfg);
   const extrasPerNight = (result.extraAdultsCharge + result.extraChildrenCharge) / Math.max(1, result.nights);
   const byRate: Record<number, { taxable: number; gst: number }> = {};
   let taxable = 0;
@@ -146,6 +173,7 @@ export interface BookingTotals {
  * the stored total always match.
  */
 export function calculateBookingTotals(results: DynamicTariffResult[], addonsGross: number, cfg: GstConfig = DEFAULT_GST_CONFIG): BookingTotals {
+  cfg = activeGst(cfg);
   const rooms = calculateMultiRoomGst(results, cfg);
   let addonsTotal = roundMoney(Math.max(0, addonsGross));
   let addonsGst = 0;
@@ -174,6 +202,7 @@ export function calculateBookingTotals(results: DynamicTariffResult[], addonsGro
 
 /** GST rate for a non-accommodation folio charge category. */
 export function rateForChargeCategory(category: ChargeCategory, cfg: GstConfig = DEFAULT_GST_CONFIG): number {
+  cfg = activeGst(cfg);
   switch (category) {
     case 'food_beverage':
       return cfg.foodRate;

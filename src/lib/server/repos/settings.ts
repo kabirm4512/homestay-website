@@ -97,6 +97,21 @@ export async function deleteSeasonalRange(id: string, actor: string, db?: SqlOrT
   return before;
 }
 
+/**
+ * A token that changes whenever anything a price depends on changes (tariffs, seasons, GST,
+ * add-on rates, room categories). Browsers poll it every few seconds and refetch the full
+ * pricing data only when it changes, so the website follows the backend at once.
+ */
+export async function getPricingVersion(db?: SqlOrTx): Promise<string> {
+  const sql = db || getSql();
+  const rows = await sql<{ v: Date | null; c: Date | null }[]>`
+    select
+      (select max(updated_at) from pms.settings where key in (${SETTINGS.TARIFFS}, ${SETTINGS.SEASONS}, ${SETTINGS.GST}, ${SETTINGS.ADDON_RATES})) as v,
+      (select max(updated_at) from pms.room_categories) as c`;
+  const t = (d: Date | null) => (d ? new Date(d).getTime() : 0);
+  return `${t(rows[0]?.v ?? null)}.${t(rows[0]?.c ?? null)}`;
+}
+
 // ---------------------------------------------------------------- GST & add-ons
 export async function getGstConfig(db?: SqlOrTx): Promise<GstConfig> {
   return sanitizeGstConfig(await getSetting(SETTINGS.GST, db));

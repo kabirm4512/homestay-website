@@ -29,6 +29,7 @@ import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, GuestFolio } from '@/types/crm';
 import GuestCheckoutModal from './GuestCheckoutModal';
 import { todayInIST } from '@/lib/tariff-calculator';
+import { dispatchesForBooking, folioForBooking, ordersForBooking } from '@/lib/folio-links';
 
 interface MasterBookingsListProps {
   onOpenManualBooking?: () => void;
@@ -41,9 +42,12 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
     foodOrders,
     dispatchRequests,
     checkInRoom,
+    cancelBooking,
     currentUser,
     showToast,
   } = useCRM();
+  const [cancelling, setCancelling] = useState<{ id: string; noShow: boolean } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,51 +55,51 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
   const [selectedBookingForCheckout, setSelectedBookingForCheckout] = useState<CRMBooking | null>(null);
   const [inspectBooking, setInspectBooking] = useState<CRMBooking | null>(null);
 
-  const todayStr = useMemo(() => todayInIST(), []);
+  // "Today" follows the clock (a tab left open overnight moves to the new day)
+  const [todayStr, setTodayStr] = useState(() => todayInIST());
+  React.useEffect(() => {
+    const t = setInterval(() => setTodayStr(todayInIST()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
-  // Compute stats across all bookings
+  // One rule per view, used for both the count and the list
+  const inView = useMemo(() => {
+    const dueOf = (b: CRMBooking) => folioForBooking(folios, b)?.balanceDue || 0;
+    return {
+      in_house: (b: CRMBooking) => b.bookingStatus === 'checked_in',
+      arriving: (b: CRMBooking) => b.checkInDate === todayStr && (b.bookingStatus === 'confirmed' || b.bookingStatus === 'hold'),
+      checked_out: (b: CRMBooking) => b.bookingStatus === 'checked_out',
+      // Receivables: unpaid balances of stays that have started (in-house or departed)
+      dues: (b: CRMBooking) => (b.bookingStatus === 'checked_in' || b.bookingStatus === 'checked_out') && dueOf(b) > 0,
+      due: dueOf,
+    };
+  }, [folios, todayStr]);
+
   const stats = useMemo(() => {
-    let inHouse = 0;
-    let arriving = 0;
-    let withDues = 0;
-    let totalDuesAmount = 0;
-    let checkedOut = 0;
-
-    bookings.forEach((b) => {
-      if (b.tapeStatus === 'checked_in') inHouse++;
-      if (b.checkInDate === todayStr && b.tapeStatus !== 'checked_in') arriving++;
-      if (b.bookingStatus === 'checked_out') checkedOut++;
-
-      const fol = folios.find((f) => f.bookingId === b.id || f.roomNumber === b.roomNumber);
-      const due = fol ? fol.balanceDue : Math.max(0, b.totalRoomAmount - (b.advancePaid || 0));
-      if (due > 0 && b.bookingStatus !== 'checked_out') {
-        withDues++;
-        totalDuesAmount += due;
-      }
-    });
-
-    return { inHouse, arriving, withDues, totalDuesAmount, checkedOut };
-  }, [bookings, folios, todayStr]);
+    const dues = bookings.filter(inView.dues);
+    return {
+      inHouse: bookings.filter(inView.in_house).length,
+      arriving: bookings.filter(inView.arriving).length,
+      checkedOut: bookings.filter(inView.checked_out).length,
+      withDues: dues.length,
+      totalDuesAmount: dues.reduce((s, b) => s + inView.due(b), 0),
+    };
+  }, [bookings, inView]);
 
   // Filtered and searched list
   const filteredBookings = useMemo(() => {
     return bookings
       .filter((b) => {
         // Status filter
-        if (statusFilter === 'in_house' && b.tapeStatus !== 'checked_in') return false;
-        if (statusFilter === 'arriving' && b.checkInDate !== todayStr) return false;
-        if (statusFilter === 'checked_out' && b.bookingStatus !== 'checked_out') return false;
+        if (statusFilter !== 'all' && !inView[statusFilter](b)) return false;
 
-        const fol = folios.find((f) => f.bookingId === b.id || f.roomNumber === b.roomNumber);
-        const due = fol ? fol.balanceDue : Math.max(0, b.totalRoomAmount - (b.advancePaid || 0));
-        if (statusFilter === 'dues' && due <= 0) return false;
-
-        // Search query
+        // Search query (phone: digits only, so "98320 44556" and "+91-98320-44556" both match)
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase().trim();
+        const qDigits = q.replace(/\D/g, '');
         return (
           b.guest.fullName.toLowerCase().includes(q) ||
-          b.guest.phone.includes(q) ||
+          (qDigits.length >= 4 && (b.guest.phone || '').replace(/\D/g, '').includes(qDigits)) ||
           b.bookingReference.toLowerCase().includes(q) ||
           String(b.roomNumber).includes(q) ||
           b.roomName.toLowerCase().includes(q)
@@ -107,24 +111,21 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
         if (b.tapeStatus === 'checked_in' && a.tapeStatus !== 'checked_in') return 1;
         return new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime();
       });
-  }, [bookings, folios, statusFilter, searchQuery, todayStr]);
+  }, [bookings, statusFilter, searchQuery, inView]);
 
   // Helper for itemized breakdown
   const getBookingBreakdown = (booking: CRMBooking) => {
-    const fol = folios.find((f) => f.bookingId === booking.id || f.roomNumber === booking.roomNumber);
-    const relatedFood = foodOrders.filter(
-      (o) => (o.bookingId === booking.id || o.roomNumber === booking.roomNumber) && o.status !== 'cancelled'
-    );
-    const relatedDispatches = dispatchRequests.filter(
-      (d) => (d.bookingId === booking.id || d.roomNumber === booking.roomNumber) && d.dispatchStatus !== 'cancelled'
-    );
+    const fol = folioForBooking(folios, booking);
+    const relatedFood = ordersForBooking(foodOrders, booking).filter((o) => o.status !== 'cancelled');
+    const relatedDispatches = dispatchesForBooking(dispatchRequests, booking).filter((d) => d.dispatchStatus !== 'cancelled');
 
-    const roomCharges = fol ? fol.totalRoomCharges : booking.totalRoomAmount;
-    const fbCharges = fol ? fol.totalFbCharges : relatedFood.reduce((s, o) => s + o.totalAmount, 0);
-    const addonCharges = fol ? fol.totalAddonCharges : relatedDispatches.reduce((s, d) => s + d.quotedPrice, 0);
-    const netTotal = fol ? fol.netPayable : roomCharges + fbCharges + addonCharges;
-    const totalPaid = fol ? fol.totalPaid : booking.advancePaid || 0;
-    const balanceDue = fol ? fol.balanceDue : Math.max(0, netTotal - totalPaid);
+    // Always the bill's own figures (no guessing from quotes when a bill is missing)
+    const roomCharges = fol?.totalRoomCharges || 0;
+    const fbCharges = fol?.totalFbCharges || 0;
+    const addonCharges = fol?.totalAddonCharges || 0;
+    const netTotal = fol?.netPayable || 0;
+    const totalPaid = fol?.totalPaid || 0;
+    const balanceDue = fol?.balanceDue || 0;
 
     return {
       folio: fol,
@@ -473,7 +474,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
 
                   <div className="flex items-center space-x-2">
                     {/* Check In Action if confirmed */}
-                    {b.tapeStatus !== 'checked_in' && !isCheckedOut && (
+                    {(b.bookingStatus === 'confirmed' || b.bookingStatus === 'hold') && b.checkInDate <= todayStr && (
                       <button
                         onClick={() => {
                           checkInRoom(b.id, {
@@ -485,6 +486,18 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
                       >
                         <LogIn className="w-3.5 h-3.5" />
                         <span>Check-In Guest</span>
+                      </button>
+                    )}
+
+                    {(b.bookingStatus === 'confirmed' || b.bookingStatus === 'hold') && (
+                      <button
+                        onClick={() => {
+                          setCancelling({ id: b.id, noShow: b.checkInDate < todayStr });
+                          setCancelReason('');
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
+                      >
+                        {b.checkInDate < todayStr ? 'No-show' : 'Cancel'}
                       </button>
                     )}
 
@@ -505,10 +518,35 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold text-forest-700 bg-sand-100 hover:bg-sand-200 border border-sand-300 transition-colors flex items-center space-x-1 cursor-pointer"
                     >
                       <Receipt className="w-3.5 h-3.5" />
-                      <span>{isCheckedOut ? 'View Settled Folio' : 'Inspect Folio'}</span>
+                      <span>{isCheckedOut ? 'View bill' : 'Bill & payments'}</span>
                     </button>
                   </div>
                 </div>
+                {cancelling?.id === b.id && (
+                  <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs space-y-2">
+                    <label className="flex items-center gap-2 font-semibold text-rose-900">
+                      <input type="checkbox" checked={cancelling.noShow} onChange={(e) => setCancelling({ id: b.id, noShow: e.target.checked })} />
+                      Guest did not arrive (no-show)
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input autoFocus value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Reason (required), e.g. guest called to cancel" className="flex-1 px-3 py-2 rounded-lg border border-rose-300 bg-white" />
+                      <button
+                        onClick={async () => {
+                          if (cancelReason.trim().length < 3) {
+                            showToast('Please give a reason.', 'error');
+                            return;
+                          }
+                          if (await cancelBooking(b.id, cancelReason.trim(), cancelling.noShow)) setCancelling(null);
+                        }}
+                        className="px-3 py-2 rounded-lg bg-rose-600 text-white font-bold"
+                      >
+                        {cancelling.noShow ? 'Mark no-show' : 'Cancel booking'}
+                      </button>
+                      <button onClick={() => setCancelling(null)} className="px-3 py-2 rounded-lg border border-sand-300 font-bold bg-white">Keep</button>
+                    </div>
+                    <p className="text-[11px] text-rose-800">Room charges are voided. Any advance stays on the bill as a credit for the owner to refund or keep.</p>
+                  </div>
+                )}
               </div>
             );
           })}

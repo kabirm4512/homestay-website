@@ -1027,7 +1027,7 @@ export default function BookingModal({
                     <div>
                       <span className="text-base font-bold">Total Stay Tariff</span>
                       <span className="block text-[11px] text-gray-500 font-normal">
-                        ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · {nights} {nights === 1 ? 'Night' : 'Nights'} · Live tariff incl. GST on rooms)
+                        ({totalRooms} {totalRooms === 1 ? 'Room' : 'Rooms'} · {nights} {nights === 1 ? 'Night' : 'Nights'} · {gstConfig.enabled ? 'Live tariff incl. GST' : 'Live tariff · no GST'})
                       </span>
                     </div>
                     <span className="text-2xl font-bold text-primary-900">

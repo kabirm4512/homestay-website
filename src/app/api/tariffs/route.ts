@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { handler, ok, readJson, HttpError, clientIp, PUBLIC_SHORT_CACHE } from '@/lib/server/http';
+import { handler, ok, readJson, HttpError, clientIp, NO_STORE } from '@/lib/server/http';
 import { requireStaff, ROLES } from '@/lib/server/auth/staff-session';
 import { sanitizeGstConfig } from '@/lib/gst';
 import {
   getTariffData,
   getGstConfig,
   getAddonRates,
+  getPricingVersion,
   putSetting,
   SETTINGS,
   saveRoomTariff,
@@ -14,17 +15,27 @@ import {
   deleteSeasonalRange,
 } from '@/lib/server/repos/settings';
 import { audit } from '@/lib/server/audit';
+import { applyGstModeToOpenFolios } from '@/lib/server/gst-sweep';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function payload() {
-  const [t, gstConfig, addonRates] = await Promise.all([getTariffData(), getGstConfig(), getAddonRates()]);
-  return { data: { tariffs: t.tariffs, seasonalDateRanges: t.seasonalDateRanges, gstConfig, addonRates } };
+  const [t, gstConfig, addonRates, version] = await Promise.all([getTariffData(), getGstConfig(), getAddonRates(), getPricingVersion()]);
+  return { data: { tariffs: t.tariffs, seasonalDateRanges: t.seasonalDateRanges, gstConfig, addonRates, version } };
 }
 
-/** Public: live tariffs, seasonal calendar, GST rules and add-on rates (every price is computed from these). */
-export const GET = handler('tariffs.get', async () => ok(await payload(), { headers: PUBLIC_SHORT_CACHE }));
+/**
+ * Public: live tariffs, seasonal calendar, GST rules and add-on rates (every price is computed
+ * from these). Never cached by the browser or the CDN, so a saved price is live at once.
+ * `?only=version` returns just the change token (polled every few seconds by open pages).
+ */
+export const GET = handler('tariffs.get', async (request: Request) => {
+  if (new URL(request.url).searchParams.get('only') === 'version') {
+    return ok({ version: await getPricingVersion() }, { headers: NO_STORE });
+  }
+  return ok(await payload(), { headers: NO_STORE });
+});
 
 const Price = z.number().positive('Every room price must be above ₹0').max(10_000_000);
 const Rates = z.object({ EP: Price, CP: Price, MAP: Price, AP: Price });
@@ -48,6 +59,7 @@ const Range = z.object({
   minNights: z.number().int().min(1).max(30).optional(),
 });
 const Gst = z.object({
+  enabled: z.boolean().default(false),
   tariffsIncludeGst: z.boolean(),
   accommodationThreshold: z.number().min(0).max(1_000_000),
   accommodationLowRate: z.number().min(0).max(50),
@@ -80,7 +92,9 @@ export const POST = handler('tariffs.save', async (request: Request) => {
     const after = sanitizeGstConfig(body.gstConfig);
     await putSetting(SETTINGS.GST, after, actor);
     await audit({ actor, action: 'update', entity: 'gst_config', before, after, ip });
-    return ok({ message: 'GST settings saved', ...(await payload()) });
+    // Open bills follow the switch now; settled bills keep the tax they were issued with.
+    const recalculated = await applyGstModeToOpenFolios(actor);
+    return ok({ message: 'GST settings saved', recalculatedOpenFolios: recalculated, ...(await payload()) });
   }
   if ('type' in body && body.type === 'addon_rates') {
     const before = await getAddonRates();

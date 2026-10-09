@@ -11,7 +11,7 @@ const Body = z.object({
       z.object({
         collection: z.enum([
           'crmBookings', 'physicalRooms', 'folios', 'foodOrders', 'dispatchRequests', 'housekeepingTasks',
-          'expenses', 'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts',
+          'expenses', 'menuItems', 'transferRoutes', 'rentalVehicles', 'activityLogs', 'staffAlerts', 'roomBlocks',
         ]),
         op: z.enum(['upsert', 'delete']),
         id: z.string().min(1).max(200),

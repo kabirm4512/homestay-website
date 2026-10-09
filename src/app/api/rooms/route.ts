@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handler, ok, readJson, HttpError, clientIp, PUBLIC_SHORT_CACHE } from '@/lib/server/http';
+import { handler, ok, readJson, HttpError, clientIp, NO_STORE } from '@/lib/server/http';
 import { getStaff, requireStaff, ROLES } from '@/lib/server/auth/staff-session';
 import { listRoomCategories, saveRoomCategory, deleteRoomCategory } from '@/lib/server/repos/rooms';
 import { persistDataUrl } from '@/lib/server/repos/files';
@@ -13,7 +13,7 @@ export const GET = handler('rooms.list', async (request: Request) => {
   const all = new URL(request.url).searchParams.get('all') === '1';
   const includeInactive = all && Boolean(await getStaff(request));
   // The public list is the same for everyone and can be served from the CDN briefly
-  return ok({ data: await listRoomCategories({ includeInactive }) }, all ? {} : { headers: PUBLIC_SHORT_CACHE });
+  return ok({ data: await listRoomCategories({ includeInactive }) }, { headers: NO_STORE });
 });
 
 const RoomInput = z

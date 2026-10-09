@@ -75,6 +75,25 @@ export default function AdminTaxSettings() {
           Room GST is decided per room per night on the value charged (room rate + extra persons). Confirm the slabs and rates with
           your CA. {isAdmin ? '' : 'Only an admin can change these.'}
         </p>
+        <label
+          className={`flex items-start gap-3 p-3 rounded-xl border text-xs cursor-pointer ${
+            gst.enabled ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'
+          }`}
+        >
+          <input
+            type="checkbox"
+            className="mt-0.5 w-4 h-4"
+            checked={gst.enabled}
+            disabled={!isAdmin}
+            onChange={(e) => setGst({ ...gst, enabled: e.target.checked })}
+          />
+          <span>
+            <strong className="block text-forest-950">{gst.enabled ? 'GST is ON' : 'GST is OFF'}</strong>
+            {gst.enabled
+              ? 'GST is charged on website quotes, desk bookings, orders and bills using the rates below.'
+              : 'No GST is charged anywhere: website prices, desk bookings, guest orders and every open bill show ₹0 GST. Settled bills keep the GST they were issued with. The rates below are kept for when you switch GST back on.'}
+          </span>
+        </label>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"

@@ -25,6 +25,7 @@ import {
   RoomSeasonalTariffs,
   Guest,
   ManagerActivityLog,
+  RoomBlock,
 } from '@/types/crm';
 import { generateUniversalBookingId } from '@/lib/booking-id';
 import {
@@ -34,8 +35,11 @@ import {
   resolveSeasonForNight,
   nightsBetween,
 } from '@/lib/tariff-calculator';
-import { fetchLiveTariffs, parseTariffResponse, publishLiveTariffs } from '@/lib/live-tariffs';
+import { fetchLiveTariffs, parseTariffResponse, publishLiveTariffs, subscribeLiveTariffs } from '@/lib/live-tariffs';
 import { adminPostJson } from '@/lib/admin-api';
+import { NewExpenseInput, newId, postExpense } from '@/lib/expense-client';
+import { onExpenseSaved } from '@/lib/expense-outbox';
+import { folioForBooking } from '@/lib/folio-links';
 import { recalculateFolioTotals, apportionTax, accommodationGstForTotal } from '@/lib/folio';
 import { DEFAULT_GST_CONFIG, GstConfig } from '@/lib/gst';
 import { rentalRate, transferRate } from '@/lib/transport-pricing';
@@ -51,7 +55,8 @@ type SyncCollectionName =
   | 'menuItems'
   | 'transferRoutes'
   | 'rentalVehicles'
-  | 'activityLogs';
+  | 'activityLogs'
+  | 'roomBlocks';
 
 interface ClientSyncOp {
   collection: SyncCollectionName;
@@ -109,8 +114,13 @@ interface CRMContextType {
     details: { assignedDriverName: string; assignedDriverPhone: string; vehiclePlateNumber: string; vendorCost?: number }
   ) => void;
   cancelDispatchRequest: (requestId: string) => void;
-  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void;
-  deleteExpense: (expenseId: string) => void;
+  /** Managers only: logs a signed expense (server stamps date, signer and time). */
+  addExpense: (expense: NewExpenseInput) => Promise<Expense | null>;
+  /** Admins only: review a manager's expense. */
+  approveExpense: (expenseId: string) => Promise<boolean>;
+  voidExpense: (expenseId: string, reason: string) => Promise<boolean>;
+  /** Admins only: void a recorded collection with a reason (kept for the audit trail). */
+  voidFolioPayment: (folioId: string, paymentId: string, reason: string) => void;
   addFolioCharge: (folioId: string, charge: Omit<FolioCharge, 'id' | 'postedAt'>) => void;
   addFolioPayment: (folioId: string, payment: Omit<FolioPayment, 'id' | 'collectedAt'>) => void;
   settleFolio: (folioId: string, paymentMethod: PaymentMethod, notes?: string) => void;
@@ -127,6 +137,8 @@ interface CRMContextType {
       notes?: string;
       managerId: string;
       managerName: string;
+      /** The manager ticked the sign-off for the amount collected. */
+      signOffConfirmed?: boolean;
     }
   ) => void;
   checkInRoom: (bookingId: string, managerInfo?: { id: string; name: string }) => void;
@@ -151,8 +163,11 @@ interface CRMContextType {
     isManualRate?: boolean;
     advancePaid?: number;
     advancePaymentMethod?: PaymentMethod;
+    advanceSignOffConfirmed?: boolean;
     gstAmount?: number;
     sourceBookingId?: string;
+    childAges?: number[];
+    pricedExtras?: { extraAdultsCount: number; extraAdultsCharge: number; extraChildrenCount: number; extraChildrenCharge: number };
     guest: {
       fullName: string;
       phone: string;
@@ -169,6 +184,20 @@ interface CRMContextType {
       hospitalityPreferences?: string;
     };
   }) => CRMBooking;
+  /** Void one bill line (a reason is required; managers: own lines within 30 min, admins: any). */
+  voidFolioCharge: (folioId: string, chargeId: string, reason: string) => void;
+  /** Set the bill discount (reason required; managers up to 10% or ₹1,000). */
+  setFolioDiscount: (folioId: string, amount: number, reason: string) => void;
+  /** Manager: pay back a credit owed to the guest (signed, server-stamped). */
+  recordFolioRefund: (folioId: string, refund: { amount: number; paymentMethod: PaymentMethod; notes?: string; signOffConfirmed: boolean }) => void;
+  /** Cancel a booking or mark a no-show (server: voids room charges, keeps advances as credit). */
+  cancelBooking: (bookingId: string, reason: string, noShow?: boolean) => Promise<boolean>;
+  /** Website requests: record a signed advance before a room is assigned. */
+  recordWebAdvance: (webBookingId: string, payment: { amount: number; paymentMethod: PaymentMethod; transactionReference?: string; signOffConfirmed: boolean }) => Promise<boolean>;
+  /** Dated room blocks (repairs etc.). */
+  roomBlocks: RoomBlock[];
+  addRoomBlock: (block: { roomId: string; fromDate: string; toDate: string; reason: string }) => void;
+  removeRoomBlock: (blockId: string) => void;
   updateBookingGuestDetails: (
     bookingId: string,
     guestUpdates: Partial<Guest>,
@@ -205,7 +234,8 @@ interface CRMContextType {
     checkOut: string,
     mealPlan?: MealPlan,
     adultsCount?: number,
-    childrenCount?: number
+    childrenCount?: number,
+    childAges?: number[]
   ) => DynamicTariffResult | null;
   getSeasonForDate: (dateStr: string) => {
     seasonType: 'season' | 'off_season' | 'regular';
@@ -252,6 +282,7 @@ interface CRMContextType {
 
 // Folio arithmetic (incl. GST) is shared with the server.
 export { recalculateFolioTotals };
+export type { NewExpenseInput };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
 
@@ -265,6 +296,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [dispatchRequests, setDispatchRequests] = useState<TransportRequest[]>([]);
   const [housekeepingTasks, setHousekeepingTasks] = useState<HousekeepingTask[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [roomBlocks, setRoomBlocks] = useState<RoomBlock[]>([]);
   const [transferRoutes, setTransferRoutes] = useState<TransferRoute[]>([]);
   const [rentalVehicles, setRentalVehicles] = useState<RentalVehicle[]>([]);
   // Live pricing data: always loaded from the server (GET /api/tariffs); never seeded or cached locally.
@@ -277,6 +309,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [authStatus, setAuthStatus] = useState<'checking' | 'signed_in' | 'signed_out'>('checking');
   const [managerActivityLogs, setManagerActivityLogs] = useState<ManagerActivityLog[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Folio maths always uses the live GST rules (GST may be switched off).
+  const gstConfigRef = useRef<GstConfig>(gstConfig);
+  gstConfigRef.current = gstConfig;
+  const recalcFolio = (folio: GuestFolio, charges: FolioCharge[], payments?: FolioPayment[], cfg?: GstConfig) =>
+    recalculateFolioTotals(folio, charges, payments ?? folio.payments, cfg ?? gstConfigRef.current);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -298,8 +336,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // =========================================================================
   const isStaffRef = useRef(false);
   const pendingOpsRef = useRef(0);
+  const lastFlushDoneRef = useRef(0);
   const opQueueRef = useRef<ClientSyncOp[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryNoticeShownRef = useRef(false);
   const showToastRef = useRef(showToast);
   showToastRef.current = showToast;
 
@@ -315,6 +355,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     transferRoutes: setTransferRoutes as React.Dispatch<React.SetStateAction<any[]>>,
     rentalVehicles: setRentalVehicles as React.Dispatch<React.SetStateAction<any[]>>,
     activityLogs: setManagerActivityLogs as React.Dispatch<React.SetStateAction<any[]>>,
+    roomBlocks: setRoomBlocks as React.Dispatch<React.SetStateAction<any[]>>,
   });
 
   /** Puts the server's copy of a record into state (no sync back). */
@@ -340,6 +381,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (Array.isArray(state.transferRoutes)) setTransferRoutes(state.transferRoutes);
     if (Array.isArray(state.rentalVehicles)) setRentalVehicles(state.rentalVehicles);
     if (Array.isArray(state.activityLogs)) setManagerActivityLogs(state.activityLogs);
+    if (Array.isArray(state.roomBlocks)) setRoomBlocks(state.roomBlocks);
     if (state.tariffs && Array.isArray(state.seasonalDateRanges)) {
       setRoomTariffs(state.tariffs);
       setSeasonalDateRanges(state.seasonalDateRanges);
@@ -363,6 +405,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const refreshState = useCallback(async () => {
     if (!isStaffRef.current) return;
+    const startedAt = Date.now();
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 25000);
@@ -372,7 +415,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.success && json.state && pendingOpsRef.current === 0) applyState(json.state);
+      // Ignore a snapshot that was requested before our last save finished: it is older than
+      // what is on screen and would briefly undo the save (and a next edit could build on it).
+      if (res.ok && json?.success && json.state && pendingOpsRef.current === 0 && startedAt >= lastFlushDoneRef.current) applyState(json.state);
     } catch {
       // offline: keep what we have; the next poll retries
     }
@@ -380,6 +425,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const flushOps = useCallback(async () => {
     flushTimerRef.current = null;
+    lastFlushDoneRef.current = Date.now() + 60_000; // a save is in flight: ignore any snapshot started before it ends
     const raw = opQueueRef.current.splice(0);
     if (raw.length === 0) return;
     // Last change per record wins (state updaters can run twice in development)
@@ -389,18 +435,27 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
     pendingOpsRef.current += 1;
     let firstError: string | null = null;
+    // Batches that never reached the server (offline, timeout, 5xx) are kept and retried,
+    // not dropped. Batches the server refused for a rule are not retried.
+    const unsent: ClientSyncOp[] = [];
+    let i = 0;
     try {
-      for (let i = 0; i < ops.length; i += 50) {
+      for (; i < ops.length; i += 50) {
+        const batch = ops.slice(i, i + 50);
         const res = await fetch('/api/crm/mutate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ops: ops.slice(i, i + 50) }),
+          body: JSON.stringify({ ops: batch }),
         });
         const json = await res.json().catch(() => null);
         if (res.status === 401) {
           firstError = 'Your session has expired. Please sign in again; the last change was not saved.';
           handleSignedOut();
           break;
+        }
+        if (res.status >= 500 || res.status === 408 || res.status === 429) {
+          unsent.push(...batch);
+          continue;
         }
         if (!res.ok || !json?.success) {
           firstError = json?.error || (res.status === 413 ? 'That upload is too large to save.' : 'Could not save to the server.');
@@ -412,15 +467,51 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch {
-      firstError = 'You appear to be offline. The last change was not saved to the server.';
+      unsent.push(...ops.slice(i)); // network failure: this batch and every later one
     } finally {
       pendingOpsRef.current -= 1;
+      lastFlushDoneRef.current = Date.now();
+    }
+    if (unsent.length > 0) {
+      // Put them back ahead of newer changes; a newer change to the same record wins.
+      const queuedKeys = new Set(opQueueRef.current.map((op) => `${op.collection}:${op.id}`));
+      opQueueRef.current.unshift(...unsent.filter((op) => !queuedKeys.has(`${op.collection}:${op.id}`)));
+      lastFlushDoneRef.current = Date.now() + 60_000; // keep polls from overwriting the unsaved change
+      if (!retryNoticeShownRef.current) {
+        retryNoticeShownRef.current = true;
+        showToastRef.current('No connection. Your change is kept on this device and will be saved when the connection returns. Keep this tab open.', 'error');
+      }
+      if (!flushTimerRef.current) flushTimerRef.current = setTimeout(() => void flushOps(), 15_000);
+    } else if (retryNoticeShownRef.current) {
+      retryNoticeShownRef.current = false;
+      showToastRef.current('Back online. Your changes are saved.');
     }
     if (firstError) {
       showToastRef.current(firstError, 'error');
       await refreshState(); // put the screen back in step with what was actually saved
     }
   }, [applyServerRecord, handleSignedOut, refreshState]);
+
+  // Save anything still queued as soon as the connection returns.
+  useEffect(() => {
+    const onOnline = () => {
+      if (opQueueRef.current.length === 0) return;
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(() => void flushOps(), 0);
+    };
+    // Warn before closing the tab while a change has not reached the server yet.
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (opQueueRef.current.length === 0 && pendingOpsRef.current === 0) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [flushOps]);
 
   /** Diffs a collection before/after a local change and queues the record-level writes. */
   const queueSync = useCallback(
@@ -517,6 +608,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         setTariffsStatus('ready');
       })
       .catch(() => !cancelled && setTariffsStatus('error'));
+    // Expenses sent from the offline queue (Expense Logger / quick logger) appear at once
+    const unsubscribeSaved = onExpenseSaved((exp) => applyServerRecord('expenses', exp.id, exp));
+    // Follow every live price / GST change (saved on any device) without a reload
+    const unsubscribeLive = subscribeLiveTariffs((live) => {
+      if (cancelled) return;
+      setRoomTariffs(live.tariffs);
+      setSeasonalDateRanges(live.seasonalDateRanges);
+      setGstConfig(live.gstConfig);
+      setTariffsStatus('ready');
+    });
 
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => r.json())
@@ -544,6 +645,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('focus', onFocus);
     return () => {
       cancelled = true;
+      unsubscribeLive();
+      unsubscribeSaved();
       clearInterval(poll);
       window.removeEventListener('focus', onFocus);
     };
@@ -651,7 +754,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setFolios((prev) => {
       const updated = prev.map((folio) => {
         if (folio.id === folioId) {
-          return recalculateFolioTotals(folio, [newCharge, ...folio.charges]);
+          return recalcFolio(folio, [newCharge, ...folio.charges]);
         }
         return folio;
       });
@@ -666,17 +769,28 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addFolioPayment = (folioId: string, paymentData: Omit<FolioPayment, 'id' | 'collectedAt'>) => {
+    // Collections are recorded by managers only, with their sign-off (the server enforces this too).
+    if (currentUser?.role !== 'manager') {
+      showToast('Only a manager account can record a collection.', 'error');
+      return;
+    }
+    if (paymentData.signOffConfirmed !== true) {
+      showToast('Please tick the confirmation to sign this collection.', 'error');
+      return;
+    }
     const newPayment: FolioPayment = {
       ...paymentData,
-      id: `pay-${Date.now()}`,
+      id: `pay-${newId()}`,
       collectedAt: new Date().toISOString(),
+      collectedById: currentUser.id,
+      collectedByName: currentUser.fullName,
     };
 
     setFolios((prev) => {
       const updated = prev.map((folio) => {
         if (folio.id === folioId) {
           const payments = [newPayment, ...folio.payments];
-          return recalculateFolioTotals(folio, folio.charges, payments);
+          return recalcFolio(folio, folio.charges, payments);
         }
         return folio;
       });
@@ -692,9 +806,40 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     showToast(`Payment of ₹${paymentData.amount.toLocaleString('en-IN')} recorded successfully`);
   };
 
+  const voidFolioPayment = (folioId: string, paymentId: string, reason: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Only an admin can void a collection.', 'error');
+      return;
+    }
+    if (reason.trim().length < 3) {
+      showToast('Please give a reason for voiding this collection.', 'error');
+      return;
+    }
+    setFolios((prev) => {
+      const updated = prev.map((f) =>
+        f.id === folioId
+          ? recalcFolio(
+              f,
+              f.charges,
+              f.payments.map((p) => (p.id === paymentId ? { ...p, voidedAt: new Date().toISOString(), voidReason: reason.trim() } : p))
+            )
+          : f
+      );
+      try {
+        queueSync('folios', prev, updated);
+      } catch {}
+      return updated;
+    });
+    showToast('Collection voided. It no longer counts towards the bill or the manager’s cash.');
+  };
+
   const settleFolio = (folioId: string, paymentMethod: PaymentMethod, notes?: string) => {
     const targetFolio = folios.find((f) => f.id === folioId);
     if (!targetFolio) return;
+    if (currentUser?.role !== 'manager') {
+      showToast('Only a manager account can record a collection.', 'error');
+      return;
+    }
 
     if (targetFolio.balanceDue > 0) {
       addFolioPayment(folioId, {
@@ -702,18 +847,139 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         amount: targetFolio.balanceDue,
         paymentMethod,
         receiptNotes: notes || 'Folio check-out final settlement',
-        collectedByName: role === 'admin' ? 'Administrator' : 'Duty Manager',
+        signOffConfirmed: true,
       });
     }
 
     setFolios((prev) => {
-      const updated = prev.map((f) => (f.id === folioId ? { ...f, status: 'settled' as const, settledAt: new Date().toISOString() } : f));
+      const updated = prev.map((f) => {
+        if (f.id !== folioId) return f;
+        const next = recalculateFolioTotals(f, f.charges);
+        return next.status === 'settled' ? { ...next, settledAt: new Date().toISOString() } : next;
+      });
       try {
         queueSync('folios', prev, updated);
       } catch {}
       return updated;
     });
     showToast(`Folio #${targetFolio.folioNumber} settled in full.`);
+  };
+
+  const updateFolio = (folioId: string, change: (f: GuestFolio) => GuestFolio) => {
+    setFolios((prev) => {
+      const updated = prev.map((f) => (f.id === folioId ? change(f) : f));
+      try {
+        queueSync('folios', prev, updated);
+      } catch {}
+      return updated;
+    });
+  };
+
+  const voidFolioCharge = (folioId: string, chargeId: string, reason: string) => {
+    if (reason.trim().length < 3) {
+      showToast('Please give a reason for voiding this line.', 'error');
+      return;
+    }
+    updateFolio(folioId, (f) =>
+      recalcFolio(
+        f,
+        f.charges.map((c) => (c.id === chargeId ? { ...c, chargeStatus: 'void' as const, voidReason: reason.trim() } : c))
+      )
+    );
+  };
+
+  const setFolioDiscount = (folioId: string, amount: number, reason: string) => {
+    if (amount > 0 && reason.trim().length < 3) {
+      showToast('Please give a reason for the discount.', 'error');
+      return;
+    }
+    updateFolio(folioId, (f) => recalcFolio({ ...f, discountAmount: Math.max(0, amount), discountReason: reason.trim() || undefined }, f.charges));
+  };
+
+  const recordFolioRefund = (folioId: string, refund: { amount: number; paymentMethod: PaymentMethod; notes?: string; signOffConfirmed: boolean }) => {
+    if (currentUser?.role !== 'manager') {
+      showToast('Only a manager account can record a refund.', 'error');
+      return;
+    }
+    if (!refund.signOffConfirmed) {
+      showToast('Tick the confirmation to sign this refund.', 'error');
+      return;
+    }
+    updateFolio(folioId, (f) =>
+      recalcFolio(f, f.charges, [
+        {
+          id: `pay-${newId()}`,
+          folioId,
+          kind: 'refund',
+          amount: refund.amount,
+          paymentMethod: refund.paymentMethod,
+          receiptNotes: refund.notes || 'Refund of credit to guest',
+          collectedAt: new Date().toISOString(),
+          signOffConfirmed: true,
+        },
+        ...f.payments,
+      ])
+    );
+    showToast(`Refund of ₹${refund.amount.toLocaleString('en-IN')} recorded and signed.`);
+  };
+
+  const postJson = async (url: string, body: unknown): Promise<{ ok: boolean; json: any }> => {
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Could not save. Please try again.', 'error');
+        return { ok: false, json };
+      }
+      return { ok: true, json };
+    } catch {
+      showToast('You appear to be offline. Nothing was changed.', 'error');
+      return { ok: false, json: null };
+    }
+  };
+
+  const cancelBooking = async (bookingId: string, reason: string, noShow = false): Promise<boolean> => {
+    const { ok, json } = await postJson('/api/bookings/cancel', { bookingId, reason, noShow });
+    if (!ok) return false;
+    if (json.booking) applyServerRecord('crmBookings', json.booking.id, json.booking);
+    if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+    showToast(noShow ? 'Marked as no-show. Room charges voided; any advance is shown as a credit.' : 'Booking cancelled. Room charges voided; any advance is shown as a credit.');
+    return true;
+  };
+
+  const recordWebAdvance = async (
+    webBookingId: string,
+    payment: { amount: number; paymentMethod: PaymentMethod; transactionReference?: string; signOffConfirmed: boolean }
+  ): Promise<boolean> => {
+    const { ok, json } = await postJson('/api/bookings/advance', { bookingId: webBookingId, ...payment });
+    if (!ok) return false;
+    if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+    showToast(`Advance of ₹${payment.amount.toLocaleString('en-IN')} recorded and signed. It moves to the room bill when a room is assigned.`);
+    return true;
+  };
+
+  const addRoomBlock = (block: { roomId: string; fromDate: string; toDate: string; reason: string }) => {
+    const room = rooms.find((r) => r.id === block.roomId);
+    const record: RoomBlock = { id: `blk-${newId()}`, roomNumber: room?.roomNumber || 0, createdAt: new Date().toISOString(), createdByName: currentUser?.fullName, ...block };
+    setRoomBlocks((prev) => {
+      const updated = [record, ...prev];
+      try {
+        queueSync('roomBlocks', prev, updated);
+      } catch {}
+      return updated;
+    });
+    showToast(`Room ${room?.roomNumber || ''} blocked ${block.fromDate} → ${block.toDate}.`);
+  };
+
+  const removeRoomBlock = (blockId: string) => {
+    setRoomBlocks((prev) => {
+      const updated = prev.filter((b) => b.id !== blockId);
+      try {
+        queueSync('roomBlocks', prev, updated);
+      } catch {}
+      return updated;
+    });
+    showToast('Room block removed.');
   };
 
   // QR Food Order Creation
@@ -756,7 +1022,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       timestamp: new Date().toISOString(),
     };
     setManagerActivityLogs((prev) => {
-      const updated = [newEntry, ...prev].slice(0, 200);
+      const updated = [newEntry, ...prev]; // never trim here: a trimmed entry would be sent as a delete
       try {
         queueSync('activityLogs', prev, updated);
       } catch {}
@@ -825,9 +1091,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         const hasCharge = fol.charges.some((c) => c.sourceReferenceId === orderId);
         if (!hasCharge) return fol;
         const newCharges = fol.charges.map((c) =>
-          c.sourceReferenceId === orderId ? { ...c, chargeStatus: 'void' as const } : c
+          c.sourceReferenceId === orderId && c.chargeStatus !== 'void' ? { ...c, chargeStatus: 'void' as const, voidReason: 'Order cancelled' } : c
         );
-        return recalculateFolioTotals(fol, newCharges);
+        return recalcFolio(fol, newCharges);
       });
       try {
         queueSync('folios', prev, updated);
@@ -895,9 +1161,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           const hasCharge = fol.charges.some((c) => c.sourceReferenceId === orderId);
           if (!hasCharge) return fol;
           const newCharges = fol.charges.map((c) =>
-            c.sourceReferenceId === orderId ? { ...c, chargeStatus: 'void' as const } : c
+            c.sourceReferenceId === orderId && c.chargeStatus !== 'void' ? { ...c, chargeStatus: 'void' as const, voidReason: 'Order cancelled' } : c
           );
-          return recalculateFolioTotals(fol, newCharges);
+          return recalcFolio(fol, newCharges);
         });
         try {
           queueSync('folios', prev, updated);
@@ -1027,9 +1293,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         const hasCharge = fol.charges.some((c) => c.sourceReferenceId === requestId);
         if (!hasCharge) return fol;
         const newCharges = fol.charges.map((c) =>
-          c.sourceReferenceId === requestId ? { ...c, chargeStatus: 'void' as const } : c
+          c.sourceReferenceId === requestId && c.chargeStatus !== 'void' ? { ...c, chargeStatus: 'void' as const, voidReason: 'Transfer / rental cancelled' } : c
         );
-        return recalculateFolioTotals(fol, newCharges);
+        return recalcFolio(fol, newCharges);
       });
       try {
         queueSync('folios', prev, updated);
@@ -1040,39 +1306,46 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     showToast('Transport request cancelled and folio charge voided.');
   };
 
-  // Expenses Logger (Admin Only)
-  const addExpense = (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
-    const newExpense: Expense = {
-      ...expenseData,
-      id: `exp-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-
-    setExpenses((prev) => {
-      const updated = [newExpense, ...prev];
-      try {
-        queueSync('expenses', prev, updated);
-      } catch {
-        // ignore
-      }
-      return updated;
-    });
-
-    showToast(`Logged expense of ₹${expenseData.amount.toLocaleString('en-IN')} under ${expenseData.masterCategory}`);
+  // Expenses: logged by managers (signed, server-stamped), reviewed by admins.
+  const addExpense = async (input: NewExpenseInput): Promise<Expense | null> => {
+    if (currentUser?.role !== 'manager') {
+      showToast('Only a manager account can log an expense.', 'error');
+      return null;
+    }
+    const result = await postExpense({ ...input, id: `exp-${newId()}` });
+    if (!result.ok) {
+      showToast(result.error, 'error');
+      return null;
+    }
+    applyServerRecord('expenses', result.expense.id, result.expense);
+    showToast(`Expense of ₹${result.expense.amount.toLocaleString('en-IN')} signed by ${result.expense.loggedByName}`);
+    return result.expense;
   };
 
-  const deleteExpense = (expenseId: string) => {
-    setExpenses((prev) => {
-      const updated = prev.filter((e) => e.id !== expenseId);
-      try {
-        queueSync('expenses', prev, updated);
-      } catch {
-        // ignore
+  const reviewExpenseRequest = async (expenseId: string, body: Record<string, unknown>, done: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: expenseId, ...body }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Could not update the expense.', 'error');
+        return false;
       }
-      return updated;
-    });
-    showToast('Expense entry deleted.');
+      applyServerRecord('expenses', expenseId, json.expense);
+      showToast(done);
+      return true;
+    } catch {
+      showToast('You appear to be offline. Nothing was changed.', 'error');
+      return false;
+    }
   };
+
+  const approveExpense = (expenseId: string) => reviewExpenseRequest(expenseId, { action: 'approve' }, 'Expense approved.');
+  const voidExpense = (expenseId: string, reason: string) =>
+    reviewExpenseRequest(expenseId, { action: 'void', reason }, 'Expense voided. It no longer counts in totals.');
 
   // Check-In and Check-Out actions
   const checkInRoom = (bookingId: string, managerInfo?: { id: string; name: string }) => {
@@ -1133,41 +1406,41 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       notes?: string;
       managerId: string;
       managerName: string;
+      signOffConfirmed?: boolean;
     }
   ) => {
     const bk = bookings.find((b) => b.id === bookingId);
     if (!bk) return;
 
-    const targetFolio = folios.find((f) => f.bookingId === bookingId || f.roomNumber === bk.roomNumber);
+    const targetFolio = folioForBooking(folios, bk);
 
-    // 1. If payment collected, add folio payment
+    // 1. If payment collected, add the manager's signed collection
     if (targetFolio && checkoutData.amountCollected > 0) {
+      if (currentUser?.role !== 'manager' || checkoutData.signOffConfirmed !== true) {
+        showToast('Only a manager can record the collection, with the confirmation ticked.', 'error');
+        return;
+      }
       addFolioPayment(targetFolio.id, {
         folioId: targetFolio.id,
         amount: checkoutData.amountCollected,
         paymentMethod: checkoutData.paymentMethod,
         transactionReference: checkoutData.transactionReference,
-        receiptNotes: checkoutData.notes || `Collected on checkout by ${checkoutData.managerName}`,
-        collectedByName: checkoutData.managerName,
-        collectedById: checkoutData.managerId,
+        receiptNotes: checkoutData.notes || `Collected on checkout by ${currentUser.fullName}`,
+        signOffConfirmed: true,
       });
     }
 
-    // 2. Mark folio as settled
+    // 2. Recompute the bill. It is settled only when nothing is due and no credit is owed;
+    //    a part collection leaves it open as a receivable (the server applies the same rule).
     if (targetFolio) {
       setFolios((prev) => {
-        const updated = prev.map((f) =>
-          f.id === targetFolio.id
-            ? {
-                ...f,
-                status: 'settled' as const,
-                settledAt: new Date().toISOString(),
-                settledByName: checkoutData.managerName,
-                balanceDue: Math.max(0, f.balanceDue - checkoutData.amountCollected),
-                totalPaid: f.totalPaid + checkoutData.amountCollected,
-              }
-            : f
-        );
+        const updated = prev.map((f) => {
+          if (f.id !== targetFolio.id) return f;
+          const next = recalculateFolioTotals(f, f.charges);
+          return next.status === 'settled'
+            ? { ...next, settledAt: new Date().toISOString(), settledByName: checkoutData.managerName }
+            : next;
+        });
         try {
           queueSync('folios', prev, updated);
         } catch {}
@@ -1219,7 +1492,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       scheduleDate: now.split('T')[0],
       taskType: 'deep_clean_turnover',
       status: 'pending',
-      assignedToName: 'Dawa Lepcha',
+      assignedToName: '',
       priority: 'high',
       checklist: {
         linens_changed: false,
@@ -1290,10 +1563,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     isManualRate?: boolean;
     advancePaid?: number;
     advancePaymentMethod?: PaymentMethod;
+    /** The manager ticked the sign-off for the advance received. */
+    advanceSignOffConfirmed?: boolean;
     /** GST on the room charges (from the shared GST rules); computed here if omitted. */
     gstAmount?: number;
     /** Website request this booking fulfils. */
     sourceBookingId?: string;
+    /** Ages of the children (free-child rule). */
+    childAges?: number[];
+    /** Extra-person charges exactly as the pricing engine worked them out (standard rates). */
+    pricedExtras?: { extraAdultsCount: number; extraAdultsCharge: number; extraChildrenCount: number; extraChildrenCharge: number };
     guest: {
       fullName: string;
       phone: string;
@@ -1310,7 +1589,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       hospitalityPreferences?: string;
     };
   }): CRMBooking => {
-    const room = rooms.find((r) => r.id === bookingData.roomId) || rooms[0];
+    // An advance is a collection: managers only, signed off (the server enforces this too).
+    if (bookingData.advancePaid && bookingData.advancePaid > 0 && (currentUser?.role !== 'manager' || !bookingData.advanceSignOffConfirmed)) {
+      showToast('The advance was not recorded: only a manager can record a collection, with the confirmation ticked.', 'error');
+      bookingData = { ...bookingData, advancePaid: 0, advancePaymentMethod: undefined };
+    }
+    const room = rooms.find((r) => r.id === bookingData.roomId);
+    if (!room) {
+      showToast('Please choose a room for this booking.', 'error');
+      return null as unknown as CRMBooking;
+    }
     const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const guestId = `guest-${uid()}`;
     const bookingId = `bk-${uid()}`;
@@ -1321,13 +1609,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const totalNights = Math.max(1, nightsBetween(bookingData.checkInDate, bookingData.checkOutDate) ?? 1);
 
     // Extra person charges calculation
-    const extraAdultsCount = Math.max(0, (bookingData.adultsCount || 2) - 2);
-    const extraChildrenCount = Math.max(0, bookingData.childrenCount || 0);
+    // Extra persons: as priced by the engine (adults included per room type, free-child age);
+    // for a manual rate, from the room type's settings.
     const tariffs = resolveRoomTariffs(room.id, roomTariffs);
+    const includedAdults = tariffs?.baseAdults && tariffs.baseAdults > 0 ? tariffs.baseAdults : 2;
+    const priced = bookingData.pricedExtras;
+    const extraAdultsCount = priced ? priced.extraAdultsCount : Math.max(0, (bookingData.adultsCount || 2) - includedAdults);
+    const extraChildrenCount = priced ? priced.extraChildrenCount : Math.max(0, bookingData.childrenCount || 0);
     const extraAdultRate = bookingData.extraAdultChargePerNight ?? tariffs?.extraAdultRate ?? 0;
     const extraChildRate = bookingData.extraChildChargePerNight ?? tariffs?.extraChildRate ?? 0;
-    const extraAdultsTotal = extraAdultsCount * extraAdultRate * totalNights;
-    const extraChildrenTotal = extraChildrenCount * extraChildRate * totalNights;
+    const extraAdultsTotal = priced ? priced.extraAdultsCharge : extraAdultsCount * extraAdultRate * totalNights;
+    const extraChildrenTotal = priced ? priced.extraChildrenCharge : extraChildrenCount * extraChildRate * totalNights;
     const totalExtraCharges = extraAdultsTotal + extraChildrenTotal;
 
     const baseRoomStayAmount = totalNights * bookingData.roomRatePerNight;
@@ -1391,6 +1683,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       documentStatus: docStatus,
       advancePaid: bookingData.advancePaid || 0,
       advancePaymentMethod: bookingData.advancePaymentMethod,
+      childAges: bookingData.childAges,
       checkedInAt: bookingData.status === 'checked_in' ? new Date().toISOString() : undefined,
     };
 
@@ -1457,6 +1750,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         collectedAt: new Date().toISOString(),
         collectedByName: currentUser?.fullName || 'Duty Manager',
         collectedById: currentUser?.id,
+        signOffConfirmed: true,
       });
     }
 
@@ -1466,7 +1760,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     newBooking.gstAmount = roomGst;
     if (bookingData.sourceBookingId) newBooking.sourceBookingId = bookingData.sourceBookingId;
 
-    const initialFolio: GuestFolio = recalculateFolioTotals(
+    const initialFolio: GuestFolio = recalcFolio(
       {
         id: folioId,
         bookingId,
@@ -1918,7 +2212,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     checkOut: string,
     mealPlan: MealPlan = 'CP',
     adultsCount: number = 2,
-    childrenCount: number = 0
+    childrenCount: number = 0,
+    childAges?: number[]
   ): DynamicTariffResult | null => {
     if (tariffsStatus !== 'ready') return null;
     return calculateCanonicalTariff({
@@ -1928,6 +2223,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       mealPlan,
       adultsCount,
       childrenCount,
+      childAges,
       tariffsMap: roomTariffs,
       seasonalDateRanges,
     });
@@ -2006,8 +2302,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         createTransportRequest,
         confirmDispatchRequest,
         cancelDispatchRequest,
+        voidFolioCharge,
+        setFolioDiscount,
+        recordFolioRefund,
+        cancelBooking,
+        recordWebAdvance,
+        roomBlocks,
+        addRoomBlock,
+        removeRoomBlock,
         addExpense,
-        deleteExpense,
+        approveExpense,
+        voidExpense,
+        voidFolioPayment,
         addFolioCharge,
         addFolioPayment,
         settleFolio,

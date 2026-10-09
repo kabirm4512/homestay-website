@@ -7,6 +7,7 @@ import { getCrmBooking, rowToGuestBooking } from '@/lib/server/repos/bookings';
 import { getRecord, listRecords, upsertRecord } from '@/lib/server/repos/records';
 import { folioForGuest, ordersForGuest, placeCelebration, placeFoodOrder } from '@/lib/server/guest-services';
 import { audit } from '@/lib/server/audit';
+import { setLinkedChargeStatus } from '@/lib/server/folio-store';
 import type { StaffAlert } from '@/lib/server/alerts';
 import type { CRMBooking, FoodOrder } from '@/types/crm';
 
@@ -127,6 +128,12 @@ export const PATCH = handler('orders.update', async (request: Request) => {
       ? { ...order, status: body.status, approvedByManagerId: staff.id, approvedByManagerName: staff.fullName, approvedAt: new Date().toISOString() }
       : { ...order, status: body.status };
   await upsertRecord('foodOrders', updated, `staff:${staff.id}`);
+  // Keep the bill in step with the order (same rule as the CRM sync)
+  if (updated.folioId && updated.status !== order.status) {
+    const posted = ['accepted_kitchen', 'preparing', 'out_for_delivery', 'delivered'];
+    if (updated.status === 'cancelled') await setLinkedChargeStatus(updated.folioId, updated.id, 'void', `staff:${staff.id}`, 'Order cancelled');
+    else if (posted.includes(updated.status)) await setLinkedChargeStatus(updated.folioId, updated.id, 'posted', `staff:${staff.id}`);
+  }
   await audit({ actor: `staff:${staff.id}`, action: 'status_change', entity: 'foodOrders', entityId: order.id, before: order, after: updated, ip: clientIp(request) });
   return ok({ orderId: order.id, status: updated.status });
 });

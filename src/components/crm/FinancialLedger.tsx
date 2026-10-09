@@ -29,43 +29,33 @@ import {
   Expense,
 } from '@/types/crm';
 import DayCloseCard from './DayCloseCard';
+import ManagerCashbook from './ManagerCashbook';
+import MoneyDashboard from './MoneyDashboard';
 import { todayInIST } from '@/lib/tariff-calculator';
 
 export default function FinancialLedger() {
   const {
     role,
     setRole,
+    currentUser,
     folios,
     expenses,
-    addExpense,
-    deleteExpense,
-    addFolioPayment,
-    settleFolio,
+    approveExpense,
+    voidExpense,
+    voidFolioPayment,
     showToast,
   } = useCRM();
+  // Inline "void with reason" editor: `${kind}:${id}`
+  const [voiding, setVoiding] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'folios' | 'expenses'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'cashbook' | 'folios' | 'expenses'>('analytics');
 
-  // Expense Form State
-  const [expenseDate, setExpenseDate] = useState(() => todayInIST());
-  const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseMethod, setExpenseMethod] = useState<PaymentMethod>('upi');
-  const [expenseCategory, setExpenseCategory] = useState<ExpenseMasterCategory>('groceries');
-  const [expenseSubTag, setExpenseSubTag] = useState('');
-  const [expenseVendor, setExpenseVendor] = useState('');
-  const [expenseDesc, setExpenseDesc] = useState('');
-  const [receiptUrl, setReceiptUrl] = useState('');
-  const [isAddingExpense, setIsAddingExpense] = useState(false);
-
-  // Folio Detail Modal State
+  // Folio detail modal
   const [selectedFolio, setSelectedFolio] = useState<GuestFolio | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
-  const [paymentRef, setPaymentRef] = useState('');
-  const [paymentNotes, setPaymentNotes] = useState('');
 
   // 1. RBAC Guard: If role is not admin, strictly block access!
-  if (role !== 'admin') {
+  if (role !== 'admin' || currentUser?.role !== 'admin') {
     return (
       <div className="bg-white rounded-3xl p-8 sm:p-12 border border-rose-200 shadow-sm text-center max-w-2xl mx-auto my-8 space-y-4">
         <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
@@ -84,93 +74,58 @@ export default function FinancialLedger() {
           </p>
         </div>
         <div>
-          <button
-            onClick={() => setRole('admin')}
-            className="min-h-[44px] px-6 py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold text-xs rounded-xl shadow transition-all"
-          >
-            Switch to Admin Role to View Financials
-          </button>
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => setRole('admin')}
+              className="min-h-[44px] px-6 py-2.5 bg-forest-900 hover:bg-forest-800 text-white font-bold text-xs rounded-xl shadow transition-all"
+            >
+              Back to the Admin view
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  // 2. Financial Analytics Aggregations
-  // Net Revenue = Sum of all posted charges across all folios
-  const totalRoomRevenue = folios.reduce((sum, f) => sum + f.totalRoomCharges, 0);
-  const totalFbRevenue = folios.reduce((sum, f) => sum + f.totalFbCharges, 0);
-  const totalAddonRevenue = folios.reduce((sum, f) => sum + f.totalAddonCharges, 0);
-  const totalGrossRevenue = totalRoomRevenue + totalFbRevenue + totalAddonRevenue;
+  // All money figures come from the server summary (see MoneyDashboard / lib/reports-core.ts)
 
-  // Payments Reconciliation: Cash vs Online
-  const allPayments = folios.flatMap((f) => f.payments);
-  const cashPayments = allPayments.filter((p) => p.paymentMethod === 'cash').reduce((sum, p) => sum + p.amount, 0);
-  const onlinePayments = allPayments
-    .filter((p) => ['upi', 'bank_transfer', 'card'].includes(p.paymentMethod))
-    .reduce((sum, p) => sum + p.amount, 0);
-  const totalPaymentsCollected = cashPayments + onlinePayments;
-
-  // Total Expenses
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-  // Net Profit
-  const netProfit = totalPaymentsCollected - totalExpenses;
-  const profitMargin = totalPaymentsCollected > 0 ? Math.round((netProfit / totalPaymentsCollected) * 100) : 0;
-
-  // Handle Log Expense Submission
-  const handleCreateExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amountNum = parseFloat(expenseAmount);
-    if (!amountNum || amountNum <= 0) {
-      showToast('Please enter a valid expense amount', 'error');
+  const startVoid = (key: string) => {
+    setVoiding(key);
+    setVoidReason('');
+  };
+  const confirmVoid = async () => {
+    if (!voiding) return;
+    if (voidReason.trim().length < 3) {
+      showToast('Please write a short reason (at least 3 characters).', 'error');
       return;
     }
-
-    addExpense({
-      expenseDate,
-      amount: amountNum,
-      paymentMethod: expenseMethod,
-      masterCategory: expenseCategory,
-      subTag: expenseSubTag || 'General',
-      vendorPayee: expenseVendor || 'Estate Vendor',
-      description: expenseDesc,
-      billReceiptUrl: receiptUrl || undefined,
-      loggedByName: 'Admin - Tenzing',
-    });
-
-    // Reset
-    setExpenseAmount('');
-    setExpenseSubTag('');
-    setExpenseVendor('');
-    setExpenseDesc('');
-    setReceiptUrl('');
-    setIsAddingExpense(false);
+    const [kind, a, b] = voiding.split(':');
+    if (kind === 'exp') await voidExpense(a, voidReason.trim());
+    else if (kind === 'pay') voidFolioPayment(a, b, voidReason.trim());
+    setVoiding(null);
+    setVoidReason('');
+    if (kind === 'pay') setSelectedFolio(null);
   };
-
-  // Handle Record Payment to Folio
-  const handleRecordPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFolio) return;
-    const amountNum = parseFloat(paymentAmount);
-    if (!amountNum || amountNum <= 0) {
-      showToast('Please enter a valid payment amount', 'error');
-      return;
-    }
-
-    addFolioPayment(selectedFolio.id, {
-      folioId: selectedFolio.id,
-      amount: amountNum,
-      paymentMethod,
-      transactionReference: paymentRef || undefined,
-      receiptNotes: paymentNotes || 'Counter Payment',
-      collectedByName: 'Administrator',
-    });
-
-    setPaymentAmount('');
-    setPaymentRef('');
-    setPaymentNotes('');
-    setSelectedFolio(null);
-  };
+  const voidEditor = (key: string) =>
+    voiding === key && (
+      <div className="mt-2 flex flex-col sm:flex-row gap-2">
+        <input
+          autoFocus
+          value={voidReason}
+          onChange={(e) => setVoidReason(e.target.value)}
+          placeholder="Reason for voiding (required)"
+          className="flex-1 text-xs px-3 py-2 rounded-lg border border-rose-300 bg-white"
+        />
+        <button onClick={() => void confirmVoid()} className="px-3 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold">
+          Void
+        </button>
+        <button onClick={() => setVoiding(null)} className="px-3 py-2 rounded-lg border border-sand-300 text-xs font-bold">
+          Cancel
+        </button>
+      </div>
+    );
+  const signedLine = (name?: string, at?: string) =>
+    name ? `Signed by ${name}${at ? ` · ${new Date(at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}` : 'Not signed (older entry)';
 
   return (
     <div className="space-y-6">
@@ -201,6 +156,15 @@ export default function FinancialLedger() {
           {/* Sub-Tab Navigation */}
           <div className="flex items-center space-x-1.5 bg-sand-100/80 p-1.5 rounded-2xl self-start sm:self-auto">
             <button
+              onClick={() => setActiveTab('cashbook')}
+              className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                activeTab === 'cashbook' ? 'bg-forest-900 text-white shadow-xs' : 'text-forest-700 hover:text-forest-950'
+              }`}
+            >
+              <Building className="w-3.5 h-3.5" />
+              <span>Manager cash book</span>
+            </button>
+            <button
               onClick={() => setActiveTab('analytics')}
               className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
                 activeTab === 'analytics'
@@ -209,7 +173,7 @@ export default function FinancialLedger() {
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>Profitability & Reconciliation</span>
+              <span>Dashboard</span>
             </button>
             <button
               onClick={() => setActiveTab('folios')}
@@ -237,218 +201,10 @@ export default function FinancialLedger() {
         </div>
       </div>
 
-      {/* SUB-TAB 1: ANALYTICS DASHBOARD */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          {/* Top KPI Cards: Income vs Logged Expenses vs Net Operating Profit */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Total Payments Collected */}
-            <div className="bg-white rounded-3xl p-5 border border-sand-200 shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-forest-600 block">
-                Total Revenue Collected
-              </span>
-              <div className="flex items-baseline space-x-1 mt-1">
-                <span className="text-3xl font-serif font-bold text-forest-950">
-                  ₹{totalPaymentsCollected.toLocaleString('en-IN')}
-                </span>
-              </div>
-              <p className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center space-x-1">
-                <ArrowUpRight className="w-3.5 h-3.5" />
-                <span>Across Room, F&B & Transport</span>
-              </p>
-            </div>
+      {activeTab === 'cashbook' && <ManagerCashbook />}
 
-            {/* Total Logged Expenses */}
-            <div className="bg-white rounded-3xl p-5 border border-sand-200 shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 block">
-                Total Logged Expenses
-              </span>
-              <div className="flex items-baseline space-x-1 mt-1">
-                <span className="text-3xl font-serif font-bold text-rose-950">
-                  ₹{totalExpenses.toLocaleString('en-IN')}
-                </span>
-              </div>
-              <p className="text-[11px] text-rose-700 font-semibold mt-1 flex items-center space-x-1">
-                <ArrowDownRight className="w-3.5 h-3.5" />
-                <span>Groceries, Payroll, Utilities, Gas</span>
-              </p>
-            </div>
-
-            {/* Net Operating Profit */}
-            <div className="bg-white rounded-3xl p-5 border border-emerald-200 shadow-xs bg-emerald-50/40">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
-                Net Operating Profit
-              </span>
-              <div className="flex items-baseline space-x-2 mt-1">
-                <span className="text-3xl font-serif font-bold text-emerald-950">
-                  ₹{netProfit.toLocaleString('en-IN')}
-                </span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-mono">
-                  {profitMargin}% Margin
-                </span>
-              </div>
-              <p className="text-[11px] text-emerald-800 mt-1 font-medium">
-                Income minus all logged operating expenses
-              </p>
-            </div>
-          </div>
-
-          {/* Two Key Widgets: Daily Cash vs Online Reconciliation + Revenue Split */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Widget 1: Daily Cash vs. Online Reconciliation */}
-            <div className="bg-white rounded-3xl p-6 border border-sand-200 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-serif font-bold text-base text-forest-950">
-                    Daily Cash vs. Online Reconciliation
-                  </h3>
-                  <p className="text-xs text-forest-700">
-                    Audit of counter cash vs. digital payments (UPI & Bank Transfer).
-                  </p>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
-                  ₹
-                </div>
-              </div>
-
-              {/* Visual Progress Bar */}
-              <div className="space-y-2">
-                <div className="h-4 w-full bg-sand-200 rounded-full overflow-hidden flex">
-                  <div
-                    style={{
-                      width: `${totalPaymentsCollected > 0 ? (onlinePayments / totalPaymentsCollected) * 100 : 50}%`,
-                    }}
-                    className="bg-forest-800 transition-all"
-                    title="Online (UPI/Bank)"
-                  />
-                  <div
-                    style={{
-                      width: `${totalPaymentsCollected > 0 ? (cashPayments / totalPaymentsCollected) * 100 : 50}%`,
-                    }}
-                    className="bg-amber-400 transition-all"
-                    title="Cash in Hand"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-forest-700">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-full bg-forest-800" />
-                    <span>
-                      Digital / UPI ({totalPaymentsCollected > 0 ? Math.round((onlinePayments / totalPaymentsCollected) * 100) : 0}%)
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-400" />
-                    <span>
-                      Cash in Counter ({totalPaymentsCollected > 0 ? Math.round((cashPayments / totalPaymentsCollected) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="bg-sand-50 p-3.5 rounded-2xl border border-sand-200">
-                  <span className="text-[10px] uppercase font-bold text-forest-600 block">
-                    Online (UPI / NEFT)
-                  </span>
-                  <span className="text-lg font-serif font-bold text-forest-950 block mt-0.5">
-                    ₹{onlinePayments.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-[10px] text-gray-500">Verified via UTR Reference</span>
-                </div>
-
-                <div className="bg-sand-50 p-3.5 rounded-2xl border border-sand-200">
-                  <span className="text-[10px] uppercase font-bold text-amber-800 block">
-                    Cash in Counter
-                  </span>
-                  <span className="text-lg font-serif font-bold text-amber-950 block mt-0.5">
-                    ₹{cashPayments.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-[10px] text-gray-500">To be banked weekly</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Widget 2: Revenue Split Distribution */}
-            <div className="bg-white rounded-3xl p-6 border border-sand-200 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-serif font-bold text-base text-forest-950">
-                    Revenue Stream Distribution
-                  </h3>
-                  <p className="text-xs text-forest-700">
-                    Split across Room Tariffs, F&B Orders & Add-on Commissions.
-                  </p>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-forest-100 text-forest-900 flex items-center justify-center font-bold">
-                  <PieChart className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-1">
-                {/* Room Tariff */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-forest-900">Room Tariffs (7 Physical Rooms)</span>
-                    <span className="font-mono font-bold text-forest-950">
-                      ₹{totalRoomRevenue.toLocaleString('en-IN')} (
-                      {totalGrossRevenue > 0 ? Math.round((totalRoomRevenue / totalGrossRevenue) * 100) : 0}%)
-                    </span>
-                  </div>
-                  <div className="h-2.5 w-full bg-sand-200 rounded-full overflow-hidden">
-                    <div
-                      style={{
-                        width: `${totalGrossRevenue > 0 ? (totalRoomRevenue / totalGrossRevenue) * 100 : 0}%`,
-                      }}
-                      className="h-full bg-emerald-600 rounded-full"
-                    />
-                  </div>
-                </div>
-
-                {/* F&B Orders */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-forest-900">F&B Orders (In-Room QR Dining)</span>
-                    <span className="font-mono font-bold text-forest-950">
-                      ₹{totalFbRevenue.toLocaleString('en-IN')} (
-                      {totalGrossRevenue > 0 ? Math.round((totalFbRevenue / totalGrossRevenue) * 100) : 0}%)
-                    </span>
-                  </div>
-                  <div className="h-2.5 w-full bg-sand-200 rounded-full overflow-hidden">
-                    <div
-                      style={{
-                        width: `${totalGrossRevenue > 0 ? (totalFbRevenue / totalGrossRevenue) * 100 : 0}%`,
-                      }}
-                      className="h-full bg-amber-500 rounded-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Transport & Add-ons */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-forest-900">Transfers & Add-on Rentals</span>
-                    <span className="font-mono font-bold text-forest-950">
-                      ₹{totalAddonRevenue.toLocaleString('en-IN')} (
-                      {totalGrossRevenue > 0 ? Math.round((totalAddonRevenue / totalGrossRevenue) * 100) : 0}%)
-                    </span>
-                  </div>
-                  <div className="h-2.5 w-full bg-sand-200 rounded-full overflow-hidden">
-                    <div
-                      style={{
-                        width: `${totalGrossRevenue > 0 ? (totalAddonRevenue / totalGrossRevenue) * 100 : 0}%`,
-                      }}
-                      className="h-full bg-blue-600 rounded-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* SUB-TAB 1: DASHBOARD (one set of numbers, by date range) */}
+      {activeTab === 'analytics' && <MoneyDashboard />}
       {/* SUB-TAB 2: UNIFIED GUEST FOLIOS */}
       {activeTab === 'folios' && (
         <div className="bg-white rounded-3xl p-6 border border-sand-200 shadow-xs space-y-4">
@@ -547,165 +303,13 @@ export default function FinancialLedger() {
                 </p>
               </div>
 
-              <button
-                onClick={() => setIsAddingExpense(!isAddingExpense)}
-                className="min-h-[44px] px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5 self-start sm:self-auto"
+              <a
+                href="/expenses"
+                className="min-h-[44px] px-4 py-2 bg-amber-50 border border-amber-200 text-amber-950 text-xs font-semibold rounded-xl self-start sm:self-auto max-w-xs"
               >
-                <Plus className="w-4 h-4 text-amber-300" />
-                <span>{isAddingExpense ? 'Hide Form' : 'Log New Expense'}</span>
-              </button>
+                Expenses are logged and signed by managers in the <strong>Expense Logger</strong> app. Here you approve or void them.
+              </a>
             </div>
-
-            {/* Log New Expense Form */}
-            {isAddingExpense && (
-              <form
-                onSubmit={handleCreateExpense}
-                className="bg-sand-50 p-5 rounded-2xl border border-sand-300 mb-6 space-y-4 animate-in fade-in duration-200"
-              >
-                <h4 className="font-serif font-bold text-sm text-forest-900">
-                  New Operational Expense Entry
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Expense Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={expenseDate}
-                      onChange={(e) => setExpenseDate(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Amount (₹ INR)
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      step="0.01"
-                      value={expenseAmount}
-                      onChange={(e) => setExpenseAmount(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                      placeholder="e.g., 3500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Paid Via
-                    </label>
-                    <select
-                      value={expenseMethod}
-                      onChange={(e) => setExpenseMethod(e.target.value as PaymentMethod)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                    >
-                      <option value="cash">Cash (Counter/Petty Cash)</option>
-                      <option value="upi">UPI (GPay / PhonePe / QR)</option>
-                      <option value="bank_transfer">Bank Transfer (NEFT/IMPS)</option>
-                      <option value="card">Company Debit Card</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Master Category
-                    </label>
-                    <select
-                      value={expenseCategory}
-                      onChange={(e) => setExpenseCategory(e.target.value as ExpenseMasterCategory)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white font-semibold"
-                    >
-                      <option value="groceries">Groceries & Kitchen Produce</option>
-                      <option value="utilities">Utilities & LPG Gas</option>
-                      <option value="housekeeping">Housekeeping Supplies</option>
-                      <option value="maintenance">Maintenance & Repairs</option>
-                      <option value="staff_payroll">Staff Payroll & Stipends</option>
-                      <option value="marketing">Marketing & Commissions</option>
-                      <option value="transport_vendor">Transport Vendor Settlement</option>
-                      <option value="miscellaneous">Miscellaneous Outflow</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Sub-Tag / Department
-                    </label>
-                    <input
-                      type="text"
-                      value={expenseSubTag}
-                      onChange={(e) => setExpenseSubTag(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                      placeholder="e.g., Produce, Dairy, LPG, Electricity"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Vendor / Payee Name
-                    </label>
-                    <input
-                      type="text"
-                      value={expenseVendor}
-                      onChange={(e) => setExpenseVendor(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                      placeholder="e.g., Local Farmers Market"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                    Description / Purpose
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={expenseDesc}
-                    onChange={(e) => setExpenseDesc(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                    placeholder="e.g., Fresh organic vegetables, farm milk and eggs for breakfast mandate"
-                  />
-                </div>
-
-                {/* Receipt Upload / Image link */}
-                <div>
-                  <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                    Bill Receipt Photo Preview URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={receiptUrl}
-                    onChange={(e) => setReceiptUrl(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-white"
-                    placeholder="https://example.com/receipt.jpg"
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingExpense(false)}
-                    className="min-h-[44px] px-4 py-2 text-xs font-bold text-forest-700 hover:bg-sand-200 rounded-xl"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="min-h-[44px] px-5 py-2 text-xs font-bold bg-forest-900 hover:bg-forest-800 text-white rounded-xl shadow transition-all"
-                  >
-                    Save Expense Record
-                  </button>
-                </div>
-              </form>
-            )}
 
             {/* Expenses List */}
             <div className="overflow-x-auto">
@@ -719,12 +323,13 @@ export default function FinancialLedger() {
                     <th className="py-3 px-3">Paid Via</th>
                     <th className="py-3 px-3">Amount</th>
                     <th className="py-3 px-3">Receipt</th>
-                    <th className="py-3 px-3 text-right">Delete</th>
+                    <th className="py-3 px-3">Signed</th>
+                    <th className="py-3 px-3 text-right">Review</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-sand-200">
                   {expenses.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-sand-50/60 transition-colors">
+                    <tr key={exp.id} className={`hover:bg-sand-50/60 transition-colors ${exp.status === 'void' ? 'opacity-50 line-through' : ''}`}>
                       <td className="py-3 px-3 text-forest-800 font-mono whitespace-nowrap">
                         {exp.expenseDate}
                       </td>
@@ -763,14 +368,31 @@ export default function FinancialLedger() {
                           <span className="text-gray-400 text-[10px]">—</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => deleteExpense(exp.id)}
-                          className="min-h-[44px] min-w-[44px] p-2 text-gray-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors inline-flex items-center justify-center"
-                          title="Delete expense entry"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="py-3 px-3 text-[10px] text-forest-700 min-w-[140px] no-underline">
+                        {signedLine(exp.loggedByName, exp.signedOffAt || exp.createdAt)}
+                        {exp.status === 'approved' && <span className="block text-emerald-700 font-bold">✓ Approved by {exp.approvedByName}</span>}
+                        {exp.status === 'void' && <span className="block text-rose-700 font-bold">Void: {exp.voidReason}</span>}
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        {exp.status !== 'void' && (
+                          <div className="inline-flex gap-1.5">
+                            {exp.status !== 'approved' && (
+                              <button
+                                onClick={() => void approveExpense(exp.id)}
+                                className="min-h-[36px] px-2.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={() => startVoid(`exp:${exp.id}`)}
+                              className="min-h-[36px] px-2.5 rounded-lg border border-rose-300 text-rose-700 text-[11px] font-bold inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Void
+                            </button>
+                          </div>
+                        )}
+                        {voidEditor(`exp:${exp.id}`)}
                       </td>
                     </tr>
                   ))}
@@ -823,7 +445,7 @@ export default function FinancialLedger() {
                 ))}
 
                 <div className="pt-3 flex items-center justify-between font-bold border-t-2 border-sand-300">
-                  <span>Net Payable (Incl. 5% GST)</span>
+                  <span>Net Payable{selectedFolio.totalTax > 0 ? ` (incl. GST ₹${selectedFolio.totalTax.toLocaleString('en-IN')})` : ''}</span>
                   <span className="font-mono text-sm text-forest-950">₹{selectedFolio.netPayable}</span>
                 </div>
               </div>
@@ -835,20 +457,26 @@ export default function FinancialLedger() {
 
               <div className="bg-emerald-50/60 rounded-2xl border border-emerald-200 p-4 text-xs space-y-2">
                 {selectedFolio.payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-emerald-950">
-                        ₹{p.amount.toLocaleString('en-IN')} via {(p.paymentMethod || 'other').toUpperCase()}
-                      </span>
-                      {p.transactionReference && (
-                        <p className="text-[10px] text-emerald-800 font-mono">
-                          Ref: {p.transactionReference}
-                        </p>
+                  <div key={p.id} className={`py-1 ${p.voidedAt ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className={`font-bold text-emerald-950 ${p.voidedAt ? 'line-through' : ''}`}>
+                          ₹{p.amount.toLocaleString('en-IN')} via {(p.paymentMethod || 'other').toUpperCase()}
+                        </span>
+                        {p.transactionReference && <p className="text-[10px] text-emerald-800 font-mono">Ref: {p.transactionReference}</p>}
+                        <p className="text-[10px] text-emerald-700">{signedLine(p.signedOffByName || p.collectedByName, p.signedOffAt || p.collectedAt)}</p>
+                        {p.voidedAt && <p className="text-[10px] text-rose-700 font-bold">Void by {p.voidedByName}: {p.voidReason}</p>}
+                      </div>
+                      {!p.voidedAt && (
+                        <button
+                          onClick={() => startVoid(`pay:${selectedFolio.id}:${p.id}`)}
+                          className="shrink-0 px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-700 text-[11px] font-bold"
+                        >
+                          Void
+                        </button>
                       )}
                     </div>
-                    <span className="text-[10px] text-emerald-700">
-                      {new Date(p.collectedAt).toLocaleDateString()}
-                    </span>
+                    {voidEditor(`pay:${selectedFolio.id}:${p.id}`)}
                   </div>
                 ))}
 
@@ -862,79 +490,9 @@ export default function FinancialLedger() {
                 </div>
               </div>
 
-              {/* Record Payment Form if Balance Due > 0 */}
-              {selectedFolio.balanceDue > 0 && (
-                <form
-                  onSubmit={handleRecordPayment}
-                  className="bg-sand-50 p-4 rounded-2xl border border-sand-300 space-y-3"
-                >
-                  <h5 className="font-bold text-xs text-forest-900">
-                    Record Folio Payment
-                  </h5>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-forest-700 block mb-1">
-                        Amount (₹)
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        max={selectedFolio.balanceDue}
-                        value={paymentAmount || selectedFolio.balanceDue}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        className="w-full text-xs p-2 rounded-lg border border-sand-300 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-forest-700 block mb-1">
-                        Payment Mode
-                      </label>
-                      <select
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                        className="w-full text-xs p-2 rounded-lg border border-sand-300 bg-white"
-                      >
-                        <option value="cash">Cash (Counter)</option>
-                        <option value="upi">UPI (GPay / PhonePe)</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="card">Card</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-forest-700 block mb-1">
-                        Ref / UTR Number
-                      </label>
-                      <input
-                        type="text"
-                        value={paymentRef}
-                        onChange={(e) => setPaymentRef(e.target.value)}
-                        placeholder="UPI-123456"
-                        className="w-full text-xs p-2 rounded-lg border border-sand-300 bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end space-x-2 pt-2">
-                    <button
-                      type="submit"
-                      className="min-h-[44px] px-5 py-2 bg-forest-900 text-white font-bold text-xs rounded-xl shadow hover:bg-forest-800"
-                    >
-                      Record Payment
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        settleFolio(selectedFolio.id, paymentMethod);
-                        setSelectedFolio(null);
-                      }}
-                      className="min-h-[44px] px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow hover:bg-emerald-500"
-                    >
-                      Settle in Full & Close
-                    </button>
-                  </div>
-                </form>
-              )}
+              <p className="text-[11px] text-forest-600 bg-sand-50 rounded-xl p-3 border border-sand-200">
+                Collections are recorded and signed by a manager at the desk (bookings list → folio). Admins can void a wrong entry with a reason.
+              </p>
             </div>
           </div>
         </div>

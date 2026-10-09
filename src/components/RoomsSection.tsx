@@ -13,6 +13,7 @@ import {
   tomorrowInIST,
 } from '@/lib/tariff-calculator';
 import { useLiveTariffs } from '@/lib/live-tariffs';
+import { gstPriceNote } from '@/lib/gst';
 import DateRangePicker, { addDays, formatHumanDate, calculateNights } from './DateRangePicker';
 import {
   Users,
@@ -79,7 +80,7 @@ export default function RoomsSection({
     seasonalDateRanges: liveSeasonalRanges,
     gstConfig,
   } = useLiveTariffs();
-  const gstNote = gstConfig.tariffsIncludeGst ? 'incl. GST' : '+ GST';
+  const gstNote = gstPriceNote(gstConfig);
 
   // Sync with external initial dates if changed
   useEffect(() => {

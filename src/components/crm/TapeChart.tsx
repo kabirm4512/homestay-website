@@ -35,6 +35,7 @@ import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm'
 import ManualBookingModal from './ManualBookingModal';
 import GuestCheckoutModal from './GuestCheckoutModal';
 import { INDIAN_STATES } from '@/lib/booking-id';
+import { addCalendarDays, todayInIST } from '@/lib/tariff-calculator';
 import { readDocumentFile } from '@/lib/image-upload';
 
 export default function TapeChart() {
@@ -48,7 +49,11 @@ export default function TapeChart() {
     checkInRoom,
     currentUser,
     showToast,
+    roomBlocks,
+    addRoomBlock,
+    removeRoomBlock,
   } = useCRM();
+  const [blockForm, setBlockForm] = useState<{ roomId: string; fromDate: string; toDate: string; reason: string } | null>(null);
 
   const [checkoutBooking, setCheckoutBooking] = useState<CRMBooking | null>(null);
 
@@ -129,12 +134,16 @@ export default function TapeChart() {
   }, [rooms, filterCategory]);
 
   // Check if a room is occupied/reserved on a specific date
+  // Active stays only: cancelled bookings never show; a guest who left early stops on the day they left
   const getBookingForRoomDate = (roomId: string, dateStr: string) => {
     return bookings.find((b) => {
-      if (b.roomId !== roomId) return false;
-      return dateStr >= b.checkInDate && dateStr < b.checkOutDate;
+      if (b.roomId !== roomId || b.bookingStatus === 'cancelled') return false;
+      const end = b.bookingStatus === 'checked_out' && b.checkedOutAt ? todayInIST(new Date(b.checkedOutAt)) : b.checkOutDate;
+      return dateStr >= b.checkInDate && dateStr < (end < b.checkOutDate ? end : b.checkOutDate);
     });
   };
+  const getBlockForRoomDate = (roomId: string, dateStr: string) =>
+    roomBlocks.find((k) => k.roomId === roomId && dateStr >= k.fromDate && dateStr < k.toDate);
 
   const openGuestDrawer = (booking: CRMBooking) => {
     setSelectedBooking(booking);
@@ -511,17 +520,25 @@ export default function TapeChart() {
                         </div>
 
                         {/* Room Status Indicator Dropdown */}
-                        <select
-                          value={room.currentStatus}
-                          onChange={(e) => updateRoomStatus(room.id, e.target.value as RoomTapeStatus)}
-                          className="text-[10px] font-bold uppercase rounded-lg border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820] py-1 px-1.5 focus:ring-1 focus:ring-[#142820] shrink-0"
-                        >
-                          <option value="available">🟢 Available (Clean)</option>
-                          <option value="checked_in">🔵 In-House</option>
-                          <option value="confirmed">🟡 Confirmed</option>
-                          <option value="hold">🟠 Hold</option>
-                          <option value="maintenance">🔴 Maintenance</option>
-                        </select>
+                        {/* Occupancy comes from bookings; staff only mark a room out of service */}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <select
+                            value={room.currentStatus === 'maintenance' ? 'maintenance' : 'in_service'}
+                            onChange={(e) => updateRoomStatus(room.id, (e.target.value === 'maintenance' ? 'maintenance' : 'available') as RoomTapeStatus)}
+                            aria-label={`Room ${room.roomNumber} service status`}
+                            className="text-[10px] font-bold uppercase rounded-lg border border-[#E5DEC9] bg-[#FAF8F5] text-[#142820] py-1 px-1.5 focus:ring-1 focus:ring-[#142820]"
+                          >
+                            <option value="in_service">🟢 In service</option>
+                            <option value="maintenance">🔴 Out tonight</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setBlockForm({ roomId: room.id, fromDate: todayInIST(), toDate: addCalendarDays(todayInIST(), 1), reason: '' })}
+                            className="text-[10px] font-bold text-rose-700 underline"
+                          >
+                            Block dates
+                          </button>
+                        </div>
                       </div>
                     </td>
 
@@ -529,7 +546,9 @@ export default function TapeChart() {
                     {dateColumns.map((d, dIdx) => {
                       const dateKey = formatDateKey(d);
                       const booking = getBookingForRoomDate(room.id, dateKey);
-                      const isMaintenance = room.currentStatus === 'maintenance';
+                      // The maintenance flag means "out of service tonight"; longer repairs are dated blocks
+                      const block = getBlockForRoomDate(room.id, dateKey);
+                      const isMaintenance = Boolean(block) || (room.currentStatus === 'maintenance' && dateKey === todayInIST() && !booking);
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
                       if (isMaintenance) {
@@ -539,8 +558,18 @@ export default function TapeChart() {
                             className="px-1 py-1.5 border-r border-[#E5DEC9] text-center bg-rose-50/80"
                           >
                             <div className="h-12 rounded-xl bg-rose-100/90 border border-rose-300 flex flex-col items-center justify-center p-1 text-[10px] text-rose-800">
-                              <span className="font-bold">Maintenance</span>
-                              <span className="text-[9px] text-rose-600">Geyser Repair</span>
+                              <span className="font-bold">{block ? 'Blocked' : 'Maintenance'}</span>
+                              <span className="text-[9px] text-rose-600 truncate max-w-full">{block ? block.reason : 'Out of service tonight'}</span>
+                              {block && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeRoomBlock(block.id)}
+                                  className="text-[9px] underline text-rose-700"
+                                  aria-label={`Remove block on room ${room.roomNumber}`}
+                                >
+                                  remove
+                                </button>
+                              )}
                             </div>
                           </td>
                         );
@@ -620,6 +649,44 @@ export default function TapeChart() {
         </div>
       </div>
 
+      {blockForm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setBlockForm(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-3 text-xs" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <h3 className="font-serif font-bold text-base text-[#142820]">
+              Block room {rooms.find((r) => r.id === blockForm.roomId)?.roomNumber} for repairs
+            </h3>
+            <p className="text-forest-600">The room is not sold on the website or at the desk for these nights.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="font-bold block">First night</span>
+                <input type="date" value={blockForm.fromDate} min={todayInIST()} onChange={(e) => setBlockForm({ ...blockForm, fromDate: e.target.value, toDate: blockForm.toDate <= e.target.value ? addCalendarDays(e.target.value, 1) : blockForm.toDate })} className="w-full px-2 py-2 rounded-lg border border-sand-300" />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold block">Available again on</span>
+                <input type="date" value={blockForm.toDate} min={addCalendarDays(blockForm.fromDate, 1)} onChange={(e) => setBlockForm({ ...blockForm, toDate: e.target.value })} className="w-full px-2 py-2 rounded-lg border border-sand-300" />
+              </label>
+            </div>
+            <input value={blockForm.reason} onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} placeholder="Reason (required), e.g. geyser repair" className="w-full px-3 py-2 rounded-lg border border-sand-300" />
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setBlockForm(null)} className="px-4 py-2 rounded-xl border border-sand-300 font-bold">Cancel</button>
+              <button
+                onClick={() => {
+                  if (blockForm.reason.trim().length < 3) {
+                    showToast('Please give a reason.', 'error');
+                    return;
+                  }
+                  addRoomBlock({ ...blockForm, reason: blockForm.reason.trim() });
+                  setBlockForm(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold"
+              >
+                Block room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Guest Drawer / Profile & Preferences Modal */}
       {selectedBooking && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end">
@@ -679,7 +746,12 @@ export default function TapeChart() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  {selectedBooking.tapeStatus !== 'checked_in' ? (
+                  {selectedBooking.bookingStatus === 'checked_out' || selectedBooking.bookingStatus === 'cancelled' ? (
+                    <span className="text-xs font-bold uppercase text-forest-600">{selectedBooking.bookingStatus.replace('_', ' ')}</span>
+                  ) : selectedBooking.bookingStatus !== 'checked_in' ? (
+                    selectedBooking.checkInDate > todayInIST() ? (
+                      <span className="text-[11px] text-forest-600">Check-in opens on {selectedBooking.checkInDate}</span>
+                    ) : (
                     <button
                       onClick={() => {
                         checkInRoom(selectedBooking.id, {
@@ -697,6 +769,7 @@ export default function TapeChart() {
                       <LogIn className="w-4 h-4" />
                       <span>Check-In Guest</span>
                     </button>
+                    )
                   ) : (
                     <button
                       onClick={() => {

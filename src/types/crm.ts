@@ -141,6 +141,13 @@ export interface CRMBooking {
   checkedInByManagerName?: string;
   checkedOutByManagerId?: string;
   checkedOutByManagerName?: string;
+  /** Cancelled or no-show: who, when and why. */
+  cancelledAt?: string;
+  cancelledByName?: string;
+  cancelReason?: string;
+  noShow?: boolean;
+  /** Child ages (for "children stay free under age X"). */
+  childAges?: number[];
   /** Website request this front-desk booking fulfils (so inventory is not counted twice). */
   sourceBookingId?: string;
   /** GST on the room charges, from the shared GST rules. */
@@ -161,11 +168,18 @@ export interface FolioCharge {
   /** GST for this line when it differs from the category default (e.g. rooms above ₹7,500/night). */
   taxAmount?: number;
   postedByName?: string;
+  postedById?: string;
+  /** Required when a line is voided; stamped by the server. */
+  voidReason?: string;
+  voidedAt?: string;
+  voidedByName?: string;
 }
 
 export interface FolioPayment {
   id: string;
   folioId: string;
+  /** 'refund' = money paid back to the guest (amount is positive; it reduces what was paid). */
+  kind?: 'payment' | 'refund';
   amount: number;
   paymentMethod: PaymentMethod;
   transactionReference?: string;
@@ -173,6 +187,17 @@ export interface FolioPayment {
   collectedAt: string;
   collectedByName?: string;
   collectedById?: string;
+  /** The manager ticked "I confirm I received this" (required for every new collection). */
+  signOffConfirmed?: boolean;
+  /** Server-stamped sign-off: who recorded it and when (server clock, not the device's). */
+  signedOffById?: string;
+  signedOffByName?: string;
+  signedOffAt?: string;
+  /** Admin void (the payment then stops counting); the record is kept for the audit trail. */
+  voidedAt?: string;
+  voidedById?: string;
+  voidedByName?: string;
+  voidReason?: string;
 }
 
 export interface GuestFolio {
@@ -192,6 +217,13 @@ export interface GuestFolio {
   netPayable: number;
   totalPaid: number;
   balanceDue: number;
+  /** Paid more than the bill: owed back to the guest (refund or carry forward). */
+  creditOwed?: number;
+  /** Lines awaiting confirmation (orders not yet approved, transfers not yet dispatched): not billed yet. */
+  pendingTotal?: number;
+  /** Who set the discount and why (managers have a limit; admins approve larger ones). */
+  discountReason?: string;
+  discountByName?: string;
   settledAt?: string;
   settledByName?: string;
   charges: FolioCharge[];
@@ -350,9 +382,11 @@ export interface HousekeepingTask {
   completedAt?: string;
 }
 
+export type ExpenseStatus = 'submitted' | 'approved' | 'void';
+
 export interface Expense {
   id: string;
-  expenseDate: string; // YYYY-MM-DD
+  expenseDate: string; // YYYY-MM-DD (IST, set by the server)
   amount: number;
   paymentMethod: PaymentMethod;
   masterCategory: ExpenseMasterCategory;
@@ -361,7 +395,20 @@ export interface Expense {
   description: string;
   billReceiptUrl?: string;
   loggedByName: string;
+  loggedById?: string;
   createdAt: string;
+  /** The manager ticked "I confirm I paid this" (required for every new expense). */
+  signOffConfirmed?: boolean;
+  signedOffAt?: string;
+  /** Missing on older records = 'submitted'. Void expenses stop counting. */
+  status?: ExpenseStatus;
+  approvedById?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  voidedById?: string;
+  voidedByName?: string;
+  voidedAt?: string;
+  voidReason?: string;
 }
 
 export interface StaffAccount {
@@ -435,4 +482,18 @@ export interface StaffAlert {
   totalAmount: number;
   createdAt: string;
   acknowledged: boolean;
+}
+
+/** A room taken out of service for specific nights (repairs, deep clean, owner use). */
+export interface RoomBlock {
+  id: string;
+  roomId: string;
+  roomNumber: number;
+  /** First blocked night (YYYY-MM-DD). */
+  fromDate: string;
+  /** Day after the last blocked night (like a check-out date). */
+  toDate: string;
+  reason: string;
+  createdByName?: string;
+  createdAt: string;
 }

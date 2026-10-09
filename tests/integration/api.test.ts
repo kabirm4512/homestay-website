@@ -258,7 +258,8 @@ run('API (integration)', () => {
       expect(saved.guest.fullName).toBe('Legacy Guest');
       const savedFolio = state.json.state.folios.find((f: any) => f.id === folio.id);
       expect(savedFolio.totalPaid).toBe(1000);
-      expect(savedFolio.balanceDue).toBe(3725);
+      // GST is switched off by default, so the open folio is recomputed without its ₹225 GST
+      expect(savedFolio.balanceDue).toBe(3500);
       await admin.req('/api/crm/mutate', { method: 'POST', body: { ops: [{ collection: 'folios', op: 'delete', id: folio.id }] } });
     });
 

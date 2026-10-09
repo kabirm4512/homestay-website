@@ -64,6 +64,9 @@ If you skip this step, the first request seeds the default rooms, menu and tarif
 
 ## 5. Deploy
 
+**October 2026 money update:** run `supabase/migrations/20261009000000_folio_booking_index.sql` once (Supabase → SQL editor). It adds one index and is safe to run again. It was applied to the live database on 9 Oct 2026.
+
+
 Push to the branch Vercel deploys, or redeploy from the Vercel dashboard after setting the variables. Then check `https://<your-site>/api/health` shows `"status":"ok"`.
 
 ## 6. First sign-in and staff accounts
@@ -93,7 +96,8 @@ Admin → **QRs** → print each room's standee again. The new codes carry the r
 
 Website Settings → Dine-in Menu & Add-ons:
 
-- **GST rules:** room GST per room-night (default 5% up to ₹7,500, 18% above), food 5%, transfers 5%, other 5%, and whether your tariffs already include GST. Confirm these with your CA. Only an admin can change them.
+- **GST switch:** GST is **OFF** (October 2026): website prices, desk bookings, guest orders and every open bill carry ₹0 GST. Settled bills keep the GST they were issued with. To charge GST again, an admin ticks **GST is ON** and saves; open bills are recalculated at once.
+- **GST rules** (used only when GST is on): room GST per room-night (default 5% up to ₹7,500, 18% above), food 5%, transfers 5%, other 5%, and whether your tariffs already include GST. Confirm these with your CA. Only an admin can change them.
 - **Website booking add-ons:** airport/NJP transfer price and bike rental per night.
 
 Site Rooms & Tariffs: each category now also has *adults included in the rate* and *children stay free under age*, and each season can have a *minimum stay*.
@@ -101,8 +105,44 @@ Site Rooms & Tariffs: each category now also has *adults included in the rate* a
 ## 10. Daily use
 
 - **Website bookings** arrive as *pending* and hold their rooms for 24 hours (`BOOKING_HOLD_HOURS`). Confirm or cancel them in Website Settings → Web bookings; after the hold expires the rooms are released automatically.
-- **Day close:** Ledger → Day close, at the end of each day. It records the day's collections, charges and expenses; after that, managers can't add expenses dated on or before that day.
+- **Day close:** Ledger → Day close, at the end of each day. Close days in date order (the oldest unclosed day first). It records the day's revenue (by the night the guest stayed), collections net of refunds, and expenses. After that, managers can't add expenses dated on or before that day.
+- **Dashboard:** Ledger → **Dashboard** (admins). Pick a period to see revenue by stream (rooms, food, transfers, rentals, celebrations, other), collections, what guests still owe for stays that have started, advances held for future stays, occupancy, ADR and RevPAR, compared with the previous period. The Admin overview shows the same month-to-date figures.
 - All staff screens refresh every few seconds, so every device sees the same bookings, folios and orders.
+
+- **Money is recorded by managers only.** Every collection (advance, part payment, checkout payment) and every expense is recorded from a **manager** account, which must tick the confirmation ("I confirm I received / paid …"). The server signs the entry with that account and the server time, so nothing can be back-dated or recorded in someone else's name. Admins cannot record money: they review it, approve expenses, and void a wrong entry with a reason (voided entries are kept, struck through).
+- **Manager cash book** (Ledger & Staff → Ledger → *Manager cash book*; managers see their own under *Ops & Expenses → Expenses*): per manager, what they collected and paid out in any period, and their **cash in hand** = everything collected − everything paid out (all payment methods, all time, voids excluded). CSV export for your accountant.
+- **Guest bills:** in the guest portal, guests see two separate bills: the **Room bill** (nights × the booked meal plan) and the **Services bill** (food orders, transfers, rentals, special requests). Each can be printed or saved as PDF. Payments are applied to the room bill first.
+- **Prices are live:** every open page checks for price changes every few seconds (and the moment a tab is reopened). A saved tariff, season or GST change shows on every open page within about 8 seconds, with no caching in between.
+
+### Bookings and rooms (front desk)
+
+- **Check-in** is possible from the arrival date only. A booking can't be checked in early by mistake.
+- **Cancel / No-show** (Bookings list, managers and admins): give a reason. The room is released, the room charges are voided with that reason, and any advance stays on the bill as **credit owed** to the guest. Refund it, or keep it under your cancellation policy.
+- **Block dates** (Tape chart → *Block dates*): takes a room out of sale for a date range (repairs, painting, owner's use), with a reason. The website and the desk both respect it. Remove the block from the tape chart when the room is ready. The room's *Out tonight* setting affects tonight only.
+- **Website requests:** a desk booking is refused when website requests already hold that category for those dates. Assign rooms to the request instead. A partly assigned request keeps holding its other rooms.
+- **Advance on a website booking** (Website Settings → Web bookings → **+ Record advance**, manager account): enter the amount, method and reference. When a room is assigned, the advance, any online add-ons (airport/NJP transfer, bike rental) and anything the guest ordered before arrival move to the room bill automatically.
+
+### Bills: charges, voids, discounts and refunds
+
+At checkout (and from the bill panel), managers can:
+
+- **Add a charge** (laundry, minibar, damage, late check-out, etc.).
+- **Void a line**, with a reason. A manager can void their own line within 30 minutes; anything else needs an admin. Lines are never deleted: a voided line stays on the bill, struck through, with who voided it and why.
+- **Give a discount**, with a reason. A manager can give up to 10% of the bill or ₹1,000, whichever is lower. A larger discount needs an admin.
+- **Refund credit**: when a guest has paid more than the bill, the bill shows *Credit owed*. A refund is signed like a collection and can't be more than the credit owed.
+
+Items still *awaiting confirmation* (orders not yet approved, transfers not yet dispatched) are not billed. Checkout waits until each one is confirmed or voided. A bill is settled only when nothing is due and no credit is owed. A part payment at checkout leaves the rest as due.
+
+If a front-desk device loses its connection, changes stay on that device and are saved automatically when it reconnects. Keep the tab open until the *Back online* message appears.
+
+### Expense Logger app (managers' phones)
+
+Install link: **`https://<your-site>/expenses`** (for example `https://saverahomestay.in/expenses`).
+
+- **Android (Chrome):** open the link → sign in → tap **Install** at the top (or menu ⋮ → *Install app*).
+- **iPhone (Safari):** open the link → Share → **Add to Home Screen**.
+
+Log an expense in three taps: a *Recent* chip (or category + item) → amount → tick the confirmation → **Save**. A bill photo is optional (taken with the camera, compressed on the phone). Entries are saved on the phone first, so it works with no signal: the header shows *Offline · 2 waiting* and they are sent automatically when the phone is back online (on Android even if the app is closed). *Today* shows each entry's status and *My cash* shows the manager's own cash in hand. Admins who open the app get the review view.
 
 ## 11. Backups
 

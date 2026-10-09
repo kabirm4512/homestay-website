@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Room, Booking } from '@/types';
 import { RoomSeasonalTariffs, SeasonalDateRange, MealPlan } from '@/types/crm';
 import { INITIAL_ROOMS } from '@/lib/mock-data';
-import { fetchLiveTariffs } from '@/lib/live-tariffs';
+import { fetchLiveTariffs, subscribeLiveTariffs } from '@/lib/live-tariffs';
+import { gstPriceNote } from '@/lib/gst';
 import DateRangePicker from './DateRangePicker';
 import RoomGuestSelector, { RoomConfig, DEFAULT_ROOM_CONFIG } from './RoomGuestSelector';
 import {
@@ -139,12 +140,23 @@ export default function AvailabilityModal({
   // Live per-category availability from the server (counts only; no guest data)
   type AvailMap = Record<string, { availableCount: number; totalCapacity: number; bookedCount: number }>;
   const [cachedAvailability, setCachedAvailability] = useState<{ key: string; map: AvailMap } | null>(null);
-  const [gstNote, setGstNote] = useState('+ GST');
+  const [gstNote, setGstNote] = useState('');
   // Live pricing data (null until loaded; never seeded with demo tariffs)
   const [tariffsMap, setTariffsMap] = useState<Record<string, RoomSeasonalTariffs> | null>(null);
   const [seasonalDateRanges, setSeasonalDateRanges] = useState<SeasonalDateRange[] | null>(null);
   const [stayNights, setStayNights] = useState(1);
   const [availabilityError, setAvailabilityError] = useState('');
+
+  // Follow live price changes from the backend while the modal is open
+  useEffect(
+    () =>
+      subscribeLiveTariffs((live) => {
+        setTariffsMap(live.tariffs);
+        setSeasonalDateRanges(live.seasonalDateRanges);
+        setGstNote(gstPriceNote(live.gstConfig));
+      }),
+    []
+  );
 
   // Re-calculate availability and room combinations with current parameters
   const recalculateData = useCallback(
@@ -240,7 +252,7 @@ export default function AvailabilityModal({
         liveRanges = tariffsRes.seasonalDateRanges;
         setTariffsMap(liveTariffs);
         setSeasonalDateRanges(liveRanges);
-        setGstNote(tariffsRes.gstConfig.tariffsIncludeGst ? 'incl. GST' : '+ GST');
+        setGstNote(gstPriceNote(tariffsRes.gstConfig));
       } else if (!liveTariffs || !liveRanges) {
         setAvailabilityError('Live rates could not be loaded. Availability is shown; please enquire for the exact tariff.');
       }
@@ -283,6 +295,14 @@ export default function AvailabilityModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialCheckIn, initialCheckOut, initialRoomsCount, initialRoomsConfig, initialStep]);
+
+  // Live price change while results are on screen: re-price them with the new tariffs
+  useEffect(() => {
+    if (step !== 'results' || !tariffsMap || !seasonalDateRanges) return;
+    if (!cachedAvailability || cachedAvailability.key !== `${checkIn}|${checkOut}`) return;
+    recalculateData(checkIn, checkOut, selectedMealPlan, roomsConfig, cachedAvailability.map, tariffsMap, seasonalDateRanges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tariffsMap, seasonalDateRanges]);
 
   // Handle meal plan switch directly in results step
   const handleMealPlanChange = (plan: MealPlan) => {

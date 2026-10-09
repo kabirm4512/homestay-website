@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { addCalendarDays, todayInIST } from '@/lib/tariff-calculator';
 import { Room, Inquiry, Booking } from '@/types';
 import {
   DollarSign,
@@ -32,17 +34,28 @@ export default function AdminOverview({
   onNavigateTab,
   onOpenAddRoom,
 }: AdminOverviewProps) {
-  // Compute analytics
-  const totalRevenue = bookings
-    .filter((b) => b.status === 'confirmed' || b.status === 'completed')
-    .reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+  // Money: the same server summary as the dashboard and day close (this month)
+  const [mtd, setMtd] = useState<{ revenue: number; collections: number } | null>(null);
+  const [tonight, setTonight] = useState<{ available: number; total: number } | null>(null);
+  useEffect(() => {
+    const today = todayInIST();
+    fetch(`/api/reports/summary?from=${today.slice(0, 8)}01&to=${today}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => j?.success && setMtd({ revenue: j.current.revenue.total, collections: j.current.collections.net }))
+      .catch(() => {});
+    fetch(`/api/availability?checkIn=${today}&checkOut=${addCalendarDays(today, 1)}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        const cats = Object.values((j?.data?.categories || {}) as Record<string, { inventory: number; available: number }>);
+        if (cats.length) setTonight({ available: cats.reduce((s, c) => s + c.available, 0), total: cats.reduce((s, c) => s + c.inventory, 0) });
+      })
+      .catch(() => {});
+  }, []);
 
   const pendingInquiriesCount = inquiries.filter((i) => i.status === 'pending').length;
   const pendingBookingsCount = bookings.filter((b) => b.status === 'pending').length;
   const confirmedBookingsCount = bookings.filter((b) => b.status === 'confirmed').length;
 
-  const totalInventory = rooms.reduce((sum, r) => sum + (Number(r.total_inventory) || 0), 0);
-  const availableInventory = rooms.reduce((sum, r) => sum + (Number(r.available_inventory) || 0), 0);
 
   const recentInquiries = inquiries.slice(0, 4);
   const recentBookings = bookings.slice(0, 4);
@@ -55,13 +68,13 @@ export default function AdminOverview({
         <div className="bg-white p-5 rounded-2xl border border-sand-200 shadow-sm flex items-start justify-between">
           <div>
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">
-              Confirmed Revenue
+              Revenue this month
             </span>
             <div className="text-2xl font-serif font-bold text-forest-950">
-              ₹{totalRevenue.toLocaleString('en-IN')}
+              {mtd ? `₹${Math.round(mtd.revenue).toLocaleString('en-IN')}` : '—'}
             </div>
             <span className="text-[11px] text-forest-700 font-medium mt-1 inline-flex items-center">
-              {confirmedBookingsCount} confirmed bookings
+              {mtd ? `Collected ₹${Math.round(mtd.collections).toLocaleString('en-IN')} · ${confirmedBookingsCount} web bookings confirmed` : 'Admins see money figures'}
             </span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-forest-50 text-forest-700 flex items-center justify-center">
@@ -112,10 +125,10 @@ export default function AdminOverview({
               Room Inventory
             </span>
             <div className="text-2xl font-serif font-bold text-forest-950">
-              {availableInventory} / {totalInventory}
+              {tonight ? `${tonight.available} / ${tonight.total}` : '—'}
             </div>
             <span className="text-[11px] text-forest-700 font-medium mt-1 inline-flex items-center">
-              {rooms.length} room categories configured
+              rooms free tonight · {rooms.length} room types
             </span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-forest-50 text-forest-700 flex items-center justify-center">

@@ -4,6 +4,7 @@ import Script from 'next/script';
 import './globals.css';
 import { CRMProvider } from '@/context/CRMContext';
 import PWARegister from '@/components/pwa/PWARegister';
+import ToastHost from '@/components/ToastHost';
 
 // Self-hosted variable fonts (OFL-1.1, see src/app/fonts): no build-time or runtime call to Google.
 const playfair = localFont({
@@ -92,6 +93,7 @@ export default function RootLayout({
         <CRMProvider>
           <PWARegister />
           {children}
+          <ToastHost />
         </CRMProvider>
       </body>
     </html>
