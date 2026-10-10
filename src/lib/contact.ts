@@ -13,22 +13,30 @@ export interface SiteContact {
   phone: string;
   phoneSecondary: string;
   whatsapp: string;
+  /** Front desk for in-house guests (concierge, guest portal, check-in). Falls back to `phone`. */
+  frontDeskPhone: string;
+  /** WhatsApp for in-house guests' requests (orders, transfers, checkout). Falls back to `whatsapp`. */
+  frontDeskWhatsapp: string;
 }
 
 let cached: SiteContact | null = null;
 let pending: Promise<SiteContact> | null = null;
 
 function normalise(c: Partial<SiteContact> | null | undefined): SiteContact {
+  const phone = c?.phone?.trim() || CONTACT.phone;
+  const whatsapp = (c?.whatsapp || '').replace(/\D/g, '') || CONTACT.whatsapp;
   return {
-    phone: c?.phone?.trim() || CONTACT.phone,
+    phone,
     phoneSecondary: c?.phoneSecondary?.trim() ?? CONTACT.phoneSecondary,
-    whatsapp: (c?.whatsapp || '').replace(/\D/g, '') || CONTACT.whatsapp,
+    whatsapp,
+    frontDeskPhone: c?.frontDeskPhone?.trim() || phone,
+    frontDeskWhatsapp: (c?.frontDeskWhatsapp || '').replace(/\D/g, '') || whatsapp,
   };
 }
 
 /** Forget the cached numbers (after an admin saves new ones on this device). */
-export function invalidateSiteContact(next?: SiteContact) {
-  cached = next || null;
+export function invalidateSiteContact(next?: Partial<SiteContact>) {
+  cached = next ? normalise(next) : null;
   pending = null;
 }
 

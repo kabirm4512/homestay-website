@@ -18,6 +18,9 @@ function contactOf(site: Partial<SiteInfo> | null) {
     phone: site?.phone || CONTACT_DEFAULTS.phone,
     phoneSecondary: site?.phone_secondary ?? '',
     whatsapp: toE164Digits(site?.whatsapp || '') || CONTACT_DEFAULTS.whatsapp,
+    // Empty = same as the website numbers above
+    frontDeskPhone: site?.front_desk_phone || '',
+    frontDeskWhatsapp: toE164Digits(site?.front_desk_whatsapp || ''),
   };
 }
 
@@ -31,6 +34,8 @@ const Body = z.object({
   phone: z.string().trim().max(30),
   phoneSecondary: z.string().trim().max(30).optional().default(''),
   whatsapp: z.string().trim().max(30),
+  frontDeskPhone: z.string().trim().max(30).optional().default(''),
+  frontDeskWhatsapp: z.string().trim().max(30).optional().default(''),
 });
 
 /** Admin: change the numbers. Takes effect on the website at once. */
@@ -42,6 +47,8 @@ export const PUT = handler('contact.update', async (request: Request) => {
     ['Primary number', phoneProblem(body.phone)],
     ['Second number', phoneProblem(secondary, { required: false })],
     ['WhatsApp number', phoneProblem(body.whatsapp)],
+    ['Front desk number', phoneProblem(body.frontDeskPhone || '', { required: false })],
+    ['Front desk WhatsApp', phoneProblem(body.frontDeskWhatsapp || '', { required: false })],
   ];
   const problems = checks.filter(([, p]) => p);
   if (problems.length) throw new HttpError(400, problems.map(([f, p]) => `${f}: ${p}`).join(' '));
@@ -52,6 +59,8 @@ export const PUT = handler('contact.update', async (request: Request) => {
     phone: formatPhone(body.phone),
     phone_secondary: secondary ? formatPhone(secondary) : '',
     whatsapp: toE164Digits(body.whatsapp),
+    front_desk_phone: body.frontDeskPhone ? formatPhone(body.frontDeskPhone) : '',
+    front_desk_whatsapp: body.frontDeskWhatsapp ? toE164Digits(body.frontDeskWhatsapp) : '',
   };
   await putSetting(SETTINGS.CMS_SITE, after, `staff:${admin.id}`);
   await audit({

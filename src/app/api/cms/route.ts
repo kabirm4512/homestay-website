@@ -41,7 +41,14 @@ export const POST = handler('cms.save', async (request: Request) => {
   // a Site info save never overwrites them with an older copy.
   if (type === 'site_info' && before && typeof before === 'object') {
     const b = before as Record<string, unknown>;
-    value = { ...(value as Record<string, unknown>), phone: b.phone, phone_secondary: b.phone_secondary, whatsapp: b.whatsapp };
+    value = {
+      ...(value as Record<string, unknown>),
+      phone: b.phone,
+      phone_secondary: b.phone_secondary,
+      whatsapp: b.whatsapp,
+      front_desk_phone: b.front_desk_phone,
+      front_desk_whatsapp: b.front_desk_whatsapp,
+    };
   }
   await putSetting(key, value, actor);
   await audit({ actor, action: 'update', entity: 'cms', entityId: key, before, after: value, ip: clientIp(request) });

@@ -100,7 +100,7 @@ Website Settings → Dine-in Menu & Add-ons:
 - **GST rules** (used only when GST is on): room GST per room-night (default 5% up to ₹7,500, 18% above), food 5%, transfers 5%, other 5%, and whether your tariffs already include GST. Confirm these with your CA. Only an admin can change them.
 - **Website booking add-ons:** airport/NJP transfer price and bike rental per night.
 
-**Contact numbers** (Website Settings → Contact numbers, admins only): the primary number (call buttons, footer, guest portal, self check-in, QR standees), an optional second number (footer and QR standees) and the WhatsApp number used by every WhatsApp button (tick *WhatsApp on the primary number* to use the same one). Changes show on the site within seconds; reprint the room QR standees afterwards.
+**Contact numbers** (Website Settings → Contact numbers, admins only): the primary number (call buttons, footer, guest portal, self check-in, QR standees), an optional second number (footer and QR standees) and the WhatsApp number used by every WhatsApp button (tick *WhatsApp on the primary number* to use the same one). Changes show on the site within seconds. Under *In-house guests (concierge)* you can set a separate front desk number and WhatsApp for the concierge, guest portal and self check-in. Room QR standees carry no phone numbers.
 
 Site Rooms & Tariffs: each category now also has *adults included in the rate* and *children stay free under age*, and each season can have a *minimum stay*.
 

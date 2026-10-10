@@ -598,7 +598,7 @@ export default function OperationsHub() {
                   value={driverPhone}
                   onChange={(e) => setDriverPhone(e.target.value)}
                   className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50"
-                  placeholder="+91 98320 12345"
+                  placeholder="Driver's mobile number"
                 />
               </div>
 

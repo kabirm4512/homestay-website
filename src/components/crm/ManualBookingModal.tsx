@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact } from '@/lib/contact';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
@@ -57,6 +58,7 @@ export default function ManualBookingModal({
   onBookingCreated,
   fromWebBooking,
 }: ManualBookingModalProps) {
+  const siteContact = useSiteContact();
   const { rooms, calculateDynamicTariff, createManualBooking, showToast, roomTariffs, tariffsStatus, gstConfig, currentUser } = useCRM();
   const isManager = currentUser?.role === 'manager';
 
@@ -444,11 +446,11 @@ Through your portal, you can:
 • Browse & order from our In-Room Dine-In menu
 
 📶 *High-Speed Wi-Fi:* Savera_Guest_HighSpeed (Password: saverahomestay)
-📞 *Host & Front Desk:* +91 98320 22233
+📞 *Front Desk:* ${siteContact.frontDeskPhone}
 
 Wishing you a serene and memorable Himalayan stay!
 — *Team Savera Homestay*`;
-  }, [guestName, activeRoom, createdBooking, portalLink]);
+  }, [guestName, activeRoom, createdBooking, portalLink, siteContact.frontDeskPhone]);
 
   const whatsappShareUrl = useMemo(() => {
     const rawDigits = guestPhone.replace(/[^0-9]/g, '');

@@ -374,10 +374,10 @@ function CheckinContent() {
           <div className="text-right">
             <span className="text-[10px] text-gray-300 block">Need help?</span>
             <a
-              href={telHref(contact.phone)}
+              href={telHref(contact.frontDeskPhone)}
               className="text-xs font-bold text-[#FE6E00] hover:underline transition-colors"
             >
-              {contact.phone}
+              {contact.frontDeskPhone}
             </a>
           </div>
         </div>
@@ -485,7 +485,7 @@ function CheckinContent() {
                       <span>Start Direct Self Check-In</span>
                     </button>
                     <a
-                      href={telHref(contact.phone)}
+                      href={telHref(contact.frontDeskPhone)}
                       className="py-3 px-3.5 bg-white hover:bg-gray-50 text-[#0B1733] border border-gray-300 rounded-xl font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                     >
                       <Phone className="w-3.5 h-3.5 text-emerald-600" />
@@ -1084,7 +1084,7 @@ function CheckinContent() {
               </a>
 
               <a
-                href={telHref(contact.phone)}
+                href={telHref(contact.frontDeskPhone)}
                 className="w-full sm:w-auto px-5 py-2.5 bg-[#F3F7FF] hover:bg-white text-[#0B1733] border border-gray-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-2"
               >
                 <Phone className="w-4 h-4" />

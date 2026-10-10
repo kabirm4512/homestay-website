@@ -133,6 +133,9 @@ export interface SiteInfo {
   phone: string;
   /** Second contact number, shown after the primary one. */
   phone_secondary?: string;
+  /** In-house guests' front desk number and WhatsApp (empty = same as phone / whatsapp). */
+  front_desk_phone?: string;
+  front_desk_whatsapp?: string;
   whatsapp: string;
   email: string;
   address: string;

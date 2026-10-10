@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact } from '@/lib/contact';
 import React, { useState, useMemo } from 'react';
 import {
   X,
@@ -33,6 +34,7 @@ interface GuestCheckoutModalProps {
 }
 
 export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCheckoutModalProps) {
+  const siteContact = useSiteContact();
   const {
     folios,
     currentUser,
@@ -517,7 +519,7 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                 </p>
                 {(folio?.totalTax || 0) > 0 && (
                   <p className="text-xs text-gray-600">
-                    GSTIN: 19AAAFS8821Q1Z8 • Phone: +91 98320 44556 • reservations@saverahomestay.in
+                    GSTIN: 19AAAFS8821Q1Z8 • Phone: {siteContact.frontDeskPhone} • reservations@saverahomestay.in
                   </p>
                 )}
               </div>
