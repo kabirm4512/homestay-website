@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, ListChecks, Wallet, LogOut, Cloud, CloudOff, RefreshCw, AlertTriangle, Check, Clock, Receipt, ShieldCheck } from 'lucide-react';
+import { Plus, ListChecks, Wallet, LogOut, Cloud, CloudOff, RefreshCw, AlertTriangle, Check, Clock, Receipt, ShieldCheck, Send } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import AdminAuth from '@/components/admin/AdminAuth';
-import PWAInstaller from '@/components/pwa/PWAInstaller';
+import { ExpenseInstallCard, ExpenseInstallSheet } from '@/components/expenses/ExpenseAppInstall';
 import ExpenseLogForm from '@/components/expenses/ExpenseLogForm';
 import ManagerCashbook from '@/components/crm/ManagerCashbook';
 import { OutboxItem, discardOutboxItem, flushOutbox, retryOutboxItem, subscribeOutbox } from '@/lib/expense-outbox';
@@ -28,6 +28,7 @@ export default function ExpensesApp() {
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
   const [online, setOnline] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const today = todayInIST();
 
   useEffect(() => subscribeOutbox(setOutbox), []);
@@ -58,15 +59,31 @@ export default function ExpensesApp() {
   if (authStatus === 'checking') {
     return (
       <div className="min-h-[100dvh] bg-[#142820] flex flex-col items-center justify-center gap-3 text-[#A3B899]">
-        <div className="w-12 h-12 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 flex items-center justify-center">
-          <Receipt className="w-6 h-6 text-[#C5A059]" />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icons/expenses-192.png" alt="" className="w-16 h-16 rounded-[20px] shadow-lg animate-pulse" />
         <span className="text-xs">Opening Expense Logger…</span>
       </div>
     );
   }
   if (authStatus !== 'signed_in' || !currentUser || currentUser.mustChangePassword) {
-    return <AdminAuth />;
+    return (
+      <>
+        <AdminAuth
+          brand={{
+            eyebrow: 'Savera · for managers',
+            title: 'Expense Logger',
+            subtitle: 'Sign in with your manager account. Every expense you log is signed with your name and the time.',
+            iconSrc: '/icons/expenses-192.png',
+          }}
+        />
+        {/* Install first, then sign in inside the app */}
+        <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] pointer-events-none">
+          <div className="max-w-md mx-auto pointer-events-auto">
+            <ExpenseInstallCard />
+          </div>
+        </div>
+      </>
+    );
   }
 
   const sync =
@@ -84,9 +101,8 @@ export default function ExpensesApp() {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 text-[#C5A059] flex items-center justify-center shrink-0">
-                <Receipt className="w-5 h-5" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/expenses-96.png" alt="" className="w-10 h-10 rounded-[13px] shrink-0 ring-1 ring-white/10" />
               <div className="min-w-0">
                 <h1 className="font-serif font-bold text-[17px] leading-tight">Expenses</h1>
                 <p className="text-[11px] text-[#A3B899] truncate">
@@ -95,7 +111,6 @@ export default function ExpensesApp() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <PWAInstaller variant="button" app="expenses" appName="Savera Expense Logger" label="Install" />
               <button
                 onClick={() => void signOut()}
                 className="w-10 h-10 rounded-xl text-rose-200 border border-white/10 flex items-center justify-center"
@@ -131,12 +146,27 @@ export default function ExpensesApp() {
           </div>
         )}
 
-        {!isManager && tab !== 'cash' && (
-          <div className="mb-4 bg-white rounded-2xl border border-sand-200 p-4 text-[13px] text-forest-800 flex gap-3">
-            <ShieldCheck className="w-5 h-5 text-forest-700 shrink-0" />
-            <p>Only manager accounts log and sign expenses. You can review every manager&apos;s entries and cash in hand below.</p>
+        <ExpenseInstallCard className="mb-4" />
+
+        {!isManager && (
+          <div className="mb-4 rounded-3xl bg-[#142820] text-white p-4 flex items-start gap-3 relative overflow-hidden">
+            <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-[#C5A059]/20 blur-2xl pointer-events-none" />
+            <ShieldCheck className="w-5 h-5 text-[#E8D3A2] shrink-0 mt-0.5" />
+            <div className="relative flex-1">
+              <p className="text-[14px] font-bold">Managers log, you review</p>
+              <p className="text-[12.5px] text-[#B9C9B1] leading-snug mt-0.5">
+                Expenses are logged and signed from managers&apos; phones. Here you see every entry and each manager&apos;s cash in hand.
+              </p>
+              <button
+                onClick={() => setShareOpen(true)}
+                className="mt-3 min-h-[40px] px-3.5 rounded-xl bg-[#C85A32] text-white text-[12.5px] font-bold inline-flex items-center gap-1.5"
+              >
+                <Send className="w-4 h-4" /> Send the app to managers
+              </button>
+            </div>
           </div>
         )}
+        <ExpenseInstallSheet open={shareOpen} onClose={() => setShareOpen(false)} mode="share" />
 
         {tab === 'log' && isManager && (
           <ExpenseLogForm

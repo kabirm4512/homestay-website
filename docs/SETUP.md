@@ -73,7 +73,7 @@ Push to the branch Vercel deploys, or redeploy from the Vercel dashboard after s
 
 1. Open `/admin` and sign in with `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD`.
 2. Choose a new password (at least 8 characters).
-3. Ledger & Staff → Staff: create an account for each person (admin, manager or kitchen). Give them the temporary password; they must change it at first sign-in.
+3. Ledger & Staff → **Staff Accounts & Permissions** → **Add Staff Member**: name, email, phone, role (manager or kitchen; admin only for owners) and a temporary password (**Auto-Generate** makes one). The next screen shows the login details ready to send: **Copy message** or **WhatsApp** it. Managers' messages include the Expense Logger install link. Everyone must choose their own password at first sign-in.
 4. Remove `DEFAULT_ADMIN_PASSWORD` from Vercel once you're in.
 
 Roles: **admin** sees everything (ledger, staff, GST rules, deletes); **manager** runs the front desk, rates, rooms and orders; **kitchen** sees orders and the menu only. Deactivating an account or changing its role signs that person out at once.
@@ -137,7 +137,7 @@ If a front-desk device loses its connection, changes stay on that device and are
 
 ### Expense Logger app (managers' phones)
 
-Install link: **`https://<your-site>/expenses`** (for example `https://saverahomestay.in/expenses`).
+Install link: **`https://<your-site>/expenses?install=1`** (for example `https://saverahomestay.in/expenses?install=1`). In the admin header, **Expense App** shows this link as a QR code to scan with a manager's phone, with Copy / WhatsApp buttons; tapped on a phone it goes straight to installing. The app has its own icon (a receipt) so it is easy to tell apart from the guest app.
 
 - **Android (Chrome):** open the link → sign in → tap **Install** at the top (or menu ⋮ → *Install app*).
 - **iPhone (Safari):** open the link → Share → **Add to Home Screen**.

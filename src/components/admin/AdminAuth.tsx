@@ -17,7 +17,15 @@ import { useCRM } from '@/context/CRMContext';
  * Accounts created by an admin, and the first default admin, must set a new password
  * at first sign-in.
  */
-export default function AdminAuth() {
+/** Optional branding, e.g. for the Expense Logger app's sign-in screen. */
+export interface AdminAuthBrand {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  iconSrc?: string;
+}
+
+export default function AdminAuth({ brand }: { brand?: AdminAuthBrand } = {}) {
   const { authenticateStaff, changeOwnPassword, currentUser, signOut } = useCRM();
 
   // Credentials state
@@ -81,23 +89,28 @@ export default function AdminAuth() {
           <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-[#C5A059]/15 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute top-0 right-0 w-24 h-24 bg-[#1E3A2F] rounded-full blur-xl pointer-events-none" />
           <div className="flex items-center space-x-3 mb-3 relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 flex items-center justify-center shadow-inner">
-              <Trees className="w-5 h-5 text-[#C5A059]" />
-            </div>
+            {brand?.iconSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.iconSrc} alt="" className="w-12 h-12 rounded-[15px] ring-1 ring-white/10 shadow-lg" />
+            ) : (
+              <div className="w-10 h-10 rounded-2xl bg-[#1E3A2F] border border-[#C5A059]/40 flex items-center justify-center shadow-inner">
+                <Trees className="w-5 h-5 text-[#C5A059]" />
+              </div>
+            )}
             <div>
               <span className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold block">
-                Boutique Homestay Sanctuary OS
+                {brand?.eyebrow || 'Boutique Homestay Sanctuary OS'}
               </span>
               <h1
                 className="font-bold text-xl text-white tracking-tight"
                 style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
               >
-                Savera Homestay Portal
+                {brand?.title || 'Savera Homestay Portal'}
               </h1>
             </div>
           </div>
           <p className="text-xs text-[#A3B899] relative z-10 leading-relaxed">
-            Secure executive sign-in for Administrators, Duty Managers, and Kitchen Staff.
+            {brand?.subtitle || 'Secure executive sign-in for Administrators, Duty Managers, and Kitchen Staff.'}
           </p>
         </div>
 

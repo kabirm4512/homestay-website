@@ -23,6 +23,9 @@ import {
   Sparkles,
   Info,
   X,
+  Copy,
+  Send,
+  Smartphone,
 } from 'lucide-react';
 import { StaffAccount, StaffRole } from '@/types/crm';
 import { useCRM } from '@/context/CRMContext';
@@ -51,6 +54,9 @@ export default function AdminStaffManagement() {
   const [newRole, setNewRole] = useState<StaffRole>('manager');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // After creating a login: the details to hand to the new staff member
+  const [createdLogin, setCreatedLogin] = useState<{ fullName: string; email: string; password: string; role: StaffRole; phone?: string } | null>(null);
+  const [copiedLogin, setCopiedLogin] = useState(false);
 
   // Edit form state
   const [editFullName, setEditFullName] = useState('');
@@ -111,8 +117,12 @@ export default function AdminStaffManagement() {
     setNewPhone('+91 ');
     setNewRole('manager');
     setFormError(null);
+    setCreatedLogin(null);
+    setCopiedLogin(false);
     setIsAddModalOpen(true);
   };
+
+  const openAddAnother = () => handleOpenAddModal();
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,17 +150,19 @@ export default function AdminStaffManagement() {
       return;
     }
 
+    // A phone field left at just the country code counts as empty
+    const phone = newPhone.replace(/[^\d+]/g, '').replace(/^\+?91$/, '') ? newPhone.trim() : undefined;
     try {
       await addStaffAccount({
         fullName: newFullName.trim(),
         email: newEmail.trim().toLowerCase(),
         password: newPassword.trim(),
-        phone: newPhone.trim() || undefined,
+        phone,
         role: newRole,
         isActive: true,
       });
 
-      setIsAddModalOpen(false);
+      setCreatedLogin({ fullName: newFullName.trim(), email: newEmail.trim().toLowerCase(), password: newPassword.trim(), role: newRole, phone });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
     }
@@ -568,6 +580,15 @@ export default function AdminStaffManagement() {
               </button>
             </div>
 
+            {createdLogin ? (
+              <CreatedLoginPanel
+                login={createdLogin}
+                copied={copiedLogin}
+                onCopied={() => setCopiedLogin(true)}
+                onAddAnother={openAddAnother}
+                onDone={() => setIsAddModalOpen(false)}
+              />
+            ) : (
             <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
               {formError && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center space-x-2">
@@ -627,10 +648,13 @@ export default function AdminStaffManagement() {
                   <button
                     type="button"
                     onClick={() => {
-                      const bytes = new Uint8Array(9);
+                      // Easy to read aloud or type: no 0/O, 1/l/I
+                      const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                      const bytes = new Uint8Array(10);
                       crypto.getRandomValues(bytes);
-                      const randomPass = Array.from(bytes, (b) => 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join('');
+                      const randomPass = Array.from(bytes, (b) => chars[b % chars.length]).join('');
                       setNewPassword(randomPass);
+                      setShowNewPassword(true);
                     }}
                     className="text-[10px] text-amber-700 hover:text-amber-800 font-semibold flex items-center space-x-1"
                   >
@@ -642,7 +666,7 @@ export default function AdminStaffManagement() {
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     required
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full text-xs p-3 pr-10 rounded-xl border border-sand-300 bg-sand-50/50 font-mono focus:ring-1 focus:ring-forest-800"
@@ -709,6 +733,7 @@ export default function AdminStaffManagement() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
@@ -899,7 +924,7 @@ export default function AdminStaffManagement() {
                   <input
                     type={showResetPassword ? 'text' : 'password'}
                     required
-                    placeholder="Enter new password (min 6 chars)"
+                    placeholder="New temporary password (at least 8 characters)"
                     value={newResetPassword}
                     onChange={(e) => setNewResetPassword(e.target.value)}
                     className="w-full text-xs p-3 pr-10 rounded-xl border border-sand-300 bg-sand-50/50 font-mono focus:ring-1 focus:ring-forest-800"
@@ -985,6 +1010,115 @@ export default function AdminStaffManagement() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Shown after a login is created: everything the new staff member needs, ready to send. */
+function CreatedLoginPanel({
+  login,
+  copied,
+  onCopied,
+  onAddAnother,
+  onDone,
+}: {
+  login: { fullName: string; email: string; password: string; role: StaffRole; phone?: string };
+  copied: boolean;
+  onCopied: () => void;
+  onAddAnother: () => void;
+  onDone: () => void;
+}) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const roleLabel = login.role === 'admin' ? 'Administrator' : login.role === 'manager' ? 'Duty Manager' : 'Kitchen Staff';
+  const firstName = login.fullName.split(' ')[0];
+  const links =
+    login.role === 'manager'
+      ? [
+          { label: 'Front desk (bookings, check-in, bills)', url: `${origin}/admin` },
+          { label: 'Expense Logger app (install on your phone)', url: `${origin}/expenses?install=1` },
+        ]
+      : [{ label: login.role === 'kitchen_staff' ? 'Kitchen orders and menu' : 'Admin', url: `${origin}/admin` }];
+  const message = [
+    `Hi ${firstName}, your Savera Homestay login (${roleLabel}) is ready.`,
+    '',
+    `Email: ${login.email}`,
+    `Temporary password: ${login.password}`,
+    '',
+    ...links.map((l) => `${l.label}: ${l.url}`),
+    '',
+    'You will be asked to choose your own password the first time you sign in.',
+  ].join('\n');
+  const waDigits = (login.phone || '').replace(/\D/g, '');
+  const waNumber = waDigits.length === 10 ? `91${waDigits}` : waDigits;
+  const waHref = `https://wa.me/${waNumber.length >= 11 ? waNumber : ''}?text=${encodeURIComponent(message)}`;
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+          <CheckCircle2 className="w-6 h-6" />
+        </div>
+        <div>
+          <h4 className="font-serif font-bold text-lg text-forest-950 leading-tight">{login.fullName} can sign in now</h4>
+          <p className="text-xs text-forest-700 mt-0.5">
+            {roleLabel} account created. Send these details; they choose their own password at first sign-in.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-sand-200 bg-sand-50 divide-y divide-sand-200 text-xs">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+          <span className="text-forest-600 font-semibold">Email</span>
+          <span className="font-mono text-forest-950 truncate">{login.email}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+          <span className="text-forest-600 font-semibold">Temporary password</span>
+          <span className="font-mono font-bold text-forest-950">{login.password}</span>
+        </div>
+        {links.map((l) => (
+          <div key={l.url} className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <span className="text-forest-600 font-semibold flex items-center gap-1.5">
+              {l.url.includes('/expenses') && <Smartphone className="w-3.5 h-3.5" />}
+              {l.label}
+            </span>
+            <span className="font-mono text-forest-950 truncate max-w-[45%]">{l.url.replace(/^https?:\/\//, '')}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(message);
+              onCopied();
+            } catch {}
+          }}
+          className="min-h-[44px] rounded-xl border border-sand-300 bg-white text-xs font-bold text-forest-900 hover:bg-sand-50 inline-flex items-center justify-center gap-1.5"
+        >
+          {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+          {copied ? 'Copied' : 'Copy message'}
+        </button>
+        <a
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-h-[44px] rounded-xl bg-[#1F7A4D] hover:bg-[#19663F] text-white text-xs font-bold inline-flex items-center justify-center gap-1.5"
+        >
+          <Send className="w-4 h-4" />
+          {waNumber.length >= 11 ? `WhatsApp ${firstName}` : 'Send on WhatsApp'}
+        </a>
+      </div>
+
+      <div className="flex items-center justify-between pt-3 border-t border-sand-200">
+        <button type="button" onClick={onAddAnother} className="px-3 py-2 text-xs font-bold text-forest-800 hover:bg-sand-100 rounded-xl inline-flex items-center gap-1.5">
+          <UserPlus className="w-4 h-4" /> Add another
+        </button>
+        <button type="button" onClick={onDone} className="px-5 py-2.5 text-xs font-bold bg-forest-900 hover:bg-forest-800 text-white rounded-xl shadow-md">
+          Done
+        </button>
+      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: 'Log signed Savera Homestay expenses in seconds, even offline (staff only).',
   manifest: '/expenses.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Expenses' },
-  icons: { apple: '/icons/icon-192x192.png' },
+  icons: { icon: '/icons/expenses-192.png', apple: '/icons/expenses-180.png' },
   robots: { index: false, follow: false },
 };
 

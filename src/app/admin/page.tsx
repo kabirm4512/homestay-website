@@ -12,7 +12,6 @@ import {
   BedDouble,
   MessageSquareText,
   Sliders,
-  Smartphone,
   LogOut,
   ShieldCheck,
   RefreshCw,
@@ -45,6 +44,7 @@ import KitchenPortal from '@/components/crm/KitchenPortal';
 import ManagerCashbook from '@/components/crm/ManagerCashbook';
 import FinancialLedger from '@/components/crm/FinancialLedger';
 import PWAInstaller from '@/components/pwa/PWAInstaller';
+import { ExpenseAppButton } from '@/components/expenses/ExpenseAppInstall';
 import BottomNav from '@/components/pwa/BottomNav';
 import InRoomQRHub from '@/components/qr/InRoomQRHub';
 import ManualBookingModal from '@/components/crm/ManualBookingModal';
@@ -282,17 +282,8 @@ export default function AdminPage() {
               <span>QRs</span>
             </button>
 
-            {/* Expense Logger app (opens it; install it from there) */}
-            <a
-              href="/expenses"
-              target="_blank"
-              rel="noopener"
-              className="min-h-[38px] flex items-center space-x-1.5 text-xs font-semibold text-gray-200 hover:text-white bg-[#1E3A2F] hover:bg-[#2A4E40] px-2.5 py-1.5 rounded-xl border border-[#C5A059]/30 transition-colors shrink-0"
-              title="Expense Logger app for phones: open it and tap Install"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#C5A059]" />
-              <span>Expense App</span>
-            </a>
+            {/* Expense Logger app: install on this phone, or send it to managers (QR + link) */}
+            <ExpenseAppButton className="min-h-[38px] flex items-center space-x-1.5 text-xs font-semibold text-gray-200 hover:text-white bg-[#1E3A2F] hover:bg-[#2A4E40] px-2.5 py-1.5 rounded-xl border border-[#C5A059]/30 transition-colors shrink-0 cursor-pointer" />
 
             {/* PWA Install Button (hidden once installed) */}
             <PWAInstaller variant="button" />

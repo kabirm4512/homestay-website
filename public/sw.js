@@ -1,7 +1,7 @@
 // Savera service worker: offline shell for the site and the Expense Logger app, plus
 // background sending of expenses saved offline (Background Sync, Android/Chrome).
-const CACHE_NAME = 'savera-v3';
-const STATIC_ASSETS = ['/', '/manifest.json', '/expenses', '/expenses.webmanifest', '/icons/icon-192x192.png', '/icons/icon-512x512.png'];
+const CACHE_NAME = 'savera-v4';
+const STATIC_ASSETS = ['/', '/manifest.json', '/expenses', '/expenses.webmanifest', '/icons/icon-192x192.png', '/icons/icon-512x512.png', '/icons/expenses-96.png', '/icons/expenses-192.png', '/icons/expenses-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
