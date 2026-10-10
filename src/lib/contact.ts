@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
+import { CONTACT_DEFAULTS, telHref, waHref } from './contact-format';
+
+export { telHref, waHref };
 
 /**
- * Savera's contact numbers. The live values come from Website Settings → Site info
- * (phone = primary, phone_secondary = second number, whatsapp = the WhatsApp CTA number).
- * These defaults are used until that loads, and on pages that don't load it themselves.
+ * Savera's contact numbers. The live values are set by an admin in
+ * Website Settings → Contact numbers. These defaults are used until they load.
  */
-export const CONTACT = {
-  phone: '+91 70046 56698',
-  phoneSecondary: '+91 81012 98882',
-  whatsapp: '917004656698',
-} as const;
+export const CONTACT = CONTACT_DEFAULTS;
 
 export interface SiteContact {
   phone: string;
@@ -17,39 +15,37 @@ export interface SiteContact {
   whatsapp: string;
 }
 
-export function telHref(phone: string): string {
-  return `tel:${phone.replace(/[^\d+]/g, '')}`;
-}
-
-/** WhatsApp link: digits only, with country code (10-digit Indian numbers get 91). */
-export function waHref(number: string, text?: string): string {
-  let digits = (number || '').replace(/\D/g, '');
-  if (digits.length === 10) digits = `91${digits}`;
-  return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
-}
-
 let cached: SiteContact | null = null;
 let pending: Promise<SiteContact> | null = null;
 
-function fromSite(site: Partial<{ phone: string; phone_secondary: string; whatsapp: string }> | null | undefined): SiteContact {
+function normalise(c: Partial<SiteContact> | null | undefined): SiteContact {
   return {
-    phone: site?.phone?.trim() || CONTACT.phone,
-    phoneSecondary: site?.phone_secondary?.trim() || CONTACT.phoneSecondary,
-    whatsapp: (site?.whatsapp || '').replace(/\D/g, '') || CONTACT.whatsapp,
+    phone: c?.phone?.trim() || CONTACT.phone,
+    phoneSecondary: c?.phoneSecondary?.trim() ?? CONTACT.phoneSecondary,
+    whatsapp: (c?.whatsapp || '').replace(/\D/g, '') || CONTACT.whatsapp,
   };
 }
 
-/** The current contact numbers from Website Settings (fetched once per page load). */
+/** Forget the cached numbers (after an admin saves new ones on this device). */
+export function invalidateSiteContact(next?: SiteContact) {
+  cached = next || null;
+  pending = null;
+}
+
+/** The current contact numbers (fetched once per page load). */
 export function useSiteContact(): SiteContact {
-  const [contact, setContact] = useState<SiteContact>(cached || fromSite(null));
+  const [contact, setContact] = useState<SiteContact>(cached || normalise(null));
   useEffect(() => {
-    if (cached) return;
+    if (cached) {
+      setContact(cached);
+      return;
+    }
     pending =
       pending ||
-      fetch('/api/cms', { cache: 'no-store' })
+      fetch('/api/contact', { cache: 'no-store' })
         .then((r) => r.json())
-        .then((j) => (cached = fromSite(j?.data?.siteInfo)))
-        .catch(() => fromSite(null));
+        .then((j) => (cached = normalise(j?.contact)))
+        .catch(() => normalise(null));
     let alive = true;
     pending.then((c) => alive && setContact(c));
     return () => {

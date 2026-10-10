@@ -966,52 +966,18 @@ export default function AdminCMS({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-forest-900 mb-1">
-                Direct Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={site.phone}
-                  onChange={(e) => setSite({ ...site, phone: e.target.value })}
-                  placeholder="+91 70046 56698"
-                  className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
-                />
+            <div className="sm:col-span-2 rounded-xl border border-sand-200 bg-sand-50 p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 text-xs">
+                <p className="font-semibold text-forest-900 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5" /> {site.phone}
+                  {site.phone_secondary ? ` / ${site.phone_secondary}` : ''}
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600 ml-2" /> +{site.whatsapp}
+                </p>
+                <p className="text-[11px] text-forest-600 mt-0.5">Phone and WhatsApp numbers are changed in Website Settings → Contact numbers.</p>
               </div>
-              <p className="text-[10px] text-forest-600 mt-1">Primary number: Call buttons, footer and guest pages.</p>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-forest-900 mb-1">
-                Second Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={site.phone_secondary || ''}
-                  onChange={(e) => setSite({ ...site, phone_secondary: e.target.value })}
-                  placeholder="+91 81012 98882"
-                  className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
-                />
-              </div>
-              <p className="text-[10px] text-forest-600 mt-1">Shown after the primary number (optional).</p>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-forest-900 mb-1">
-                WhatsApp Number (Digits only, with country code)
-              </label>
-              <div className="relative">
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={site.whatsapp}
-                  onChange={(e) => setSite({ ...site, whatsapp: e.target.value })}
-                  placeholder="917004656698"
-                  className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-mono text-emerald-800 font-semibold"
-                />
-              </div>
+              <a href="/admin?tab=contacts" className="shrink-0 px-3 py-2 rounded-lg bg-white border border-sand-300 text-xs font-bold text-forest-900 hover:bg-sand-100">
+                Change
+              </a>
             </div>
             <div>
               <label className="block text-xs font-semibold text-forest-900 mb-1">

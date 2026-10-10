@@ -25,6 +25,7 @@ import {
   ClipboardList,
   Wrench,
   Settings,
+  PhoneCall,
 } from 'lucide-react';
 
 import AdminAuth from '@/components/admin/AdminAuth';
@@ -35,6 +36,7 @@ import AdminInquiries from '@/components/admin/AdminInquiries';
 import AdminCMS from '@/components/admin/AdminCMS';
 import AdminAddonsCMS from '@/components/admin/AdminAddonsCMS';
 import AdminStaffManagement from '@/components/admin/AdminStaffManagement';
+import AdminContactSettings from '@/components/admin/AdminContactSettings';
 
 // Boutique CRM & Concierge Modules
 import TapeChart from '@/components/crm/TapeChart';
@@ -81,7 +83,7 @@ export default function AdminPage() {
           if (['orders_concierge', 'kitchen', 'dispatch'].includes(tabParam)) return 'orders_concierge';
           if (['operations', 'dashboard', 'tasks'].includes(tabParam)) return 'operations';
           if (['ledger', 'staff'].includes(tabParam)) return 'ledger';
-          if (['settings', 'rooms', 'addons', 'cms', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return 'settings';
+          if (['settings', 'rooms', 'addons', 'cms', 'contacts', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return 'settings';
         }
       } catch {}
     }
@@ -96,7 +98,7 @@ export default function AdminPage() {
         // Website Settings sections write their own name into ?tab= and their inner tab into
         // ?subtab= (e.g. ?tab=rooms&subtab=tariffs), so a reload must read the section from ?tab=.
         const tabParam = urlParams.get('tab');
-        if (tabParam && ['rooms', 'addons', 'cms', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return tabParam;
+        if (tabParam && ['rooms', 'addons', 'cms', 'contacts', 'inquiries', 'webbookings', 'overview'].includes(tabParam)) return tabParam;
         const sub = urlParams.get('subtab') || tabParam || localStorage.getItem('wp_admin_subtab');
         if (sub) return sub;
       } catch {}
@@ -577,6 +579,15 @@ export default function AdminPage() {
                 <span>CMS &amp; Reviews</span>
               </button>
               <button
+                onClick={() => setActiveSubtab('contacts')}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubtab === 'contacts' ? 'bg-[#1E3A2F] text-white font-bold border border-[#C5A059]/40 shadow-xs' : 'text-[#A3B899] hover:bg-[#1E3A2F]/60 hover:text-white'
+                }`}
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-[#C5A059]" />
+                <span>Contact numbers</span>
+              </button>
+              <button
                 onClick={() => setActiveSubtab('inquiries')}
                 className={`px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer ${
                   activeSubtab === 'inquiries' ? 'bg-[#1E3A2F] text-white font-bold border border-[#C5A059]/40 shadow-xs' : 'text-[#A3B899] hover:bg-[#1E3A2F]/60 hover:text-white'
@@ -717,6 +728,7 @@ export default function AdminPage() {
                 showToast={showToast}
               />
             )}
+            {activeSubtab === 'contacts' && <AdminContactSettings />}
             {activeSubtab === 'webbookings' && (
               <AdminBookings bookings={bookings} onRefresh={fetchData} showToast={showToast} />
             )}

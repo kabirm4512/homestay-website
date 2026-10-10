@@ -37,6 +37,12 @@ export const POST = handler('cms.save', async (request: Request) => {
   }
 
   const before = await getSetting(key);
+  // Contact numbers are owned by Website Settings → Contact numbers (/api/contact, admins only):
+  // a Site info save never overwrites them with an older copy.
+  if (type === 'site_info' && before && typeof before === 'object') {
+    const b = before as Record<string, unknown>;
+    value = { ...(value as Record<string, unknown>), phone: b.phone, phone_secondary: b.phone_secondary, whatsapp: b.whatsapp };
+  }
   await putSetting(key, value, actor);
   await audit({ actor, action: 'update', entity: 'cms', entityId: key, before, after: value, ip: clientIp(request) });
   return ok({ message: 'CMS updated successfully' });
