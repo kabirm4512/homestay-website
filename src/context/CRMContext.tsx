@@ -1460,6 +1460,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
               checkedOutAt: now,
               checkedOutByManagerId: checkoutData.managerId,
               checkedOutByManagerName: checkoutData.managerName,
+              ...(checkoutData.notes ? { checkoutNote: checkoutData.notes.slice(0, 300) } : {}),
             }
           : b
       );

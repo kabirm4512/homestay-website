@@ -57,6 +57,7 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSettledSuccess, setIsSettledSuccess] = useState(false);
+  const [dueAfterCheckout, setDueAfterCheckout] = useState(0);
   const [signOff, setSignOff] = useState(false);
 
   // Sync default collection amount when folio changes
@@ -69,7 +70,11 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
   if (!isOpen || !booking) return null;
 
   const isInHouse = booking.bookingStatus === 'checked_in';
-  const canCollect = isManager && booking.bookingStatus !== 'checked_out' && booking.bookingStatus !== 'cancelled';
+  // Managers record money. After checkout they can still collect whatever the guest owes.
+  const canCollect =
+    isManager && booking.bookingStatus !== 'cancelled' && (booking.bookingStatus !== 'checked_out' || balanceDue > 0);
+  const amountNow = isManager ? Number(collectionAmount) || 0 : 0;
+  const leftDue = Math.max(0, Math.round((balanceDue - amountNow) * 100) / 100);
 
   /** Manager records a signed collection without checking the guest out (advance / part payment). */
   const handleCollectOnly = () => {
@@ -115,13 +120,13 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
       return;
     }
 
-    if (balanceDue > 0 && collectionAmount === 0 && !checkoutNotes.trim()) {
-      const confirmZero = confirm(
-        `There is an outstanding balance of ₹${balanceDue.toLocaleString(
-          'en-IN'
-        )}. Are you sure you want to complete checkout with ₹0 collected? Please provide a reason in notes.`
+    // Leaving money due is allowed (it becomes a receivable), but only with a reason.
+    if (balanceDue - amountToCollect > 0.009 && checkoutNotes.trim().length < 3) {
+      showToast(
+        `₹${(balanceDue - amountToCollect).toLocaleString('en-IN')} would stay due after checkout. Write the reason in the notes (e.g. "paying by bank transfer tomorrow").`,
+        'error'
       );
-      if (!confirmZero) return;
+      return;
     }
 
     setIsProcessing(true);
@@ -137,6 +142,7 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
         signOffConfirmed: signOff,
       });
 
+      setDueAfterCheckout(Math.max(0, Math.round((balanceDue - amountToCollect) * 100) / 100));
       setIsSettledSuccess(true);
       showToast(
         `Guest ${booking.guest.fullName} (Room ${booking.roomNumber}) successfully checked out by ${activeManager.fullName}!`
@@ -397,13 +403,43 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
               )}
 
               {/* Action Buttons */}
+              {isInHouse && !canCollect && balanceDue > 0 && (
+                <div>
+                  <label className="text-[11px] font-bold text-forest-700 block mb-1">Reason the guest leaves with money due *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Paying by bank transfer tomorrow; manager Pema to collect"
+                    value={checkoutNotes}
+                    onChange={(e) => setCheckoutNotes(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-sand-300 rounded-xl focus:ring-2 focus:ring-[#25479E] focus:outline-none"
+                  />
+                </div>
+              )}
+              {isInHouse && leftDue > 0 && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-900 space-y-1">
+                  <p className="font-bold">₹{leftDue.toLocaleString('en-IN')} will stay due on this bill after checkout.</p>
+                  <p>
+                    {isManager
+                      ? 'Write the reason in the notes. You can record the payment later from Bookings → Collect due.'
+                      : 'Admin accounts can’t record money. Ask a manager to collect it now, or write the reason in the notes; a manager can record the payment later from Bookings → Collect due.'}
+                  </p>
+                </div>
+              )}
+              {!isInHouse && booking.bookingStatus === 'checked_out' && balanceDue > 0 && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                  <p className="font-bold">The guest has checked out and still owes ₹{balanceDue.toLocaleString('en-IN')}.</p>
+                  {booking.checkoutNote && <p>Note at checkout: {booking.checkoutNote}</p>}
+                  {!isManager && <p>A manager records the payment when it arrives (Bookings → Collect due).</p>}
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
                   className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-sand-300 text-xs font-bold text-forest-700 hover:bg-sand-100 transition-colors cursor-pointer"
                 >
-                  Cancel &amp; Keep In-House
+                  {isInHouse ? <>Cancel &amp; Keep In-House</> : 'Close'}
                 </button>
 
                 {isInHouse && canCollect && Number(collectionAmount) > 0 && (
@@ -425,8 +461,12 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
                   <span>
                     {isProcessing
                       ? 'Recording Settlement...'
-                      : isManager && Number(collectionAmount) > 0
-                      ? `Collect ₹${Number(collectionAmount).toLocaleString('en-IN')} & Check out`
+                      : leftDue > 0
+                      ? amountNow > 0
+                        ? `Collect ₹${amountNow.toLocaleString('en-IN')} & Check out (₹${leftDue.toLocaleString('en-IN')} stays due)`
+                        : `Check out (₹${leftDue.toLocaleString('en-IN')} stays due)`
+                      : amountNow > 0
+                      ? `Collect ₹${amountNow.toLocaleString('en-IN')} & Check out`
                       : 'Complete Checkout & Release Room'}
                   </span>
                 </button>
@@ -435,14 +475,16 @@ export default function GuestCheckoutModal({ isOpen, onClose, booking }: GuestCh
             </form>
           ) : (
             /* Checkout Success State */
-            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-300 text-center space-y-3">
-              <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+            <div className={`p-6 rounded-2xl border text-center space-y-3 ${dueAfterCheckout > 0 ? 'bg-amber-50 border-amber-300' : 'bg-emerald-50 border-emerald-300'}`}>
+              <CheckCircle2 className={`w-12 h-12 mx-auto ${dueAfterCheckout > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
               <h4 className="font-serif font-bold text-base text-emerald-950">
-                Checkout &amp; Folio Settlement Completed!
+                {dueAfterCheckout > 0
+                  ? `Checked out. ₹${dueAfterCheckout.toLocaleString('en-IN')} is still due.`
+                  : 'Checked out. The bill is settled.'}
               </h4>
               <p className="text-xs text-emerald-900 max-w-md mx-auto">
                 Room {booking.roomNumber} has been marked vacant dirty and turnover cleaning scheduled.
-                Audit activity logged to Manager <strong>{activeManager.fullName}</strong>.
+                {dueAfterCheckout > 0 && ' The bill stays open until a manager records the payment (Bookings → Collect due).'}
               </p>
               <div className="flex items-center justify-center space-x-3 pt-2">
                 <button

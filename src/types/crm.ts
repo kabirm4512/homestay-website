@@ -146,6 +146,8 @@ export interface CRMBooking {
   cancelledByName?: string;
   cancelReason?: string;
   noShow?: boolean;
+  /** Why the guest left with money still due (required when checking out with a balance). */
+  checkoutNote?: string;
   /** Child ages (for "children stay free under age X"). */
   childAges?: number[];
   /** Website request this front-desk booking fulfils (so inventory is not counted twice). */

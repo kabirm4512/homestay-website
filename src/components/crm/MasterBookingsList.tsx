@@ -518,7 +518,7 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold text-forest-700 bg-sand-100 hover:bg-sand-200 border border-sand-300 transition-colors flex items-center space-x-1 cursor-pointer"
                     >
                       <Receipt className="w-3.5 h-3.5" />
-                      <span>{isCheckedOut ? 'View bill' : 'Bill & payments'}</span>
+                      <span>{isCheckedOut ? (breakdown.balanceDue > 0 ? `Collect due ₹${breakdown.balanceDue.toLocaleString('en-IN')}` : 'View bill') : 'Bill & payments'}</span>
                     </button>
                   </div>
                 </div>

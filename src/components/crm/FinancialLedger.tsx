@@ -39,6 +39,7 @@ export default function FinancialLedger() {
     setRole,
     currentUser,
     folios,
+    bookings,
     expenses,
     approveExpense,
     voidExpense,
@@ -262,15 +263,36 @@ export default function FinancialLedger() {
                       )}
                     </td>
                     <td className="py-3 px-3">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      {(() => {
+                        const stay = bookings.find((b) => b.id === folio.bookingId);
+                        const leftWithDue = folio.status === 'open' && folio.balanceDue > 0 && stay?.bookingStatus === 'checked_out';
+                        const label =
                           folio.status === 'settled'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {folio.status}
-                      </span>
+                            ? 'Settled'
+                            : folio.status === 'void'
+                            ? 'Void'
+                            : leftWithDue
+                            ? 'Checked out · due'
+                            : (folio.creditOwed || 0) > 0
+                            ? 'Credit owed'
+                            : stay?.bookingStatus === 'checked_in'
+                            ? 'In-house'
+                            : 'Open';
+                        return (
+                          <span
+                            title={leftWithDue && stay?.checkoutNote ? `Note at checkout: ${stay.checkoutNote}` : undefined}
+                            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap ${
+                              folio.status === 'settled'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : leftWithDue
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-3 text-right">
                       <button
