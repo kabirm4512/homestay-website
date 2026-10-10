@@ -1,5 +1,6 @@
 'use client';
 
+import { CONTACT } from '@/lib/contact';
 import { MessageCircle, CalendarCheck, PhoneCall } from 'lucide-react';
 
 interface FloatingCTAProps {
@@ -10,8 +11,8 @@ interface FloatingCTAProps {
 }
 
 export default function FloatingCTA({
-  whatsappNumber = '918101298882',
-  phoneNumber = '+91 81012 98882',
+  whatsappNumber = CONTACT.whatsapp,
+  phoneNumber = CONTACT.phone,
   homestayName = 'Savera Homestay',
   onOpenInquiry,
 }: FloatingCTAProps) {

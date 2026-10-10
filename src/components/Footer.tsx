@@ -1,6 +1,7 @@
 'use client';
 
-import { Trees, Phone, Mail, MapPin, Heart, ExternalLink } from 'lucide-react';
+import { telHref, waHref } from '@/lib/contact';
+import { Trees, Phone, Mail, MapPin, Heart, ExternalLink, MessageCircle } from 'lucide-react';
 import { SiteInfo } from '@/types';
 
 interface FooterProps {
@@ -77,10 +78,28 @@ export default function Footer({ siteInfo }: FooterProps) {
             <div className="space-y-2.5 text-sm text-gray-300/80">
               <div className="flex items-center space-x-2.5">
                 <Phone className="w-4 h-4 text-[#C5A059] flex-shrink-0" />
-                <a href={`tel:${siteInfo.phone.replace(/\s+/g, '')}`} className="hover:text-white">
-                  {siteInfo.phone}
-                </a>
+                <span className="flex flex-wrap items-center gap-x-1.5">
+                  <a href={telHref(siteInfo.phone)} className="hover:text-white">
+                    {siteInfo.phone}
+                  </a>
+                  {siteInfo.phone_secondary && (
+                    <>
+                      <span className="text-gray-500">/</span>
+                      <a href={telHref(siteInfo.phone_secondary)} className="hover:text-white">
+                        {siteInfo.phone_secondary}
+                      </a>
+                    </>
+                  )}
+                </span>
               </div>
+              {siteInfo.whatsapp && (
+                <div className="flex items-center space-x-2.5">
+                  <MessageCircle className="w-4 h-4 text-[#C5A059] flex-shrink-0" />
+                  <a href={waHref(siteInfo.whatsapp, `Hello ${siteInfo.name}!`)} target="_blank" rel="noopener noreferrer" className="hover:text-white">
+                    WhatsApp us
+                  </a>
+                </div>
+              )}
               <div className="flex items-center space-x-2.5">
                 <Mail className="w-4 h-4 text-[#C5A059] flex-shrink-0" />
                 <a href={`mailto:${siteInfo.email}`} className="hover:text-white">

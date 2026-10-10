@@ -154,6 +154,7 @@ export default function HomePage() {
       <Navbar
         homestayName={siteInfo.name}
         phone={siteInfo.phone}
+        whatsapp={siteInfo.whatsapp}
         onOpenInquiry={() => handleOpenGeneralInquiry()}
         onCheckAvailability={() => handleOpenAvailability({ step: 'form' })}
       />

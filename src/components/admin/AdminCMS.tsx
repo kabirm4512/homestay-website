@@ -976,10 +976,27 @@ export default function AdminCMS({
                   type="text"
                   value={site.phone}
                   onChange={(e) => setSite({ ...site, phone: e.target.value })}
+                  placeholder="+91 70046 56698"
+                  className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
+                />
+              </div>
+              <p className="text-[10px] text-forest-600 mt-1">Primary number: Call buttons, footer and guest pages.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-forest-900 mb-1">
+                Second Phone Number
+              </label>
+              <div className="relative">
+                <Phone className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={site.phone_secondary || ''}
+                  onChange={(e) => setSite({ ...site, phone_secondary: e.target.value })}
                   placeholder="+91 81012 98882"
                   className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm"
                 />
               </div>
+              <p className="text-[10px] text-forest-600 mt-1">Shown after the primary number (optional).</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-forest-900 mb-1">
@@ -991,7 +1008,7 @@ export default function AdminCMS({
                   type="text"
                   value={site.whatsapp}
                   onChange={(e) => setSite({ ...site, whatsapp: e.target.value })}
-                  placeholder="918101298882"
+                  placeholder="917004656698"
                   className="w-full pl-9 pr-3 py-2.5 bg-sand-50 border border-sand-300 rounded-xl text-xs sm:text-sm font-mono text-emerald-800 font-semibold"
                 />
               </div>

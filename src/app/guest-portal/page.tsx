@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact, telHref } from '@/lib/contact';
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -94,6 +95,7 @@ function normalizePhone(val: string): string {
 }
 
 function GuestPortalContent() {
+  const contact = useSiteContact();
   const searchParams = useSearchParams();
   const urlBooking = searchParams.get('booking') || searchParams.get('query') || '';
   const urlPhone = searchParams.get('phone') || '';
@@ -606,7 +608,7 @@ function GuestPortalContent() {
             <div className="flex items-center space-x-2">
               <span className="text-xs text-gray-300 font-medium hidden md:inline">Need help?</span>
               <a
-                href="tel:+919832022233"
+                href={telHref(contact.phone)}
                 className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                 title="Call Savera Homestay Reception directly"
               >
@@ -740,7 +742,7 @@ function GuestPortalContent() {
 
             <div className="flex items-center space-x-2">
               <a
-                href="tel:+919832022233"
+                href={telHref(contact.phone)}
                 className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#182C58] hover:bg-[#25479E] text-white text-xs font-semibold border border-[#25479E]/50 transition-colors"
               >
                 <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
@@ -1085,7 +1087,7 @@ function GuestPortalContent() {
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Call Front Desk Button */}
             <a
-              href="tel:+919832022233"
+              href={telHref(contact.phone)}
               className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
               title="Call Front Desk directly"
             >
@@ -1566,7 +1568,7 @@ function GuestPortalContent() {
                     </div>
 
                     <a
-                      href="tel:+919832022233"
+                      href={telHref(contact.phone)}
                       className="px-3.5 py-2 rounded-xl bg-[#25479E] hover:bg-[#1A3478] text-white font-bold text-xs flex items-center space-x-1 shrink-0 cursor-pointer"
                     >
                       <PhoneCall className="w-3.5 h-3.5" />
@@ -1602,7 +1604,7 @@ function GuestPortalContent() {
                         </span>
                       </div>
                       <a
-                        href="tel:+919832022233"
+                        href={telHref(contact.phone)}
                         className="mt-3 px-3 py-2 text-center rounded-xl bg-[#25479E] hover:bg-[#1A3478] text-white font-bold text-xs flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <PhoneCall className="w-3.5 h-3.5" />

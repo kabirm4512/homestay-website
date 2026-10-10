@@ -1,5 +1,6 @@
 'use client';
 
+import { CONTACT, waHref } from '@/lib/contact';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -22,13 +23,15 @@ import PWAInstaller from '@/components/pwa/PWAInstaller';
 interface NavbarProps {
   homestayName?: string;
   phone?: string;
+  whatsapp?: string;
   onOpenInquiry: () => void;
   onCheckAvailability?: () => void;
 }
 
 export default function Navbar({
   homestayName = 'Savera Homestay',
-  phone = '+91 81012 98882',
+  phone = CONTACT.phone,
+  whatsapp = CONTACT.whatsapp,
   onOpenInquiry,
   onCheckAvailability,
 }: NavbarProps) {
@@ -371,7 +374,7 @@ export default function Navbar({
             {/* Quick Contact Buttons: WhatsApp & Phone */}
             <div className="grid grid-cols-2 gap-2">
               <a
-                href="https://wa.me/918101298882?text=Hello%20Savera%20Homestay!%20I%20would%20like%20to%20inquire%20about%20booking%20a%20stay."
+                href={waHref(whatsapp, 'Hello Savera Homestay! I would like to inquire about booking a stay.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-[#25D366] hover:bg-[#20bd5a] active:scale-98 text-white py-2.5 px-3 rounded-full font-medium text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all"

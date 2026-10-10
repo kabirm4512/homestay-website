@@ -1,5 +1,6 @@
 'use client';
 
+import { CONTACT } from '@/lib/contact';
 import { useState, useEffect, useMemo } from 'react';
 import { Room } from '@/types';
 import { MealPlan } from '@/types/crm';
@@ -63,7 +64,7 @@ export default function BookingModal({
   initialDates = null,
   initialMealPlan,
   initialRoomsConfig,
-  whatsappNumber = '918101298882',
+  whatsappNumber = CONTACT.whatsapp,
 }: BookingModalProps) {
   const [guestName, setGuestName] = useState('');
   const [phone, setPhone] = useState('');
@@ -1065,7 +1066,7 @@ export default function BookingModal({
                     <input
                       type="tel"
                       required
-                      placeholder="+91 81012 98882"
+                      placeholder="Your mobile number"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full pl-9 pr-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:bg-white"

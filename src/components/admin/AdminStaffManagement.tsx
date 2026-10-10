@@ -632,7 +632,7 @@ export default function AdminStaffManagement() {
                   </label>
                   <input
                     type="tel"
-                    placeholder="+91 81012 98882"
+                    placeholder="+91 98xxx xxxxx"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
                     className="w-full text-xs p-3 rounded-xl border border-sand-300 bg-sand-50/50 focus:ring-1 focus:ring-forest-800"

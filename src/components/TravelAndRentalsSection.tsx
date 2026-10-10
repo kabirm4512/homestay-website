@@ -1,5 +1,6 @@
 'use client';
 
+import { CONTACT } from '@/lib/contact';
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/context/CRMContext';
 import {
@@ -27,7 +28,7 @@ interface TravelAndRentalsSectionProps {
 }
 
 export default function TravelAndRentalsSection({
-  whatsappNumber = '+91 81012 98882',
+  whatsappNumber = CONTACT.whatsapp,
   onOpenBookingModal,
 }: TravelAndRentalsSectionProps) {
   const {

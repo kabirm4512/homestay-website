@@ -1,5 +1,6 @@
 'use client';
 
+import { CONTACT } from '@/lib/contact';
 import { useState, useEffect } from 'react';
 import { Room } from '@/types';
 import DateRangePicker from './DateRangePicker';
@@ -27,7 +28,7 @@ export default function InquiryModal({
   rooms = [],
   selectedRoom = null,
   initialDates = null,
-  whatsappNumber = '918101298882',
+  whatsappNumber = CONTACT.whatsapp,
 }: InquiryModalProps) {
   const [guestName, setGuestName] = useState('');
   const [phone, setPhone] = useState('');
@@ -252,7 +253,7 @@ export default function InquiryModal({
                     <input
                       type="tel"
                       required
-                      placeholder="+91 81012 98882"
+                      placeholder="Your mobile number"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full pl-9 pr-3 py-2.5 bg-sand-50/50 border border-sand-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-forest-600 focus:bg-white"

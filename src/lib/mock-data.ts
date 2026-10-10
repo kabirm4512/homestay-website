@@ -216,8 +216,9 @@ export const INITIAL_ABOUT_DATA: AboutSectionData = {
 export const INITIAL_SITE_INFO: SiteInfo = {
   name: 'Savera Homestay',
   tagline: 'A Boutique Mountain Homestay',
-  phone: '+91 81012 98882',
-  whatsapp: '918101298882',
+  phone: '+91 70046 56698',
+  phone_secondary: '+91 81012 98882',
+  whatsapp: '917004656698',
   email: 'info.saverahomestay@gmail.com',
   address: '35a, Hill Cart Rd, West Point, Cart Road, Darjeeling, West Bengal 734101',
   check_in_time: '1:00 PM',

@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact } from '@/lib/contact';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import {
@@ -46,6 +47,7 @@ export default function InRoomQRHub({
   standalone = false,
   guestMode = false,
 }: InRoomQRHubProps) {
+  const contact = useSiteContact();
   const { rooms } = useCRM();
 
   // Active view tab: 'rooms' (Concierge & Dining QRs) or 'wifi' (Estate Wi-Fi QR Center)
@@ -463,7 +465,7 @@ export default function InRoomQRHub({
     ctx.fillStyle = '#fde68a';
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Front Desk & Caretaker Assistance: +91 81012 98882  •  Savera Homestay, Darjeeling', width / 2, hotlineY + 35);
+    ctx.fillText(`Front Desk: ${contact.phone}  •  ${contact.phoneSecondary}  •  Savera Homestay, Darjeeling`, width / 2, hotlineY + 35);
 
     return targetCanvas.toDataURL('image/png');
   };
@@ -1104,7 +1106,7 @@ export default function InRoomQRHub({
                     <span>Point phone camera at either QR code • No app download needed</span>
                   </div>
                   <div className="text-[10px] text-amber-300 font-mono font-bold shrink-0">
-                    Host: +91 81012 98882
+                    Host: {contact.phone}
                   </div>
                 </div>
               </div>

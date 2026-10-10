@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact, telHref, waHref } from '@/lib/contact';
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -38,6 +39,7 @@ import InRoomQRHub from '@/components/qr/InRoomQRHub';
 import { todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 
 function ConciergeContent() {
+  const contact = useSiteContact();
   const searchParams = useSearchParams();
   const initialRoomQuery = searchParams.get('room');
   // Secret token printed in the room's QR code: proves the device is in that room.
@@ -333,7 +335,7 @@ function ConciergeContent() {
   const [selectedRentalId, setSelectedRentalId] = useState<string>(rentalVehicles[0]?.id || '');
   const [pickupDatetime, setPickupDatetime] = useState(() => `${todayInIST()}T09:00`);
   const [returnDatetime, setReturnDatetime] = useState(() => `${tomorrowInIST()}T09:00`);
-  const [travelPhone, setTravelPhone] = useState(activeBooking?.guest.phone || '+91 99112 33445');
+  const [travelPhone, setTravelPhone] = useState(activeBooking?.guest.phone || '');
   const [destinationNotes, setDestinationNotes] = useState('');
   const [lastPlacedTransport, setLastPlacedTransport] = useState<any>(null);
 
@@ -574,7 +576,7 @@ function ConciergeContent() {
       `*Total Amount:* ₹${order.totalAmount}\n` +
       `_Charge posted as PENDING to Room Folio._`;
 
-    return `https://wa.me/918101298882?text=${encodeURIComponent(text)}`;
+    return waHref(contact.whatsapp, text);
   };
 
   const generateWhatsAppTransportLink = (req: any) => {
@@ -588,7 +590,7 @@ function ConciergeContent() {
       `*Quoted Price:* ₹${req.quotedPrice}\n` +
       `_Posted to Folio. Manager confirmation requested._`;
 
-    return `https://wa.me/918101298882?text=${encodeURIComponent(text)}`;
+    return waHref(contact.whatsapp, text);
   };
 
   return (
@@ -616,9 +618,9 @@ function ConciergeContent() {
 
           {/* Reception Call CTA */}
           <a
-            href="tel:+918101298882"
+            href={telHref(contact.phone)}
             className="min-h-[40px] px-3.5 py-1.5 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-95 text-white text-xs font-bold rounded-xl shadow-[0_2px_8px_rgba(254,110,0,0.3)] transition-all flex items-center space-x-1.5 shrink-0"
-            title="Call Front Desk Reception (+91 81012 98882)"
+            title={`Call Front Desk Reception (${contact.phone})`}
           >
             <Phone className="w-3.5 h-3.5 text-white shrink-0" />
             <span className="whitespace-nowrap font-bold">Call Reception</span>
@@ -650,15 +652,15 @@ function ConciergeContent() {
 
           <div className="w-full space-y-2.5 max-w-xs">
             <a
-              href="tel:+918101298882"
+              href={telHref(contact.phone)}
               className="w-full min-h-[44px] py-3 bg-[#25479E] hover:bg-[#1A3478] active:scale-98 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center space-x-2 cursor-pointer"
             >
               <Phone className="w-4 h-4 text-white" />
-              <span>Contact Front Desk (+91 81012 98882)</span>
+              <span>Contact Front Desk ({contact.phone})</span>
             </a>
 
             <a
-              href="https://wa.me/918101298882?text=Hello%20Savera%20Homestay%2C%20I%20am%20at%20the%20property%20and%20need%20assistance%20accessing%20my%20in-room%20concierge."
+              href={waHref(contact.whatsapp, 'Hello Savera Homestay, I am at the property and need assistance accessing my in-room concierge.')}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full min-h-[44px] py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
@@ -731,7 +733,7 @@ function ConciergeContent() {
               <span>Need Assistance?</span>
             </div>
             <p>
-              Please contact the front desk at <strong>+91 81012 98882</strong> or ring the bell at reception for early baggage drop or instant check-in.
+              Please contact the front desk at <strong>{contact.phone}</strong> (or {contact.phoneSecondary}) or ring the bell at reception for early baggage drop or instant check-in.
             </p>
           </div>
 
@@ -1784,7 +1786,7 @@ function ConciergeContent() {
             {/* Action Buttons */}
             <div className="space-y-2">
               <a
-                href={`https://wa.me/918101298882?text=${encodeURIComponent(
+                href={`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
                   `*SAVERA HOMESTAY - ROOM CHECKOUT REQUEST* 🛎️\n` +
                   `*Room:* ${currentRoom.roomNumber} (${currentRoom.name})\n` +
                   `*Guest:* ${activeBooking?.guest.fullName || 'Guest'}\n` +
@@ -1802,11 +1804,11 @@ function ConciergeContent() {
               </a>
 
               <a
-                href="tel:+918101298882"
+                href={telHref(contact.phone)}
                 className="w-full min-h-[44px] py-2.5 bg-amber-400 hover:bg-amber-300 text-forest-950 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <Phone className="w-4 h-4" />
-                <span>Call Front Desk (+91 81012 98882)</span>
+                <span>Call Front Desk ({contact.phone})</span>
               </a>
 
               {/* Staff / Evaluator simulation */}

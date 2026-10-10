@@ -131,6 +131,8 @@ export interface SiteInfo {
   name: string;
   tagline: string;
   phone: string;
+  /** Second contact number, shown after the primary one. */
+  phone_secondary?: string;
   whatsapp: string;
   email: string;
   address: string;

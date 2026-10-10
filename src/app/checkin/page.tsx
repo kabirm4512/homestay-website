@@ -1,5 +1,6 @@
 'use client';
 
+import { useSiteContact, telHref } from '@/lib/contact';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -36,6 +37,7 @@ function normalizePhone(raw: string): string {
 }
 
 function CheckinContent() {
+  const contact = useSiteContact();
   const searchParams = useSearchParams();
   const bookingParam = searchParams.get('booking') || searchParams.get('query') || searchParams.get('phone');
   const nameParam = searchParams.get('name') || '';
@@ -372,10 +374,10 @@ function CheckinContent() {
           <div className="text-right">
             <span className="text-[10px] text-gray-300 block">Need help?</span>
             <a
-              href="tel:+919876543210"
+              href={telHref(contact.phone)}
               className="text-xs font-bold text-[#FE6E00] hover:underline transition-colors"
             >
-              +91 98765 43210
+              {contact.phone}
             </a>
           </div>
         </div>
@@ -483,7 +485,7 @@ function CheckinContent() {
                       <span>Start Direct Self Check-In</span>
                     </button>
                     <a
-                      href="tel:+919832022233"
+                      href={telHref(contact.phone)}
                       className="py-3 px-3.5 bg-white hover:bg-gray-50 text-[#0B1733] border border-gray-300 rounded-xl font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
                     >
                       <Phone className="w-3.5 h-3.5 text-emerald-600" />
@@ -698,7 +700,7 @@ function CheckinContent() {
                       required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
+                      placeholder="Your mobile number"
                       className="w-full p-3 rounded-xl border border-sand-300 bg-sand-50/50 text-forest-950 font-medium focus:bg-white focus:ring-2 focus:ring-forest-800 focus:outline-none"
                     />
                   </div>
@@ -1082,7 +1084,7 @@ function CheckinContent() {
               </a>
 
               <a
-                href="tel:+919832022233"
+                href={telHref(contact.phone)}
                 className="w-full sm:w-auto px-5 py-2.5 bg-[#F3F7FF] hover:bg-white text-[#0B1733] border border-gray-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-2"
               >
                 <Phone className="w-4 h-4" />
