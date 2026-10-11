@@ -101,9 +101,36 @@ export function handler<A extends unknown[]>(name: string, fn: (...args: A) => P
         return fail(503, 'The service is not configured yet. Please try again later.', 'NOT_CONFIGURED');
       }
       log.error(`${name}.failed`, err);
+      await recordServerError(name, request, err);
       return fail(500, 'Something went wrong. Please try again.');
     }
   };
+}
+
+/**
+ * Unexpected server errors are also written to the audit log (action 'server_error'), so they
+ * can be inspected from the database when the hosting logs are not at hand. Best-effort.
+ */
+async function recordServerError(name: string, request: Request | null, err: unknown) {
+  try {
+    const e = err as { name?: string; message?: string; code?: string; stack?: string };
+    const { audit } = await import('./audit');
+    await audit({
+      actor: 'system',
+      action: 'server_error',
+      entity: name,
+      after: {
+        name: e?.name,
+        message: String(e?.message || err).slice(0, 500),
+        code: e?.code,
+        stack: String(e?.stack || '').split('\n').slice(0, 8).join('\n').slice(0, 1500),
+        path: request ? new URL(request.url).pathname : undefined,
+        method: request?.method,
+      },
+    });
+  } catch {
+    // never let error reporting fail the response
+  }
 }
 
 export function clientIp(request: Request): string {

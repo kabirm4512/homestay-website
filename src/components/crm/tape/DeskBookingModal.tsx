@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Check, Copy, ExternalLink, LogIn, MessageSquare, Minus, Plus, Upload, X, CalendarCheck, AlertCircle } from 'lucide-react';
+import { BedDouble, Check, Copy, ExternalLink, FileText, LogIn, MessageSquare, Minus, Plus, Upload, X, CalendarCheck, AlertCircle } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { useSiteContact } from '@/lib/contact';
 import type { CRMBooking, MealPlan, PaymentMethod, RoomBlock } from '@/types/crm';
@@ -51,7 +51,7 @@ export default function DeskBookingModal({
   onClose: () => void;
   prefill?: DeskBookingPrefill;
 }) {
-  const { rooms, bookings, roomBlocks, calculateDynamicTariff, createManualBooking, checkGroupRooms, showToast, gstConfig, currentUser, tariffsStatus } = useCRM();
+  const { rooms, bookings, roomBlocks, calculateDynamicTariff, createManualBooking, checkGroupRooms, getVoucherLink, showToast, gstConfig, currentUser, tariffsStatus } = useCRM();
   const siteContact = useSiteContact();
   const isManager = currentUser?.role === 'manager';
   const isCheckIn = mode === 'checkin';
@@ -85,6 +85,7 @@ export default function DeskBookingModal({
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<CRMBooking[] | null>(null);
   const [copied, setCopied] = useState(false);
+  const [voucherUrl, setVoucherUrl] = useState('');
 
   const fromHolds = useMemo(() => prefill?.fromHolds || [], [prefill]);
   const fromHoldIds = useMemo(() => fromHolds.map((h) => h.id), [fromHolds]);
@@ -119,6 +120,7 @@ export default function DeskBookingModal({
     setSaving(false);
     setCreated(null);
     setCopied(false);
+    setVoucherUrl('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, mode]);
 
@@ -206,16 +208,20 @@ export default function DeskBookingModal({
     }
     setSaving(true);
     setProblems([]);
-    // The server checks the whole group first, so a group is never half booked.
-    const serverProblems = await checkGroupRooms({ roomIds: lines.map((l) => l.roomId), checkInDate, checkOutDate, fromHoldIds, checkInNow: isCheckIn });
-    if (serverProblems === null) {
-      setSaving(false);
-      return;
-    }
-    if (serverProblems.length > 0) {
-      setProblems(serverProblems.map((p) => p.message));
-      setSaving(false);
-      return;
+    // A group is checked as a whole first, so it is never half booked. (One room needs no
+    // pre-check: its save is checked by the server.) If the pre-check itself is unavailable,
+    // the rooms are still saved one by one and each save is checked by the server.
+    if (lines.length > 1) {
+      const serverProblems = await checkGroupRooms({ roomIds: lines.map((l) => l.roomId), checkInDate, checkOutDate, fromHoldIds, checkInNow: isCheckIn });
+      if (serverProblems === null) {
+        setSaving(false);
+        return;
+      }
+      if (serverProblems !== 'unavailable' && serverProblems.length > 0) {
+        setProblems(serverProblems.map((p) => p.message));
+        setSaving(false);
+        return;
+      }
     }
 
     const groupId = lines.length > 1 ? newGroupId() : undefined;
@@ -284,7 +290,25 @@ export default function DeskBookingModal({
   };
 
   // ---------------------------------------------------------------- handover
-  const first = created?.[0];
+  // The server's copy (its booking reference is the one that counts); undefined = refused and undone.
+  const live = useMemo(() => (created || []).map((c) => bookings.find((b) => b.id === c.id)), [created, bookings]);
+  const refused = Boolean(created) && live.some((b) => !b);
+  const shown = (created || []).map((c, i) => live[i] || c);
+  const first = shown[0];
+
+  // Booking voucher (pre-bookings): a shareable confirmation page for the guest
+  useEffect(() => {
+    if (!created || isCheckIn || voucherUrl) return;
+    let cancelled = false;
+    void getVoucherLink(created[0].id).then((url) => {
+      if (!cancelled && url) setVoucherUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [created, isCheckIn]);
+
   const portalLink = useMemo(() => {
     if (!first) return '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -292,12 +316,13 @@ export default function DeskBookingModal({
   }, [first, guestPhone]);
   const message = useMemo(() => {
     if (!created) return '';
-    const roomsText = created.map((b) => `Room ${b.roomNumber}`).join(', ');
-    const refs = created.map((b) => b.bookingReference).join(', ');
+    const roomsText = shown.map((b) => `Room ${b.roomNumber}`).join(', ');
+    const refs = Array.from(new Set(shown.map((b) => b.bookingReference))).join(', ');
     return isCheckIn
       ? `🌿 *Welcome to Savera Homestay!*\n\nDear ${guestName.trim()},\n\nYou are checked in to ${roomsText} (${checkInDate} → ${checkOutDate}).\nBooking ID: ${refs}\n\nYour guest portal (bill, in-room dining, requests):\n${portalLink}\n\n📞 Front desk: ${siteContact.frontDeskPhone}\n— Team Savera Homestay`
-      : `🌿 *Savera Homestay – booking confirmed*\n\nDear ${guestName.trim()},\n\nYour stay is confirmed: ${roomsText}, ${checkInDate} → ${checkOutDate} (${nights} night${nights > 1 ? 's' : ''}, ${mealPlan}).\nBooking ID: ${refs}\nTotal: ₹${Math.round(grandTotal).toLocaleString('en-IN')}${advancePaid > 0 ? ` · Advance received: ₹${advancePaid.toLocaleString('en-IN')}` : ''}\n\nGuest portal (complete your check-in details before you arrive):\n${portalLink}\n\n📞 Front desk: ${siteContact.frontDeskPhone}\n— Team Savera Homestay`;
-  }, [created, isCheckIn, guestName, checkInDate, checkOutDate, portalLink, siteContact.frontDeskPhone, nights, mealPlan, grandTotal, advancePaid]);
+      : `🌿 *Savera Homestay – booking confirmed*\n\nDear ${guestName.trim()},\n\nYour stay is confirmed: ${roomsText}, ${checkInDate} → ${checkOutDate} (${nights} night${nights > 1 ? 's' : ''}, ${mealPlan}).\nBooking ID: ${refs}\nTotal: ₹${Math.round(grandTotal).toLocaleString('en-IN')}${advancePaid > 0 ? ` · Advance received: ₹${advancePaid.toLocaleString('en-IN')}` : ''}\n\n📄 *Your booking voucher:*\n${voucherUrl || '(preparing…)'}\n\nGuest portal (complete your check-in details before you arrive):\n${portalLink}\n\n📞 Front desk: ${siteContact.frontDeskPhone}\n— Team Savera Homestay`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [created, live, isCheckIn, guestName, checkInDate, checkOutDate, portalLink, siteContact.frontDeskPhone, nights, mealPlan, grandTotal, advancePaid, voucherUrl]);
 
   if (!isOpen) return null;
 
@@ -336,23 +361,53 @@ export default function DeskBookingModal({
             <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
               <p className="font-bold text-sm text-emerald-900 flex items-center gap-2">
                 <Check className="w-4 h-4" />
-                {isCheckIn ? 'Checked in' : 'Pre-booked'}: {created.map((b) => `Room ${b.roomNumber} (${b.bookingReference})`).join(' · ')}
+                {isCheckIn ? 'Checked in' : 'Pre-booked'}: {shown.map((b) => `Room ${b.roomNumber} (${b.bookingReference})`).join(' · ')}
               </p>
               <p className="text-[11px] text-emerald-800 mt-1">The rooms appear on the tape chart once the server has saved them (a refusal shows as an error and is undone).</p>
             </div>
+            {refused && (
+              <p className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 flex gap-1.5" role="alert">
+                <AlertCircle className="w-4 h-4 shrink-0" /> The server refused {live.filter((b) => !b).length === shown.length ? 'this booking' : 'part of this booking'} (see the error message). Do not send the voucher; close this and try again.
+              </p>
+            )}
+            {!isCheckIn && !refused && (
+              <div className="rounded-2xl border border-[#25D366]/40 bg-[#25D366]/5 p-4 flex flex-wrap items-center gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <p className="font-bold text-sm flex items-center gap-1.5">
+                    <FileText className="w-4 h-4" /> Booking voucher
+                  </p>
+                  <p className="text-[11px] text-forest-700">{voucherUrl ? 'Ready. Sends to the guest’s WhatsApp with the voucher link.' : 'Preparing the voucher link…'}</p>
+                </div>
+                <a
+                  href={voucherUrl ? `https://wa.me/${waDigits(guestPhone)}?text=${encodeURIComponent(message)}` : undefined}
+                  aria-disabled={!voucherUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`min-h-[44px] px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 text-white ${voucherUrl ? 'bg-[#25D366] hover:bg-[#20ba5a]' : 'bg-gray-300 pointer-events-none'}`}
+                >
+                  <MessageSquare className="w-4 h-4" /> Send voucher on WhatsApp
+                </a>
+                {voucherUrl && (
+                  <a href={voucherUrl} target="_blank" rel="noopener noreferrer" className="min-h-[44px] px-3 py-2 border border-sand-300 rounded-xl font-bold text-xs flex items-center gap-1.5">
+                    <ExternalLink className="w-4 h-4" /> View voucher
+                  </a>
+                )}
+              </div>
+            )}
             <pre className="whitespace-pre-wrap font-sans text-xs bg-sand-50 border border-sand-200 rounded-xl p-3 max-h-56 overflow-y-auto">{message}</pre>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <a
-                href={`https://wa.me/${(() => {
-                  const d = guestPhone.replace(/\D/g, '');
-                  return d.length === 10 ? `91${d}` : d;
-                })()}?text=${encodeURIComponent(message)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[44px] px-3 py-2 bg-[#25D366] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
-              >
-                <MessageSquare className="w-4 h-4" /> Send on WhatsApp
-              </a>
+              {isCheckIn ? (
+                <a
+                  href={`https://wa.me/${waDigits(guestPhone)}?text=${encodeURIComponent(message)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-h-[44px] px-3 py-2 bg-[#25D366] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                >
+                  <MessageSquare className="w-4 h-4" /> Send on WhatsApp
+                </a>
+              ) : (
+                <span className="hidden sm:block" />
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -627,6 +682,12 @@ export default function DeskBookingModal({
       </div>
     </div>
   );
+}
+
+/** WhatsApp number digits: 10-digit Indian mobiles get the 91 prefix. */
+function waDigits(phone: string): string {
+  const d = (phone || '').replace(/\D/g, '');
+  return d.length === 10 ? `91${d}` : d;
 }
 
 function Stepper({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {

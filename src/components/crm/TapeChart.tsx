@@ -58,6 +58,7 @@ export default function TapeChart() {
     roomBlocks,
     releaseRoomHold,
     extendRoomHold,
+    getVoucherLink,
   } = useCRM();
   const isAdmin = currentUser?.role === 'admin';
 
@@ -262,6 +263,25 @@ export default function TapeChart() {
       `Namaste ${booking.guest.fullName}! 🌿\n\nGreetings from Savera Homestay. We look forward to hosting you in ${booking.roomName} (${booking.checkInDate} to ${booking.checkOutDate}).\n\nYour Universal Booking ID: ${booking.bookingReference}\n\nPlease click below to access your Guest Portal, complete digital check-in, and manage in-room dining & special requests:\n${url}\n\nWarm regards,\nSavera Homestay Team`
     );
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+  };
+
+  /** Opens WhatsApp to the guest with the booking voucher link (covers the whole group). */
+  const handleShareVoucher = async (booking: CRMBooking) => {
+    // Open the window now (a popup opened after an await is blocked by browsers)
+    const win = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+    const url = await getVoucherLink(booking.id);
+    if (!url) {
+      win?.close();
+      return;
+    }
+    const group = booking.groupId ? bookings.filter((b) => b.groupId === booking.groupId && b.bookingStatus !== 'cancelled') : [booking];
+    const roomsText = group.map((b) => b.roomNumber).sort((a, b) => a - b).join(', ');
+    const digits = (booking.guest.whatsappNumber || booking.guest.phone || '').replace(/[^0-9]/g, '');
+    const phone = digits.length === 10 ? `91${digits}` : digits;
+    const text = `🌿 *Savera Homestay – booking voucher*\n\nDear ${booking.guest.fullName},\n\nYour booking ${booking.bookingReference} (Room${group.length > 1 ? 's' : ''} ${roomsText}, ${booking.checkInDate} → ${booking.checkOutDate}).\n\n📄 View / download your voucher:\n${url}\n\nWarm regards,\nTeam Savera Homestay`;
+    const wa = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+    if (win) win.location.href = wa;
+    else window.location.href = wa;
   };
 
   const handleDrawerFileUpload = (
@@ -852,7 +872,17 @@ export default function TapeChart() {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedBooking.bookingStatus !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => void handleShareVoucher(selectedBooking)}
+                      className="min-h-[44px] px-3 py-2 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                      title="Send the booking voucher to the guest on WhatsApp"
+                    >
+                      <FileText className="w-4 h-4" /> Share voucher
+                    </button>
+                  )}
                   {selectedBooking.bookingStatus === 'checked_out' || selectedBooking.bookingStatus === 'cancelled' ? (
                     <span className="text-xs font-bold uppercase text-forest-600">{selectedBooking.bookingStatus.replace('_', ' ')}</span>
                   ) : selectedBooking.bookingStatus !== 'checked_in' ? (

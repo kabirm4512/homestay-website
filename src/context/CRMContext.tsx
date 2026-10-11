@@ -209,7 +209,9 @@ interface CRMContextType {
   /** Check-in through the server's check-in rules (date, room, in-house guest, ID). */
   checkInBooking: (bookingId: string, details?: { idType?: string; idNumber?: string; idDocumentUrl?: string; idDocumentBackUrl?: string; adultsCount?: number; childrenCount?: number }) => Promise<boolean>;
   /** Can all these rooms be booked for these dates? Returns one message per problem (empty = fine). */
-  checkGroupRooms: (input: { roomIds: string[]; checkInDate: string; checkOutDate: string; fromHoldIds?: string[]; checkInNow?: boolean }) => Promise<{ roomId: string; message: string }[] | null>;
+  checkGroupRooms: (input: { roomIds: string[]; checkInDate: string; checkOutDate: string; fromHoldIds?: string[]; checkInNow?: boolean }) => Promise<{ roomId: string; message: string }[] | null | 'unavailable'>;
+  /** The shareable booking-voucher link (absolute URL) for a booking and its group. */
+  getVoucherLink: (bookingId: string) => Promise<string | null>;
   updateBookingGuestDetails: (
     bookingId: string,
     guestUpdates: Partial<Guest>,
@@ -1021,9 +1023,29 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  /**
+   * Group pre-check. A server or network failure returns 'unavailable' (no toast): the caller
+   * then saves room by room, and each save is still checked by the server.
+   */
   const checkGroupRooms: CRMContextType['checkGroupRooms'] = async (input) => {
-    const { ok, json } = await postJson('/api/bookings/group-check', input);
-    return ok ? (json.problems || []) : null;
+    try {
+      const res = await fetch('/api/bookings/group-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+      const json = await res.json().catch(() => null);
+      if (res.status >= 500 || res.status === 408 || res.status === 429) return 'unavailable';
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Could not check the rooms. Please try again.', 'error');
+        return null;
+      }
+      return json.problems || [];
+    } catch {
+      return 'unavailable';
+    }
+  };
+
+  const getVoucherLink: CRMContextType['getVoucherLink'] = async (bookingId) => {
+    const { ok, json } = await postJson('/api/vouchers', { bookingId });
+    if (!ok || !json?.path) return null;
+    return `${typeof window !== 'undefined' ? window.location.origin : ''}${json.path}`;
   };
 
   // QR Food Order Creation
@@ -2337,6 +2359,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         releaseRoomHold,
         checkInBooking,
         checkGroupRooms,
+        getVoucherLink,
         addExpense,
         approveExpense,
         voidExpense,
