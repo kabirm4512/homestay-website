@@ -10,6 +10,7 @@ import { normalizePhone, normalizeReference } from '@/lib/phone';
 import { listPhysicalRooms } from './physical-rooms';
 import { listRoomCategories } from './rooms';
 import { persistDataUrl } from './files';
+import { clampHoldExpiry, hasGuestId, holdLabel } from '@/lib/tape-rules';
 
 /**
  * Bookings: website requests (kind 'web', type Booking) and front-desk bookings
@@ -91,6 +92,11 @@ export interface CategoryAvailability {
 const WEB_ACTIVE = ['confirmed', 'completed'];
 const CRM_INACTIVE = ['cancelled', 'checked_out'];
 
+/** A desk hold past its expiry no longer takes its room (holds without an expiry never lapse). */
+function crmHoldExpired(r: Pick<BookingRow, 'status' | 'hold_expires_at'>, now: Date): boolean {
+  return r.status === 'hold' && Boolean(r.hold_expires_at) && new Date(r.hold_expires_at as Date).getTime() <= now.getTime();
+}
+
 function webBlocksInventory(r: BookingRow, now: Date): boolean {
   if (WEB_ACTIVE.includes(r.status)) return true;
   if (r.status === 'pending') return !r.hold_expires_at || new Date(r.hold_expires_at) > now;
@@ -102,7 +108,7 @@ function webBlocksInventory(r: BookingRow, now: Date): boolean {
  * requests (confirmed, or pending within their hold) and front-desk bookings.
  * Uses the busiest night in the range.
  */
-export async function getAvailability(checkIn: string, checkOut: string, opts: { excludeBookingId?: string } = {}, db?: SqlOrTx): Promise<Record<string, CategoryAvailability>> {
+export async function getAvailability(checkIn: string, checkOut: string, opts: { excludeBookingId?: string; excludeBlockIds?: string[] } = {}, db?: SqlOrTx): Promise<Record<string, CategoryAvailability>> {
   const sql = db || getSql();
   const nights = nightsBetween(checkIn, checkOut);
   if (nights === null || nights < 1) throw new HttpError(400, 'Check-out must be after check-in.');
@@ -114,7 +120,8 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
     sql<BookingRow[]>`select * from pms.bookings where check_in < ${checkOut} and check_out > ${checkIn}`,
     sql<{ data: RoomBlock }[]>`
       select data from pms.records
-      where collection = 'roomBlocks' and data->>'fromDate' < ${checkOut} and data->>'toDate' > ${checkIn}`,
+      where collection = 'roomBlocks' and data->>'fromDate' < ${checkOut} and data->>'toDate' > ${checkIn}
+        and (data->>'expiresAt' is null or (data->>'expiresAt')::timestamptz > now())`,
   ]);
 
   // Inventory = every physical room. Rooms out of service are subtracted per NIGHT below:
@@ -134,7 +141,7 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
   const assignedByWeb = new Map<string, string[]>();
   const physicalCategory = new Map(physicalRooms.map((p) => [p.id, normalizeCategoryId(p.categoryId)]));
   for (const r of rows) {
-    if (r.kind !== 'crm' || !r.linked_booking_id || CRM_INACTIVE.includes(r.status)) continue;
+    if (r.kind !== 'crm' || !r.linked_booking_id || CRM_INACTIVE.includes(r.status) || crmHoldExpired(r, new Date())) continue;
     const cat = (r.physical_room_id && physicalCategory.get(r.physical_room_id)) || normalizeCategoryId(r.category_ids[0] || '');
     assignedByWeb.set(r.linked_booking_id, [...(assignedByWeb.get(r.linked_booking_id) || []), cat]);
   }
@@ -166,13 +173,13 @@ export async function getAvailability(checkIn: string, checkOut: string, opts: {
         add(cat, from, to);
       }
     } else {
-      if (CRM_INACTIVE.includes(r.status)) continue;
+      if (CRM_INACTIVE.includes(r.status) || crmHoldExpired(r, now)) continue;
       const cat = (r.physical_room_id && physicalCategory.get(r.physical_room_id)) || normalizeCategoryId(r.category_ids[0] || '');
       if (cat) add(cat, from, to);
     }
   }
 
-  for (const b of blockRows.map((x) => x.data)) {
+  for (const b of blockRows.map((x) => x.data).filter((x) => !(opts.excludeBlockIds || []).includes(x.id))) {
     const cat = physicalCategory.get(b.roomId);
     if (cat) add(cat, b.fromDate, b.toDate);
   }
@@ -195,7 +202,7 @@ async function nextBookingReference(tx: Tx, checkIn: string): Promise<string> {
   const month = checkIn.slice(5, 7);
   const prefix = `SH-${formatYearCode(year)}${month}`;
   const [{ max }] = await tx<{ max: number | null }[]>`
-    select max((substring(reference from ${prefix.length + 1}))::int) as max
+    select max((substring(reference from ${prefix.length + 1}::int))::int) as max
     from pms.bookings where reference ~ ${'^' + prefix + '[0-9]+$'}`;
   const floor = (max || 0) + 1;
   const counterName = `ref:${prefix}`;
@@ -365,9 +372,20 @@ const ADMIN_REOPEN: Record<string, string[]> = {
 export interface CrmBookingWriteOptions {
   /** The signed-in staff role; when given, status rules and availability are enforced. */
   role?: StaffRole;
+  /** Sets a new expiry on a hold (only the hold actions pass this; device copies cannot move it). */
+  holdExpiresAt?: Date;
+  /** Staff name stamped on expired holds this booking takes over. */
+  actorName?: string;
 }
 
-export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: CrmBookingWriteOptions = {}): Promise<{ before: CRMBooking | null; after: CRMBooking }> {
+export interface CrmBookingWriteResult {
+  before: CRMBooking | null;
+  after: CRMBooking;
+  /** Expired holds on the same room and nights that this booking released (their room lines are voided). */
+  releasedHolds: CRMBooking[];
+}
+
+export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: CrmBookingWriteOptions = {}): Promise<CrmBookingWriteResult> {
   if (!input?.id) throw new HttpError(400, 'Booking id is required.');
   const checkIn = (input.checkInDate || '').slice(0, 10);
   const checkOut = (input.checkOutDate || '').slice(0, 10);
@@ -375,12 +393,30 @@ export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: C
   if (nights === null || nights < 1) throw new HttpError(400, 'Check-out must be after check-in.');
   const guest = input.guest ? await persistGuestDocuments(input.guest, input.id, actor) : input.guest;
 
-  return withTx(async (tx) => {
+  const result = await withTx(async (tx) => {
     await lockInventory(tx);
     const existingRow = await getBookingRow(input.id, tx);
     if (existingRow && existingRow.kind !== 'crm') throw new HttpError(409, 'Booking id conflict.');
     const before = existingRow ? crmFromRow(existingRow) : null;
     const status = input.bookingStatus || 'confirmed';
+    const now = new Date();
+
+    // Hold expiry. A new hold gets the requested expiry (clamped) or the default; an existing
+    // hold keeps its stored expiry unless a hold action moves it. Any other status has none.
+    let holdExpires: Date | null = null;
+    if (status === 'hold') {
+      if (opts.holdExpiresAt) holdExpires = clampHoldExpiry(opts.holdExpiresAt, now);
+      else if (existingRow?.status === 'hold') holdExpires = existingRow.hold_expires_at ? new Date(existingRow.hold_expires_at) : null;
+      else if (input.holdExpiresAt) holdExpires = clampHoldExpiry(new Date(input.holdExpiresAt), now);
+      else holdExpires = new Date(now.getTime() + HOLD_HOURS * 3600 * 1000);
+    }
+    const beforeExpired = Boolean(existingRow && existingRow.kind === 'crm' && crmHoldExpired(existingRow, now));
+    // An expired hold that is still expired after this save takes no room: nothing to check.
+    const staysLapsed = status === 'hold' && holdExpires !== null && holdExpires.getTime() <= now.getTime();
+    // An expired hold coming back (confirmed, checked in or extended) must find its room free again.
+    const reactivating = beforeExpired && !staysLapsed && !CRM_INACTIVE.includes(status);
+    const takesRoom = Boolean(input.roomId) && !CRM_INACTIVE.includes(status) && !staysLapsed;
+    const releasedHolds: CRMBooking[] = [];
 
     if (opts.role) {
       // Status rules: no checking out a future stay, no re-opening without an admin, etc.
@@ -391,16 +427,35 @@ export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: C
         }
       }
       if (!before && (status === 'checked_out' || status === 'cancelled')) throw new HttpError(400, 'A new booking cannot start as checked out or cancelled.');
-      if (status === 'checked_in' && (!before || before.bookingStatus !== 'checked_in') && checkIn > todayInIST()) {
-        throw new HttpError(409, `This stay starts on ${checkIn}. Guests can be checked in from their arrival day.`, 'TOO_EARLY');
+      if (status === 'checked_in' && (!before || before.bookingStatus !== 'checked_in')) {
+        if (checkIn > todayInIST()) {
+          throw new HttpError(409, `This stay starts on ${checkIn}. Guests can be checked in from their arrival day.`, 'TOO_EARLY');
+        }
+        if (!hasGuestId(guest)) {
+          throw new HttpError(400, 'Add the guest’s ID number or a photo of their ID before checking in.', 'ID_REQUIRED');
+        }
+        if (input.roomId) {
+          const inHouse = await tx<BookingRow[]>`
+            select * from pms.bookings
+            where kind = 'crm' and physical_room_id = ${input.roomId} and id <> ${input.id} and status = 'checked_in'
+            limit 1`;
+          if (inHouse[0]) {
+            const other = crmFromRow(inHouse[0]);
+            throw new HttpError(
+              409,
+              `Room ${input.roomNumber || ''} still has ${other.guest?.fullName || 'a guest'} in-house (due out ${other.checkOutDate}). Check them out first.`,
+              'ROOM_OCCUPIED'
+            );
+          }
+        }
       }
       // Category availability (website requests hold a room type, not a room number)
-      const datesOrRoomChanged = !before || before.checkInDate !== checkIn || before.checkOutDate !== checkOut || before.roomId !== input.roomId || CRM_INACTIVE.includes(before.bookingStatus);
-      if (input.roomId && !CRM_INACTIVE.includes(status) && datesOrRoomChanged) {
+      const datesOrRoomChanged = !before || before.checkInDate !== checkIn || before.checkOutDate !== checkOut || before.roomId !== input.roomId || CRM_INACTIVE.includes(before.bookingStatus) || reactivating;
+      if (takesRoom && datesOrRoomChanged) {
         const room = await tx<{ category_id: string }[]>`select category_id from pms.physical_rooms where id = ${input.roomId}`;
         const cat = room[0] ? normalizeCategoryId(room[0].category_id) : null;
         if (cat) {
-          const avail = await getAvailability(checkIn, checkOut, { excludeBookingId: input.id }, tx);
+          const avail = await getAvailability(checkIn, checkOut, { excludeBookingId: input.id, excludeBlockIds: input.fromHoldBlockId ? [input.fromHoldBlockId] : [] }, tx);
           // The website request this booking fulfils is released by this booking itself
           let held = avail[cat]?.available ?? 0;
           if (input.sourceBookingId) {
@@ -418,12 +473,62 @@ export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: C
       }
     }
 
-    // A physical room can only hold one active booking per night.
-    if (input.roomId && !CRM_INACTIVE.includes(status)) {
+    // A physical room can only hold one active booking per night, and none on blocked nights.
+    if (takesRoom) {
+      const roomChanged = !before || before.checkInDate !== checkIn || before.checkOutDate !== checkOut || before.roomId !== input.roomId || CRM_INACTIVE.includes(before.bookingStatus) || reactivating;
+      if (roomChanged) {
+        const blocked = await tx<{ data: RoomBlock }[]>`
+          select data from pms.records
+          where collection = 'roomBlocks' and data->>'roomId' = ${input.roomId as string}
+            and data->>'fromDate' < ${checkOut} and data->>'toDate' > ${checkIn}
+            and (data->>'expiresAt' is null or (data->>'expiresAt')::timestamptz > ${now})`;
+        // A pre-booking made FROM a hold takes that hold's place (the hold is removed below).
+        // A booking made FROM a hold takes that hold's place (the hold is used up here).
+        const fromHold = !before && input.fromHoldBlockId ? blocked.find((x) => x.data.id === input.fromHoldBlockId) : undefined;
+        const k = blocked.find((x) => x !== fromHold)?.data;
+        if (k) {
+          throw new HttpError(
+            409,
+            `Room ${input.roomNumber || ''} is on hold ${k.fromDate} → ${k.toDate} (${holdLabel(k)}). Choose another room or release the hold first.`,
+            'ROOM_BLOCKED'
+          );
+        }
+        if (fromHold) {
+          await tx`delete from pms.records where collection = 'roomBlocks' and id = ${fromHold.data.id}`;
+        }
+        // Expired holds on this room and these nights are cleared away.
+        await tx`
+          delete from pms.records
+          where collection = 'roomBlocks' and data->>'roomId' = ${input.roomId as string}
+            and data->>'fromDate' < ${checkOut} and data->>'toDate' > ${checkIn}
+            and data->>'expiresAt' is not null and (data->>'expiresAt')::timestamptz <= ${now}`;
+      }
+
+      // Expired holds on this room and these nights give way: they are released (cancelled).
+      const lapsed = await tx<BookingRow[]>`
+        select * from pms.bookings
+        where kind = 'crm' and physical_room_id = ${input.roomId as string} and id <> ${input.id}
+          and status = 'hold' and hold_expires_at is not null and hold_expires_at <= ${now}
+          and check_in < ${checkOut} and check_out > ${checkIn}`;
+      for (const row of lapsed) {
+        const old = crmFromRow(row);
+        const released: CRMBooking = {
+          ...old,
+          bookingStatus: 'cancelled',
+          tapeStatus: 'available',
+          cancelledAt: now.toISOString(),
+          cancelledByName: opts.actorName || 'System',
+          cancelReason: `Hold expired ${new Date(row.hold_expires_at as Date).toISOString()}; room given to another booking.`,
+        };
+        await tx`update pms.bookings set status = 'cancelled', hold_expires_at = null, data = ${tx.json(released as never)}, updated_at = now() where id = ${old.id}`;
+        releasedHolds.push(released);
+      }
+
       const clash = await tx<BookingRow[]>`
         select * from pms.bookings
-        where kind = 'crm' and physical_room_id = ${input.roomId} and id <> ${input.id}
+        where kind = 'crm' and physical_room_id = ${input.roomId as string} and id <> ${input.id}
           and status not in ('cancelled', 'checked_out')
+          and not (status = 'hold' and hold_expires_at is not null and hold_expires_at <= ${now})
           and check_in < ${checkOut} and check_out > ${checkIn}
         limit 1`;
       if (clash[0]) {
@@ -449,18 +554,29 @@ export async function upsertCrmBooking(input: CRMBooking, actor: string, opts: C
     const physical = input.roomId ? await tx<{ category_id: string }[]>`select category_id from pms.physical_rooms where id = ${input.roomId}` : [];
     const categoryId = physical[0]?.category_id || normalizeCategoryId(input.roomId || '');
     const after: CRMBooking = { ...input, guest, bookingReference: reference, bookingStatus: status, checkInDate: checkIn, checkOutDate: checkOut };
+    if (holdExpires) after.holdExpiresAt = holdExpires.toISOString();
+    else delete after.holdExpiresAt;
 
     await tx`
       insert into pms.bookings (id, kind, reference, status, check_in, check_out, category_ids, physical_room_id,
-                                linked_booking_id, guest_phone, data)
+                                linked_booking_id, guest_phone, hold_expires_at, data)
       values (${input.id}, 'crm', ${reference}, ${status}, ${checkIn}, ${checkOut}, ${categoryId ? [categoryId] : []},
-              ${input.roomId || null}, ${input.sourceBookingId || null}, ${normalizePhone(guest?.phone)}, ${tx.json(after as never)})
+              ${input.roomId || null}, ${input.sourceBookingId || null}, ${normalizePhone(guest?.phone)}, ${holdExpires}, ${tx.json(after as never)})
       on conflict (id) do update set status = excluded.status, check_in = excluded.check_in, check_out = excluded.check_out,
         category_ids = excluded.category_ids, physical_room_id = excluded.physical_room_id,
         linked_booking_id = excluded.linked_booking_id, guest_phone = excluded.guest_phone,
-        data = excluded.data, updated_at = now()`;
-    return { before, after };
+        hold_expires_at = excluded.hold_expires_at, data = excluded.data, updated_at = now()`;
+    return { before, after, releasedHolds };
   });
+
+  // Released holds: void their room lines (any advance stays as a credit), outside the inventory lock.
+  if (result.releasedHolds.length > 0) {
+    const { voidRoomLinesForCancelled } = await import('../booking-actions');
+    for (const h of result.releasedHolds) {
+      await voidRoomLinesForCancelled(h.id, h.cancelReason || 'Hold expired', actor, opts.actorName || 'System').catch(() => undefined);
+    }
+  }
+  return result;
 }
 
 export async function deleteBooking(id: string, db?: SqlOrTx): Promise<boolean> {
@@ -498,7 +614,8 @@ export async function findActiveBookingForRoom(roomId: string): Promise<CRMBooki
     where kind = 'crm' and physical_room_id = ${roomId}
       and (
         (status = 'checked_in' and check_out >= ${today})
-        or (status in ('confirmed', 'hold') and check_in = ${today})
+        or (status = 'confirmed' and check_in = ${today})
+        or (status = 'hold' and check_in = ${today} and (hold_expires_at is null or hold_expires_at > now()))
       )
     order by (status = 'checked_in') desc, check_in desc
     limit 1`;

@@ -48,8 +48,9 @@ const MEAL_PLANS: MealPlan[] = ['EP', 'CP', 'MAP', 'AP'];
 
 // Website category -> the physical CRM rooms that belong to it
 const CATEGORIES: Record<string, string[]> = {
-  'room-cat-1': ['room-101', 'room-102', 'room-103'],
+  'room-cat-1': ['room-101', 'room-102'],
   'room-cat-2': ['room-104'],
+  'room-cat-4': ['room-103'],
   'room-cat-3': ['room-201', 'room-202', 'room-203'],
 };
 

@@ -357,11 +357,15 @@ export default function RoomsSection({
                   {/* Room Inventory & Numbers Badge */}
                   <div className="absolute top-4 right-4 z-10">
                     <span className="bg-black/60 backdrop-blur-md text-[#E8DCC4] text-xs font-medium px-3 py-1 rounded-full border border-white/15">
-                      {room.id === 'room-cat-1' || room.name.includes('Mountain View with Balcony')
-                        ? 'Rooms 101, 102, 103'
-                        : room.id === 'room-cat-2' || room.name.includes('Forest View')
+                      {room.id === 'room-cat-1'
+                        ? 'Rooms 101, 102'
+                        : room.id === 'room-cat-4'
+                        ? 'Room 103'
+                        : room.id === 'room-cat-2'
                         ? 'Room 104'
-                        : 'Suites 201, 202, 203'}
+                        : room.id === 'room-cat-3'
+                        ? 'Suites 201, 202, 203'
+                        : room.room_type}
                     </span>
                   </div>
 

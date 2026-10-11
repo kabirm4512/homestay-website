@@ -16,6 +16,7 @@ import { addCalendarDays, isCalendarDate, todayInIST } from '@/lib/tariff-calcul
 import { saveFolioFromDevice, setLinkedChargeStatus } from './folio-store';
 import { createExpense, reviewExpense } from './expenses';
 import { ensureGstModeApplied } from './gst-sweep';
+import { createRoomHold, releaseRoomHold } from './tape-actions';
 import type { Expense, RoomBlock } from '@/types/crm';
 
 /**
@@ -98,7 +99,7 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
       }
       const record = op.record as unknown as CRMBooking;
       if (!record || record.id !== op.id) throw new HttpError(400, 'Record id mismatch.');
-      const { before, after } = await upsertCrmBooking(record, actor, { role: staff.role });
+      const { before, after } = await upsertCrmBooking(record, actor, { role: staff.role, actorName: staff.fullName });
       await audit({ actor, action: before ? 'update' : 'create', entity: 'booking', entityId: op.id, before, after, ip });
       return { ...base, ok: true, record: after };
     }
@@ -135,6 +136,23 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
     if (!isRecordCollection(op.collection)) throw new HttpError(400, 'Unknown collection.');
     const collection = op.collection;
 
+    if (collection === 'roomBlocks') {
+      // Holds have their own rules: same code path as /api/room-holds.
+      if (op.op === 'delete') {
+        const res = await releaseRoomHold(op.id, staff, ip);
+        return res.ended[0] ? { ...base, ok: true, record: res.ended[0] } : { ...base, ok: true, deleted: true };
+      }
+      const existing = await getRecord<RoomBlock>('roomBlocks', op.id);
+      if (existing) throw new HttpError(409, 'A hold cannot be edited here. Extend or release it from the tape chart.', 'HOLD_LOCKED');
+      const b = (op.record || {}) as unknown as RoomBlock;
+      const [saved] = await createRoomHold(
+        { ids: [op.id], roomIds: [b.roomId], fromDate: b.fromDate, toDate: b.toDate, reason: b.reason, guestName: b.guestName, guestPhone: b.guestPhone },
+        staff,
+        ip
+      );
+      return { ...base, ok: true, record: saved };
+    }
+
     if (op.op === 'delete') {
       const before = await getRecord(collection, op.id);
       await deleteRecord(collection, op.id);
@@ -156,21 +174,6 @@ export async function applySyncOp(op: SyncOp, staff: StaffContext, ip?: string):
         ? await reviewExpense(op.id, record as unknown as Partial<Expense>, staff, ip)
         : (await createExpense(record as unknown as Expense, staff, ip)).expense;
       return { ...base, ok: true, record: saved };
-    }
-    if (collection === 'roomBlocks') {
-      const b = record as unknown as RoomBlock;
-      if (!isCalendarDate(String(b.fromDate)) || !isCalendarDate(String(b.toDate)) || b.toDate <= b.fromDate) {
-        throw new HttpError(400, 'A block needs a start date and an end date after it.');
-      }
-      const reason = typeof b.reason === 'string' ? b.reason.trim().slice(0, 200) : '';
-      if (reason.length < 3) throw new HttpError(400, 'Please give a reason for blocking the room.');
-      const room = await findPhysicalRoom({ id: b.roomId });
-      if (!room) throw new HttpError(400, 'Unknown room.');
-      const clash = (await listCrmBookings()).find(
-        (k) => k.roomId === b.roomId && !['cancelled', 'checked_out'].includes(k.bookingStatus) && k.checkInDate < b.toDate && k.checkOutDate > b.fromDate
-      );
-      if (clash) throw new HttpError(409, `Room ${room.roomNumber} is booked for ${clash.guest?.fullName || 'a guest'} (${clash.checkInDate} → ${clash.checkOutDate}). Move that stay first.`, 'ROOM_CONFLICT');
-      record = { ...b, reason, roomNumber: room.roomNumber, createdByName: (before as RoomBlock | null)?.createdByName || staff.fullName, createdAt: (before as RoomBlock | null)?.createdAt || new Date().toISOString() } as unknown as typeof record;
     }
     if (collection === 'foodOrders' && !before && staff.role !== 'admin') {
       throw new HttpError(400, 'New orders must be placed through the ordering screen.', 'USE_ORDER_API');

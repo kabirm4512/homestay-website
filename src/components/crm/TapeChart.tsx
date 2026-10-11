@@ -29,13 +29,20 @@ import {
   Eye,
   Tag,
   AlertCircle,
+  CalendarCheck,
+  PauseCircle,
+  Users,
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { CRMBooking, PhysicalRoom, RoomTapeStatus, MealPlan } from '@/types/crm';
-import ManualBookingModal from './ManualBookingModal';
 import GuestCheckoutModal from './GuestCheckoutModal';
+import DeskBookingModal, { DeskBookingMode, DeskBookingPrefill } from './tape/DeskBookingModal';
+import HoldModal from './tape/HoldModal';
+import CheckInModal from './tape/CheckInModal';
+import { blockIsActive, bookingTakesRoom, cellActions, describeHoldExpiry, holdLabel, roomViewLabel, roomViewShort } from '@/lib/tape-rules';
+import type { RoomBlock } from '@/types/crm';
 import { INDIAN_STATES } from '@/lib/booking-id';
-import { addCalendarDays, todayInIST } from '@/lib/tariff-calculator';
+import { todayInIST } from '@/lib/tariff-calculator';
 import { readDocumentFile } from '@/lib/image-upload';
 
 export default function TapeChart() {
@@ -46,14 +53,25 @@ export default function TapeChart() {
     updateGuestPreferences,
     updateBookingGuestDetails,
     updateBookingDocumentStatus,
-    checkInRoom,
     currentUser,
     showToast,
     roomBlocks,
-    addRoomBlock,
-    removeRoomBlock,
+    releaseRoomHold,
+    extendRoomHold,
   } = useCRM();
-  const [blockForm, setBlockForm] = useState<{ roomId: string; fromDate: string; toDate: string; reason: string } | null>(null);
+  const isAdmin = currentUser?.role === 'admin';
+
+  // The three desk flows: Check in, Pre-book (DeskBookingModal) and Hold (HoldModal)
+  const [deskMode, setDeskMode] = useState<DeskBookingMode | null>(null);
+  const [deskPrefill, setDeskPrefill] = useState<DeskBookingPrefill | undefined>(undefined);
+  const [holdPrefill, setHoldPrefill] = useState<{ roomIds?: string[]; fromDate?: string } | null>(null);
+  const [cellMenu, setCellMenu] = useState<{ roomId: string; roomNumber: number; date: string } | null>(null);
+  const [selectedHold, setSelectedHold] = useState<RoomBlock | null>(null);
+  const [checkInFor, setCheckInFor] = useState<CRMBooking | null>(null);
+  const openDesk = (mode: DeskBookingMode, prefill?: DeskBookingPrefill) => {
+    setDeskPrefill(prefill);
+    setDeskMode(mode);
+  };
 
   const [checkoutBooking, setCheckoutBooking] = useState<CRMBooking | null>(null);
 
@@ -82,10 +100,6 @@ export default function TapeChart() {
   const [editSpecialRequests, setEditSpecialRequests] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
-  // Manual booking modal state
-  const [isManualBookingModalOpen, setIsManualBookingModalOpen] = useState(false);
-  const [manualBookingDefaultRoomId, setManualBookingDefaultRoomId] = useState('');
-  const [manualBookingDefaultDate, setManualBookingDefaultDate] = useState('');
 
   // Share link & image modal state
   const [copiedLink, setCopiedLink] = useState(false);
@@ -127,23 +141,39 @@ export default function TapeChart() {
     setBaseDate(d);
   };
 
-  // Filtered rooms
+  // Rooms in number order, filtered by view
+  const sortedRooms = useMemo(() => [...rooms].sort((a, b) => a.roomNumber - b.roomNumber), [rooms]);
+  const viewGroups = useMemo(() => {
+    const groups: { label: string; count: number }[] = [];
+    for (const r of sortedRooms) {
+      const label = roomViewLabel(r);
+      const g = groups.find((x) => x.label === label);
+      if (g) g.count += 1;
+      else groups.push({ label, count: 1 });
+    }
+    return groups;
+  }, [sortedRooms]);
   const filteredRooms = useMemo(() => {
-    if (filterCategory === 'all') return rooms;
-    return rooms.filter((r) => r.categoryCode === filterCategory);
-  }, [rooms, filterCategory]);
+    if (filterCategory === 'all') return sortedRooms;
+    return sortedRooms.filter((r) => roomViewLabel(r) === filterCategory);
+  }, [sortedRooms, filterCategory]);
 
   // Check if a room is occupied/reserved on a specific date
   // Active stays only: cancelled bookings never show; a guest who left early stops on the day they left
   const getBookingForRoomDate = (roomId: string, dateStr: string) => {
     return bookings.find((b) => {
       if (b.roomId !== roomId || b.bookingStatus === 'cancelled') return false;
+      if (b.bookingStatus !== 'checked_out' && !bookingTakesRoom(b)) return false; // lapsed legacy hold
       const end = b.bookingStatus === 'checked_out' && b.checkedOutAt ? todayInIST(new Date(b.checkedOutAt)) : b.checkOutDate;
       return dateStr >= b.checkInDate && dateStr < (end < b.checkOutDate ? end : b.checkOutDate);
     });
   };
-  const getBlockForRoomDate = (roomId: string, dateStr: string) =>
-    roomBlocks.find((k) => k.roomId === roomId && dateStr >= k.fromDate && dateStr < k.toDate);
+  // Active holds first; a lapsed hold still shows (faded) until something takes the room
+  const getBlockForRoomDate = (roomId: string, dateStr: string) => {
+    const on = roomBlocks.filter((k) => k.roomId === roomId && dateStr >= k.fromDate && dateStr < k.toDate);
+    return on.find((k) => blockIsActive(k)) || on[0];
+  };
+  const holdGroup = (h: RoomBlock) => (h.groupId ? roomBlocks.filter((x) => x.groupId === h.groupId) : [h]);
 
   const openGuestDrawer = (booking: CRMBooking) => {
     setSelectedBooking(booking);
@@ -307,10 +337,10 @@ export default function TapeChart() {
               </div>
               <div>
                 <h2 className="font-serif font-bold text-xl text-forest-950">
-                  The Tape Chart (Core Homestay CRM)
+                  Tape Chart
                 </h2>
                 <p className="text-xs text-forest-700">
-                  Multi-room timeline view across 7 physical rooms & 3 categories.
+                  {sortedRooms.length} rooms · tap a free night to check in, pre-book or hold.
                 </p>
               </div>
             </div>
@@ -318,48 +348,19 @@ export default function TapeChart() {
 
           {/* Controls: Range navigation & Legend */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Category Filter */}
-            <div className="flex items-center space-x-1.5 bg-sand-100/80 p-1 rounded-xl text-xs font-semibold">
-              <button
-                onClick={() => setFilterCategory('all')}
-                className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'all'
-                    ? 'bg-forest-900 text-white shadow-xs'
-                    : 'text-forest-700 hover:text-forest-950'
-                }`}
-              >
-                All 7 Rooms
-              </button>
-              <button
-                onClick={() => setFilterCategory('deluxe_mountain')}
-                className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'deluxe_mountain'
-                    ? 'bg-forest-900 text-white shadow-xs'
-                    : 'text-forest-700 hover:text-forest-950'
-                }`}
-              >
-                Deluxe Mtn Balcony (3)
-              </button>
-              <button
-                onClick={() => setFilterCategory('deluxe_forest')}
-                className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'deluxe_forest'
-                    ? 'bg-forest-900 text-white shadow-xs'
-                    : 'text-forest-700 hover:text-forest-950'
-                }`}
-              >
-                Deluxe Forest Balcony (1)
-              </button>
-              <button
-                onClick={() => setFilterCategory('premium_suite')}
-                className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
-                  filterCategory === 'premium_suite'
-                    ? 'bg-forest-900 text-white shadow-xs'
-                    : 'text-forest-700 hover:text-forest-950'
-                }`}
-              >
-                Premium Suites (3)
-              </button>
+            {/* View Filter */}
+            <div className="flex flex-wrap items-center gap-1 bg-sand-100/80 p-1 rounded-xl text-xs font-semibold">
+              {[{ label: 'all', count: sortedRooms.length }, ...viewGroups].map((g) => (
+                <button
+                  key={g.label}
+                  onClick={() => setFilterCategory(g.label)}
+                  className={`min-h-[36px] px-3 py-1 rounded-lg transition-all ${
+                    filterCategory === g.label ? 'bg-forest-900 text-white shadow-xs' : 'text-forest-700 hover:text-forest-950'
+                  }`}
+                >
+                  {g.label === 'all' ? 'All' : roomViewShort(g.label)} ({g.count})
+                </button>
+              ))}
             </div>
 
             {/* Date Navigator */}
@@ -387,18 +388,27 @@ export default function TapeChart() {
               </button>
             </div>
 
-            {/* New Manual Reservation CTA */}
-            <button
-              onClick={() => {
-                setManualBookingDefaultRoomId('');
-                setManualBookingDefaultDate(formatDateKey(baseDate));
-                setIsManualBookingModalOpen(true);
-              }}
-              className="min-h-[38px] px-4 py-2 bg-[#C85A32] hover:bg-[#B34D28] active:scale-95 text-white font-bold text-xs rounded-xl shadow-[0_2px_8px_rgba(200,90,50,0.3)] transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-white stroke-[2.5]" />
-              <span>New Manual Reservation</span>
-            </button>
+            {/* The three desk flows */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => openDesk('checkin', { checkInDate: todayInIST() })}
+                className="min-h-[38px] px-3 py-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+              >
+                <LogIn className="w-4 h-4" /> Check in
+              </button>
+              <button
+                onClick={() => openDesk('prebook', { checkInDate: formatDateKey(baseDate) < todayInIST() ? todayInIST() : formatDateKey(baseDate) })}
+                className="min-h-[38px] px-3 py-2 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+              >
+                <CalendarCheck className="w-4 h-4" /> Pre-book
+              </button>
+              <button
+                onClick={() => setHoldPrefill({})}
+                className="min-h-[38px] px-3 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-forest-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+              >
+                <PauseCircle className="w-4 h-4" /> Hold
+              </button>
+            </div>
           </div>
         </div>
 
@@ -407,26 +417,19 @@ export default function TapeChart() {
           <span className="text-[11px] uppercase tracking-wider text-[#5C6D66] font-bold">
             Tape Statuses:
           </span>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-amber-400" />
-            <span className="font-medium text-[#142820]">Hold (Tentative)</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-emerald-600" />
-            <span className="font-medium text-[#142820]">Confirmed / Paid</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-[#142820] text-[#C5A059] flex items-center justify-center text-[9px] font-bold">✓</span>
-            <span className="font-medium text-[#142820]">Checked-In (In-House)</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-rose-500" />
-            <span className="font-medium text-[#142820]">Under Maintenance</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="w-3 h-3 rounded-md bg-[#FAF6EE] border border-[#E5DEC9]" />
-            <span className="font-medium text-[#5C6D66]">Available (Weekend Tinted)</span>
-          </div>
+          {[
+            { cls: 'bg-blue-500', label: 'In-house' },
+            { cls: 'bg-emerald-600', label: 'Pre-booked' },
+            { cls: 'bg-amber-400', label: 'On hold' },
+            { cls: 'bg-amber-100 border border-dashed border-amber-400', label: 'Hold lapsed' },
+            { cls: 'bg-rose-500', label: 'Out of service tonight' },
+            { cls: 'bg-[#FAF6EE] border border-[#E5DEC9]', label: 'Free' },
+          ].map((l) => (
+            <div key={l.label} className="flex items-center space-x-1.5">
+              <span className={`w-3 h-3 rounded-md ${l.cls}`} />
+              <span className="font-medium text-[#142820]">{l.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -437,8 +440,8 @@ export default function TapeChart() {
             {/* Table Header: Dates (X-axis) */}
             <thead>
               <tr className="bg-[#142820] text-white border-b border-[#1E3A2F]">
-                <th className="sticky left-0 z-20 bg-[#142820] px-4 py-3.5 w-64 text-xs font-serif font-bold tracking-wide border-r border-[#1E3A2F]">
-                  Physical Room &amp; Housekeeping
+                <th className="sticky left-0 z-20 bg-[#142820] px-3 py-3.5 w-32 text-xs font-serif font-bold tracking-wide border-r border-[#1E3A2F]">
+                  Room
                 </th>
                 {dateColumns.map((d, i) => {
                   const dateKey = formatDateKey(d);
@@ -487,11 +490,11 @@ export default function TapeChart() {
                 return (
                   <tr key={room.id} className="hover:bg-[#FAF8F5]/80 transition-colors group">
                     {/* Sticky Room Label with Live Housekeeping Dot */}
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-[#FAF8F5] px-4 py-3.5 border-r border-[#E5DEC9] shadow-xs">
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-[#FAF8F5] px-3 py-3.5 border-r border-[#E5DEC9] shadow-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center space-x-2.5">
                           <div className="relative shrink-0">
-                            <span className="w-7 h-7 rounded-lg bg-[#142820] text-[#C5A059] text-xs font-mono font-bold flex items-center justify-center shadow-xs">
+                            <span title={roomViewLabel(room)} className="px-2 h-8 min-w-[44px] rounded-lg bg-[#142820] text-[#C5A059] text-sm font-mono font-bold flex items-center justify-center shadow-xs">
                               {room.roomNumber}
                             </span>
                             {/* Live Housekeeping / Occupancy Dot */}
@@ -509,14 +512,6 @@ export default function TapeChart() {
                             />
                           </div>
 
-                          <div>
-                            <span className="font-serif font-bold text-xs text-[#142820] block leading-tight">
-                              {room.name.split(' - ')[1] || room.name}
-                            </span>
-                            <span className="text-[10px] text-[#5C6D66] block mt-0.5">
-                              {room.categoryName} • Fl {room.floorLevel}
-                            </span>
-                          </div>
                         </div>
 
                         {/* Room Status Indicator Dropdown */}
@@ -531,13 +526,6 @@ export default function TapeChart() {
                             <option value="in_service">🟢 In service</option>
                             <option value="maintenance">🔴 Out tonight</option>
                           </select>
-                          <button
-                            type="button"
-                            onClick={() => setBlockForm({ roomId: room.id, fromDate: todayInIST(), toDate: addCalendarDays(todayInIST(), 1), reason: '' })}
-                            className="text-[10px] font-bold text-rose-700 underline"
-                          >
-                            Block dates
-                          </button>
                         </div>
                       </div>
                     </td>
@@ -546,30 +534,42 @@ export default function TapeChart() {
                     {dateColumns.map((d, dIdx) => {
                       const dateKey = formatDateKey(d);
                       const booking = getBookingForRoomDate(room.id, dateKey);
-                      // The maintenance flag means "out of service tonight"; longer repairs are dated blocks
-                      const block = getBlockForRoomDate(room.id, dateKey);
-                      const isMaintenance = Boolean(block) || (room.currentStatus === 'maintenance' && dateKey === todayInIST() && !booking);
+                      // Holds keep rooms off sale; the maintenance flag means "out of service tonight" only
+                      const hold = booking ? undefined : getBlockForRoomDate(room.id, dateKey);
+                      const outTonight = !booking && !hold && room.currentStatus === 'maintenance' && dateKey === todayInIST();
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-                      if (isMaintenance) {
+                      if (hold) {
+                        const active = blockIsActive(hold);
+                        const groupSize = holdGroup(hold).length;
                         return (
-                          <td
-                            key={dIdx}
-                            className="px-1 py-1.5 border-r border-[#E5DEC9] text-center bg-rose-50/80"
-                          >
+                          <td key={dIdx} className="px-1 py-1.5 border-r border-[#E5DEC9]">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHold(hold)}
+                              aria-label={`Room ${room.roomNumber}, ${dateKey}, ${active ? 'on hold' : 'hold lapsed'}: ${holdLabel(hold)}`}
+                              className={`w-full h-12 rounded-xl p-1.5 text-left border flex flex-col justify-between overflow-hidden text-[10px] ${
+                                active
+                                  ? 'bg-[repeating-linear-gradient(135deg,#FDE68A_0,#FDE68A_6px,#FCD34D_6px,#FCD34D_12px)] border-amber-400 text-amber-950'
+                                  : 'bg-amber-50 border-dashed border-amber-300 text-amber-800/70'
+                              }`}
+                            >
+                              <span className="font-bold truncate flex items-center gap-1">
+                                <PauseCircle className="w-3 h-3 shrink-0" /> {active ? 'Hold' : 'Lapsed'}
+                                {groupSize > 1 && <span className="text-[8px] font-mono">×{groupSize}</span>}
+                              </span>
+                              <span className="text-[9px] truncate">{holdLabel(hold)}</span>
+                            </button>
+                          </td>
+                        );
+                      }
+
+                      if (outTonight) {
+                        return (
+                          <td key={dIdx} className="px-1 py-1.5 border-r border-[#E5DEC9] text-center bg-rose-50/80">
                             <div className="h-12 rounded-xl bg-rose-100/90 border border-rose-300 flex flex-col items-center justify-center p-1 text-[10px] text-rose-800">
-                              <span className="font-bold">{block ? 'Blocked' : 'Maintenance'}</span>
-                              <span className="text-[9px] text-rose-600 truncate max-w-full">{block ? block.reason : 'Out of service tonight'}</span>
-                              {block && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeRoomBlock(block.id)}
-                                  className="text-[9px] underline text-rose-700"
-                                  aria-label={`Remove block on room ${room.roomNumber}`}
-                                >
-                                  remove
-                                </button>
-                              )}
+                              <span className="font-bold">Out tonight</span>
+                              <span className="text-[9px] text-rose-600">Out of service</span>
                             </div>
                           </td>
                         );
@@ -591,7 +591,8 @@ export default function TapeChart() {
                               title={`Click to inspect ${booking.guest.fullName}'s stay & folio`}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="font-bold text-[11px] truncate leading-tight">
+                                <span className="font-bold text-[11px] truncate leading-tight flex items-center gap-0.5">
+                                  {booking.groupId && <Users className="w-3 h-3 shrink-0" aria-label="group booking" />}
                                   {booking.guest.fullName.split(' ')[0]}
                                 </span>
                                 <span className={`text-[9px] font-mono px-1 py-0.2 rounded font-extrabold ${style.badge}`}>
@@ -621,21 +622,19 @@ export default function TapeChart() {
                         >
                           <button
                             type="button"
-                            onClick={() => {
-                              setManualBookingDefaultRoomId(room.id);
-                              setManualBookingDefaultDate(dateKey);
-                              setIsManualBookingModalOpen(true);
-                            }}
+                            disabled={cellActions(dateKey, { isAdmin }).past && !isAdmin}
+                            onClick={() => setCellMenu({ roomId: room.id, roomNumber: room.roomNumber, date: dateKey })}
                             className={`w-full h-12 rounded-xl border border-dashed text-[11px] transition-all flex flex-col items-center justify-center cursor-pointer group ${
                               isWeekend
                                 ? 'border-[#E5DEC9] hover:border-[#C85A32] hover:bg-[#FAF8F5] text-[#8C9B90] hover:text-[#C85A32]'
                                 : 'border-[#EBE5DA] hover:border-[#C85A32] hover:bg-[#FAF8F5] text-[#A3B899] hover:text-[#C85A32]'
                             }`}
-                            title={`Click to book Room ${room.roomNumber} for ${dateKey}`}
+                            aria-label={`Room ${room.roomNumber}, ${dateKey}, free`}
+                            title={`Room ${room.roomNumber} · ${dateKey}: check in, pre-book or hold`}
                           >
                             <Plus className="w-3.5 h-3.5 text-transparent group-hover:text-[#C85A32] transition-colors" />
                             <span className="text-[9px] opacity-80 font-mono group-hover:opacity-100">
-                              {isWeekend ? 'Weekend' : 'Open'}
+                              {dateKey < todayInIST() ? '' : isWeekend ? 'Weekend' : 'Free'}
                             </span>
                           </button>
                         </td>
@@ -649,43 +648,141 @@ export default function TapeChart() {
         </div>
       </div>
 
-      {blockForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setBlockForm(null)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-3 text-xs" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <h3 className="font-serif font-bold text-base text-[#142820]">
-              Block room {rooms.find((r) => r.id === blockForm.roomId)?.roomNumber} for repairs
-            </h3>
-            <p className="text-forest-600">The room is not sold on the website or at the desk for these nights.</p>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="space-y-1">
-                <span className="font-bold block">First night</span>
-                <input type="date" value={blockForm.fromDate} min={todayInIST()} onChange={(e) => setBlockForm({ ...blockForm, fromDate: e.target.value, toDate: blockForm.toDate <= e.target.value ? addCalendarDays(e.target.value, 1) : blockForm.toDate })} className="w-full px-2 py-2 rounded-lg border border-sand-300" />
-              </label>
-              <label className="space-y-1">
-                <span className="font-bold block">Available again on</span>
-                <input type="date" value={blockForm.toDate} min={addCalendarDays(blockForm.fromDate, 1)} onChange={(e) => setBlockForm({ ...blockForm, toDate: e.target.value })} className="w-full px-2 py-2 rounded-lg border border-sand-300" />
-              </label>
-            </div>
-            <input value={blockForm.reason} onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} placeholder="Reason (required), e.g. geyser repair" className="w-full px-3 py-2 rounded-lg border border-sand-300" />
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setBlockForm(null)} className="px-4 py-2 rounded-xl border border-sand-300 font-bold">Cancel</button>
-              <button
-                onClick={() => {
-                  if (blockForm.reason.trim().length < 3) {
-                    showToast('Please give a reason.', 'error');
-                    return;
-                  }
-                  addRoomBlock({ ...blockForm, reason: blockForm.reason.trim() });
-                  setBlockForm(null);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold"
-              >
-                Block room
+      {/* Free night: the three desk flows */}
+      {cellMenu && (() => {
+        const acts = cellActions(cellMenu.date, { isAdmin });
+        const choose = (fn: () => void) => {
+          setCellMenu(null);
+          fn();
+        };
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onClick={() => setCellMenu(null)}>
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 space-y-3" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Room ${cellMenu.roomNumber}`}>
+              <div>
+                <h3 className="font-serif font-bold text-base text-[#142820]">Room {cellMenu.roomNumber}</h3>
+                <p className="text-xs text-forest-600">{new Date(`${cellMenu.date}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · you can add more rooms in the next step</p>
+              </div>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  disabled={!acts.checkIn}
+                  onClick={() => choose(() => openDesk('checkin', { roomIds: [cellMenu.roomId], checkInDate: cellMenu.date }))}
+                  className="min-h-[48px] px-4 rounded-2xl bg-blue-700 text-white font-bold text-sm flex items-center gap-2 disabled:bg-sand-200 disabled:text-forest-500"
+                >
+                  <LogIn className="w-4 h-4" /> Check in{!acts.checkIn && <span className="text-[11px] font-normal">(arrivals today only)</span>}
+                </button>
+                <button
+                  type="button"
+                  disabled={!acts.preBook}
+                  onClick={() => choose(() => openDesk('prebook', { roomIds: [cellMenu.roomId], checkInDate: cellMenu.date }))}
+                  className="min-h-[48px] px-4 rounded-2xl bg-emerald-700 text-white font-bold text-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  <CalendarCheck className="w-4 h-4" /> Pre-book
+                </button>
+                <button
+                  type="button"
+                  disabled={!acts.hold}
+                  onClick={() => choose(() => setHoldPrefill({ roomIds: [cellMenu.roomId], fromDate: cellMenu.date }))}
+                  className="min-h-[48px] px-4 rounded-2xl bg-amber-500 text-forest-950 font-bold text-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  <PauseCircle className="w-4 h-4" /> Hold
+                </button>
+              </div>
+              <button type="button" onClick={() => setCellMenu(null)} className="w-full py-2 text-xs font-bold text-forest-700">
+                Cancel
               </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Hold details: turn into a pre-booking or check-in, extend, or release */}
+      {selectedHold && (() => {
+        const live = roomBlocks.find((h) => h.id === selectedHold.id) || selectedHold;
+        const group = holdGroup(live);
+        const active = blockIsActive(live);
+        const roomsText = group.map((h) => h.roomNumber).sort((a, b) => a - b).join(', ');
+        const prefillFromHold = (): DeskBookingPrefill => ({
+          roomIds: group.map((h) => h.roomId),
+          checkInDate: live.fromDate,
+          checkOutDate: live.toDate,
+          guestName: live.guestName,
+          guestPhone: live.guestPhone,
+          fromHolds: group,
+        });
+        const close = () => setSelectedHold(null);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4" onClick={close}>
+            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 text-xs" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Hold">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-serif font-bold text-base text-[#142820] flex items-center gap-2">
+                    <PauseCircle className="w-4 h-4 text-amber-600" /> Hold · room{group.length > 1 ? 's' : ''} {roomsText}
+                  </h3>
+                  <p className="text-forest-600">
+                    {live.fromDate} → {live.toDate} · {holdLabel(live)}
+                  </p>
+                </div>
+                <button type="button" onClick={close} aria-label="Close" className="w-8 h-8 rounded-full bg-sand-100 flex items-center justify-center">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className={`rounded-xl p-3 border ${active ? 'bg-amber-50 border-amber-200' : 'bg-sand-50 border-sand-200'}`}>
+                <p className="font-bold">{live.expiresAt ? describeHoldExpiry(live.expiresAt) : 'Until released'}</p>
+                {live.guestPhone && <p>Guest mobile: {live.guestPhone}</p>}
+                <p className="text-forest-600">Set by {live.createdByName || 'staff'}{live.endedEarlyAt ? ` · ended early by ${live.endedEarlyByName}` : ''}</p>
+                {!active && <p className="text-amber-800 mt-1">This hold has lapsed: the room{group.length > 1 ? 's are' : ' is'} back on sale. Extend it to keep {group.length > 1 ? 'them' : 'it'}.</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={live.fromDate !== todayInIST()}
+                  onClick={() => {
+                    close();
+                    openDesk('checkin', prefillFromHold());
+                  }}
+                  className="min-h-[44px] rounded-xl bg-blue-700 text-white font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
+                  title={live.fromDate !== todayInIST() ? 'Check-in is for arrivals today' : undefined}
+                >
+                  <LogIn className="w-4 h-4" /> Check in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    openDesk('prebook', prefillFromHold());
+                  }}
+                  className="min-h-[44px] rounded-xl bg-emerald-700 text-white font-bold flex items-center justify-center gap-1.5"
+                >
+                  <CalendarCheck className="w-4 h-4" /> Pre-book
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold">Keep for the next</span>
+                {[2, 6, 24].map((h) => (
+                  <button key={h} type="button" onClick={() => extendRoomHold(live.id, { hours: h, group: true })} className="px-3 py-1.5 rounded-lg border border-sand-300 font-bold">
+                    {h} h
+                  </button>
+                ))}
+                {live.expiresAt && (
+                  <button type="button" onClick={() => extendRoomHold(live.id, { untilReleased: true, group: true })} className="px-3 py-1.5 rounded-lg border border-sand-300 font-bold">
+                    until released
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await releaseRoomHold(live.id, true)) close();
+                }}
+                className="w-full min-h-[44px] rounded-xl border border-rose-300 text-rose-700 font-bold"
+              >
+                Release hold{group.length > 1 ? ` on all ${group.length} rooms` : ''}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Guest Drawer / Profile & Preferences Modal */}
       {selectedBooking && (
@@ -704,8 +801,18 @@ export default function TapeChart() {
                     {selectedBooking.guest.fullName}
                   </h3>
                   <span className="text-xs text-sand-300">
-                    Booking #{selectedBooking.bookingReference} • {selectedBooking.roomName}
+                    Booking #{selectedBooking.bookingReference} • Room {selectedBooking.roomNumber}
                   </span>
+                  {selectedBooking.groupId && (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-300">
+                      <Users className="w-3.5 h-3.5" /> Group: rooms{' '}
+                      {bookings
+                        .filter((b) => b.groupId === selectedBooking.groupId && b.bookingStatus !== 'cancelled')
+                        .map((b) => b.roomNumber)
+                        .sort((a, b) => a - b)
+                        .join(', ')}
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -753,21 +860,11 @@ export default function TapeChart() {
                       <span className="text-[11px] text-forest-600">Check-in opens on {selectedBooking.checkInDate}</span>
                     ) : (
                     <button
-                      onClick={() => {
-                        checkInRoom(selectedBooking.id, {
-                          id: currentUser?.id || 'staff-1',
-                          name: currentUser?.fullName || 'Duty Manager',
-                        });
-                        setSelectedBooking({
-                          ...selectedBooking,
-                          tapeStatus: 'checked_in',
-                          bookingStatus: 'checked_in',
-                        });
-                      }}
+                      onClick={() => setCheckInFor(selectedBooking)}
                       className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
                     >
                       <LogIn className="w-4 h-4" />
-                      <span>Check-In Guest</span>
+                      <span>{selectedBooking.groupId ? 'Check in group' : 'Check in'}</span>
                     </button>
                     )
                   ) : (
@@ -1360,16 +1457,13 @@ export default function TapeChart() {
         </div>
       )}
 
-      {/* Manual Booking & Room Assignment Modal */}
-      <ManualBookingModal
-        isOpen={isManualBookingModalOpen}
-        onClose={() => setIsManualBookingModalOpen(false)}
-        defaultRoomId={manualBookingDefaultRoomId}
-        defaultDate={manualBookingDefaultDate}
-        onBookingCreated={(newBk) => {
-          setSelectedBooking(newBk);
-          openGuestDrawer(newBk);
-        }}
+      {/* The three desk flows */}
+      <DeskBookingModal mode={deskMode || 'prebook'} isOpen={deskMode !== null} onClose={() => setDeskMode(null)} prefill={deskPrefill} />
+      <HoldModal isOpen={holdPrefill !== null} onClose={() => setHoldPrefill(null)} prefill={holdPrefill || undefined} />
+      <CheckInModal
+        booking={checkInFor}
+        onClose={() => setCheckInFor(null)}
+        onDone={() => setSelectedBooking(null)}
       />
 
       {/* Guest Checkout Modal */}

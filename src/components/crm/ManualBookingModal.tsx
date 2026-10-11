@@ -1001,7 +1001,6 @@ Wishing you a serene and memorable Himalayan stay!
                   >
                     <option value="checked_in">Checked-In (In-House Now)</option>
                     <option value="confirmed">Confirmed (Guaranteed)</option>
-                    <option value="hold">Hold (Tentative reservation)</option>
                   </select>
                 </div>
 

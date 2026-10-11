@@ -42,21 +42,36 @@ export async function cancelBooking(
     { role: staff.role }
   );
 
+  const why = `${input.noShow ? 'No-show' : 'Cancelled'}: ${reason.slice(0, 200)}`;
+  const folio = await voidRoomLinesForCancelled(bookingId, why, actor, staff.fullName, { action: input.noShow ? 'no_show' : 'cancel', ip });
+  await audit({ actor, action: input.noShow ? 'no_show' : 'cancel', entity: 'booking', entityId: bookingId, before, after, ip });
+  return { booking: after, folio };
+}
+
+/**
+ * Voids the room lines on a cancelled booking's bill (with the reason). Payments are kept, so an
+ * advance shows as a credit owed. A bill with no money left on it becomes void.
+ */
+export async function voidRoomLinesForCancelled(
+  bookingId: string,
+  why: string,
+  actor: string,
+  byName: string,
+  opts: { action?: string; ip?: string } = {}
+): Promise<GuestFolio | null> {
   const gst = await getGstConfig();
-  const folio = await withFolioLock(bookingId, async (tx, current) => {
+  const now = new Date().toISOString();
+  return withFolioLock(bookingId, async (tx, current) => {
     if (!current) return null;
-    const why = `${input.noShow ? 'No-show' : 'Cancelled'}: ${reason.slice(0, 200)}`;
     const charges = current.charges.map((c) =>
       c.category === 'room_tariff' && c.chargeStatus !== 'void'
-        ? { ...c, chargeStatus: 'void' as const, voidReason: why, voidedAt: now, voidedByName: staff.fullName }
+        ? { ...c, chargeStatus: 'void' as const, voidReason: why.slice(0, 300), voidedAt: now, voidedByName: byName }
         : c
     );
     const hasMoney = current.payments.some((p) => !p.voidedAt) || charges.some((c) => c.chargeStatus === 'posted');
     const next = recalculateFolioTotals({ ...current, status: hasMoney ? 'open' : 'void' }, charges, current.payments, gst);
     await upsertRecord('folios', next, actor, tx);
-    await audit({ actor, action: input.noShow ? 'no_show' : 'cancel', entity: 'folios', entityId: current.id, before: current, after: next, ip }, tx);
+    await audit({ actor, action: opts.action || 'cancel', entity: 'folios', entityId: current.id, before: current, after: next, ip: opts.ip }, tx);
     return next;
   });
-  await audit({ actor, action: input.noShow ? 'no_show' : 'cancel', entity: 'booking', entityId: bookingId, before, after, ip });
-  return { booking: after, folio };
 }

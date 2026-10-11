@@ -3,6 +3,7 @@ export type StaffRole = 'admin' | 'manager' | 'kitchen_staff';
 export type RoomCategoryCode =
   | 'deluxe_mountain'
   | 'deluxe_forest'
+  | 'deluxe_valley'
   | 'premium_suite'
   | 'luxury_suite'
   | 'cottage'
@@ -154,6 +155,16 @@ export interface CRMBooking {
   sourceBookingId?: string;
   /** GST on the room charges, from the shared GST rules. */
   gstAmount?: number;
+  /** Desk hold: when it stops taking the room (ISO time, server-set). Holds made before expiry existed have none. */
+  holdExpiresAt?: string;
+  /** How the stay was made at the desk: walk-in check-in or pre-booking. */
+  deskFlow?: 'walk_in' | 'pre_booking';
+  /** The room hold this booking was made from (the hold is used up when the booking is saved). */
+  fromHoldBlockId?: string;
+  /** Group booking: rooms booked together for one guest share this id. */
+  groupId?: string;
+  /** Number of rooms in the group when it was booked. */
+  groupSize?: number;
 }
 
 export interface FolioCharge {
@@ -462,7 +473,7 @@ export interface ManagerActivityLog {
   id: string;
   managerId: string;
   managerName: string;
-  action: 'check_in' | 'check_out' | 'payment_collection' | 'order_approval' | 'order_rejection' | 'advance_received';
+  action: 'check_in' | 'check_out' | 'room_held' | 'hold_released' | 'payment_collection' | 'order_approval' | 'order_rejection' | 'advance_received';
   bookingId?: string;
   bookingReference?: string;
   roomNumber?: number;
@@ -486,7 +497,12 @@ export interface StaffAlert {
   acknowledged: boolean;
 }
 
-/** A room taken out of service for specific nights (repairs, deep clean, owner use). */
+/**
+ * A room HOLD: the room is kept off sale for some nights, for a guest who has not confirmed
+ * yet (name/phone optional) or for repairs and owner use. It can release itself at
+ * `expiresAt`; without one it lasts until released. Rooms held together share a groupId.
+ * (Stored in the roomBlocks collection.)
+ */
 export interface RoomBlock {
   id: string;
   roomId: string;
@@ -496,6 +512,18 @@ export interface RoomBlock {
   /** Day after the last blocked night (like a check-out date). */
   toDate: string;
   reason: string;
+  /** The hold releases itself at this time (ISO). None = until released. */
+  expiresAt?: string;
+  /** Who the room is kept for (optional). */
+  guestName?: string;
+  guestPhone?: string;
+  /** Rooms held together share this id. */
+  groupId?: string;
   createdByName?: string;
+  createdById?: string;
+  createdByRole?: StaffRole;
   createdAt: string;
+  /** Set when a block that had started was ended early (toDate moved to that day). */
+  endedEarlyAt?: string;
+  endedEarlyByName?: string;
 }

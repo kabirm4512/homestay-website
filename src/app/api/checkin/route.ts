@@ -19,6 +19,7 @@ import { getSql } from '@/lib/server/db';
 import { persistDataUrl } from '@/lib/server/repos/files';
 import { raiseStaffAlert } from '@/lib/server/alerts';
 import { audit } from '@/lib/server/audit';
+import { checkInBooking } from '@/lib/server/tape-actions';
 import { normalizePhone } from '@/lib/phone';
 import { isCalendarDate, nightsBetween, todayInIST, tomorrowInIST } from '@/lib/tariff-calculator';
 import type { CRMBooking, PhysicalRoom, RoomTapeStatus, HousekeepingStatus } from '@/types/crm';
@@ -207,20 +208,23 @@ export const POST = handler('checkin.post', async (request: Request) => {
       });
       return ok({ room: after });
     }
+    if (body.action === 'check_in') {
+      // One check-in path for every screen: same date, room, in-house and ID rules.
+      if (!body.bookingId) throw new HttpError(404, 'Booking not found.');
+      const res = await checkInBooking(body.bookingId, {}, staff, clientIp(request));
+      return ok({ booking: res.booking });
+    }
     const booking = body.bookingId ? await getCrmBooking(body.bookingId) : null;
     if (!booking) throw new HttpError(404, 'Booking not found.');
     const now = new Date().toISOString();
-    const next: CRMBooking =
-      body.action === 'check_in'
-        ? { ...booking, bookingStatus: 'checked_in', tapeStatus: 'checked_in', checkedInAt: booking.checkedInAt || now, checkedInByManagerId: staff.id, checkedInByManagerName: staff.fullName }
-        : { ...booking, bookingStatus: 'checked_out', tapeStatus: 'available', checkedOutAt: now, checkedOutByManagerId: staff.id, checkedOutByManagerName: staff.fullName };
+    const next: CRMBooking = { ...booking, bookingStatus: 'checked_out', tapeStatus: 'available', checkedOutAt: now, checkedOutByManagerId: staff.id, checkedOutByManagerName: staff.fullName };
     const { after } = await upsertCrmBooking(next, actor, { role: staff.role });
     const room = await findPhysicalRoom({ id: booking.roomId });
     if (room) {
       await upsertPhysicalRoom({
         ...room,
-        currentStatus: body.action === 'check_in' ? 'checked_in' : 'available',
-        housekeeping: body.action === 'check_out' ? 'deep_clean_turnover' : room.housekeeping,
+        currentStatus: 'available',
+        housekeeping: 'deep_clean_turnover',
       });
     }
     await audit({ actor, action: body.action, entity: 'booking', entityId: booking.id, before: booking, after, ip: clientIp(request) });

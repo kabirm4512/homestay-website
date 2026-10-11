@@ -168,6 +168,12 @@ interface CRMContextType {
     sourceBookingId?: string;
     childAges?: number[];
     pricedExtras?: { extraAdultsCount: number; extraAdultsCharge: number; extraChildrenCount: number; extraChildrenCharge: number };
+    deskFlow?: 'walk_in' | 'pre_booking';
+    groupId?: string;
+    groupSize?: number;
+    guestId?: string;
+    fromHoldBlockId?: string;
+    silent?: boolean;
     guest: {
       fullName: string;
       phone: string;
@@ -194,10 +200,16 @@ interface CRMContextType {
   cancelBooking: (bookingId: string, reason: string, noShow?: boolean) => Promise<boolean>;
   /** Website requests: record a signed advance before a room is assigned. */
   recordWebAdvance: (webBookingId: string, payment: { amount: number; paymentMethod: PaymentMethod; transactionReference?: string; signOffConfirmed: boolean }) => Promise<boolean>;
-  /** Dated room blocks (repairs etc.). */
+  /** Room holds (rooms kept off sale for some nights; stored as roomBlocks). */
   roomBlocks: RoomBlock[];
-  addRoomBlock: (block: { roomId: string; fromDate: string; toDate: string; reason: string }) => void;
-  removeRoomBlock: (blockId: string) => void;
+  /** Hold one or more rooms (all or nothing). releaseAfterHours null = until released. */
+  addRoomHold: (hold: { roomIds: string[]; fromDate: string; toDate: string; reason?: string; guestName?: string; guestPhone?: string; releaseAfterHours: number | null }) => Promise<RoomBlock[] | null>;
+  extendRoomHold: (holdId: string, change: { hours?: number; untilReleased?: boolean; group?: boolean }) => Promise<boolean>;
+  releaseRoomHold: (holdId: string, group?: boolean) => Promise<boolean>;
+  /** Check-in through the server's check-in rules (date, room, in-house guest, ID). */
+  checkInBooking: (bookingId: string, details?: { idType?: string; idNumber?: string; idDocumentUrl?: string; idDocumentBackUrl?: string; adultsCount?: number; childrenCount?: number }) => Promise<boolean>;
+  /** Can all these rooms be booked for these dates? Returns one message per problem (empty = fine). */
+  checkGroupRooms: (input: { roomIds: string[]; checkInDate: string; checkOutDate: string; fromHoldIds?: string[]; checkInNow?: boolean }) => Promise<{ roomId: string; message: string }[] | null>;
   updateBookingGuestDetails: (
     bookingId: string,
     guestUpdates: Partial<Guest>,
@@ -958,28 +970,60 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const addRoomBlock = (block: { roomId: string; fromDate: string; toDate: string; reason: string }) => {
-    const room = rooms.find((r) => r.id === block.roomId);
-    const record: RoomBlock = { id: `blk-${newId()}`, roomNumber: room?.roomNumber || 0, createdAt: new Date().toISOString(), createdByName: currentUser?.fullName, ...block };
-    setRoomBlocks((prev) => {
-      const updated = [record, ...prev];
-      try {
-        queueSync('roomBlocks', prev, updated);
-      } catch {}
-      return updated;
-    });
-    showToast(`Room ${room?.roomNumber || ''} blocked ${block.fromDate} → ${block.toDate}.`);
+  const requestJson = async (method: 'PATCH' | 'DELETE', url: string, body?: unknown): Promise<{ ok: boolean; json: any }> => {
+    try {
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Could not save. Please try again.', 'error');
+        return { ok: false, json };
+      }
+      return { ok: true, json };
+    } catch {
+      showToast('You appear to be offline. Nothing was changed.', 'error');
+      return { ok: false, json: null };
+    }
   };
 
-  const removeRoomBlock = (blockId: string) => {
-    setRoomBlocks((prev) => {
-      const updated = prev.filter((b) => b.id !== blockId);
-      try {
-        queueSync('roomBlocks', prev, updated);
-      } catch {}
-      return updated;
-    });
-    showToast('Room block removed.');
+  const addRoomHold: CRMContextType['addRoomHold'] = async (hold) => {
+    const { ok, json } = await postJson('/api/room-holds', hold);
+    if (!ok) return null;
+    const saved: RoomBlock[] = json.holds || [];
+    for (const h of saved) applyServerRecord('roomBlocks', h.id, h);
+    showToast(`Room${saved.length > 1 ? 's' : ''} ${saved.map((h) => h.roomNumber).join(', ')} on hold ${hold.fromDate} → ${hold.toDate}.`);
+    return saved;
+  };
+
+  const extendRoomHold: CRMContextType['extendRoomHold'] = async (holdId, change) => {
+    const { ok, json } = await requestJson('PATCH', `/api/room-holds/${encodeURIComponent(holdId)}`, change);
+    if (!ok) return false;
+    for (const h of (json.holds || []) as RoomBlock[]) applyServerRecord('roomBlocks', h.id, h);
+    showToast(change.untilReleased ? 'Hold kept until released.' : `Hold extended by ${change.hours} h.`);
+    return true;
+  };
+
+  const releaseRoomHold: CRMContextType['releaseRoomHold'] = async (holdId, group = false) => {
+    const { ok, json } = await requestJson('DELETE', `/api/room-holds/${encodeURIComponent(holdId)}${group ? '?group=1' : ''}`);
+    if (!ok) return false;
+    for (const id of (json.released || []) as string[]) applyServerRecord('roomBlocks', id, null, true);
+    for (const h of (json.ended || []) as RoomBlock[]) applyServerRecord('roomBlocks', h.id, h);
+    showToast('Hold released. The room is back on sale.');
+    return true;
+  };
+
+  const checkInBooking: CRMContextType['checkInBooking'] = async (bookingId, details = {}) => {
+    const { ok, json } = await postJson(`/api/bookings/${encodeURIComponent(bookingId)}/checkin`, details);
+    if (!ok) return false;
+    if (json.booking) applyServerRecord('crmBookings', json.booking.id, json.booking);
+    if (json.room) applyServerRecord('physicalRooms', json.room.id, json.room);
+    if (json.activityLog) applyServerRecord('activityLogs', json.activityLog.id, json.activityLog);
+    showToast(`Room ${json.booking?.roomNumber ?? ''} (${json.booking?.guest?.fullName || 'guest'}) checked in.`);
+    return true;
+  };
+
+  const checkGroupRooms: CRMContextType['checkGroupRooms'] = async (input) => {
+    const { ok, json } = await postJson('/api/bookings/group-check', input);
+    return ok ? (json.problems || []) : null;
   };
 
   // QR Food Order Creation
@@ -1348,53 +1392,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     reviewExpenseRequest(expenseId, { action: 'void', reason }, 'Expense voided. It no longer counts in totals.');
 
   // Check-In and Check-Out actions
-  const checkInRoom = (bookingId: string, managerInfo?: { id: string; name: string }) => {
-    const bk = bookings.find((b) => b.id === bookingId);
-    if (!bk) return;
-
-    const mgrId = managerInfo?.id || currentUser?.id || 'staff-1';
-    const mgrName = managerInfo?.name || currentUser?.fullName || 'Duty Manager';
-
-    setBookings((prev) => {
-      const updated = prev.map((b) =>
-        b.id === bookingId
-          ? {
-              ...b,
-              tapeStatus: 'checked_in' as const,
-              bookingStatus: 'checked_in' as const,
-              checkedInAt: new Date().toISOString(),
-              checkedInByManagerId: mgrId,
-              checkedInByManagerName: mgrName,
-            }
-          : b
-      );
-      try {
-        queueSync('crmBookings', prev, updated);
-      } catch {}
-      return updated;
-    });
-
-    setRooms((prev) => {
-      const updated = prev.map((r) => (r.id === bk.roomId ? { ...r, currentStatus: 'checked_in' as const } : r));
-      try {
-        queueSync('physicalRooms', prev, updated);
-      } catch {}
-      return updated;
-    });
-
-
-    logManagerActivity({
-      managerId: mgrId,
-      managerName: mgrName,
-      action: 'check_in',
-      bookingId: bk.id,
-      bookingReference: bk.bookingReference,
-      roomNumber: bk.roomNumber,
-      guestName: bk.guest.fullName,
-      notes: `Guest checked into Room ${bk.roomNumber}. In-room QR activated.`,
-    });
-
-    showToast(`Room ${bk.roomNumber} (${bk.guest.fullName}) checked in by ${mgrName}!`);
+  /** Check-in from any screen goes through the server's check-in rules (see checkInBooking). */
+  const checkInRoom = (bookingId: string, _managerInfo?: { id: string; name: string }) => {
+    void checkInBooking(bookingId);
   };
 
   const completeCheckoutWithSettlement = (
@@ -1572,6 +1572,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     sourceBookingId?: string;
     /** Ages of the children (free-child rule). */
     childAges?: number[];
+    /** Desk flow and group booking details. */
+    deskFlow?: 'walk_in' | 'pre_booking';
+    groupId?: string;
+    groupSize?: number;
+    /** Guest record shared by every room of a group. */
+    guestId?: string;
+    /** The hold this booking is made from (used up on save). */
+    fromHoldBlockId?: string;
+    /** No toast (group bookings show one summary). */
+    silent?: boolean;
     /** Extra-person charges exactly as the pricing engine worked them out (standard rates). */
     pricedExtras?: { extraAdultsCount: number; extraAdultsCharge: number; extraChildrenCount: number; extraChildrenCharge: number };
     guest: {
@@ -1601,7 +1611,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return null as unknown as CRMBooking;
     }
     const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const guestId = `guest-${uid()}`;
+    const guestId = bookingData.guestId || `guest-${uid()}`;
     const bookingId = `bk-${uid()}`;
     const existingRefs = bookings.map((b) => b.bookingReference);
     const bookingReference = generateUniversalBookingId(bookingData.checkInDate, existingRefs);
@@ -1686,6 +1696,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       advancePaymentMethod: bookingData.advancePaymentMethod,
       childAges: bookingData.childAges,
       checkedInAt: bookingData.status === 'checked_in' ? new Date().toISOString() : undefined,
+      checkedInByManagerId: bookingData.status === 'checked_in' ? currentUser?.id : undefined,
+      checkedInByManagerName: bookingData.status === 'checked_in' ? currentUser?.fullName : undefined,
+      ...(bookingData.deskFlow ? { deskFlow: bookingData.deskFlow } : {}),
+      ...(bookingData.groupId ? { groupId: bookingData.groupId, groupSize: bookingData.groupSize } : {}),
+      ...(bookingData.fromHoldBlockId ? { fromHoldBlockId: bookingData.fromHoldBlockId } : {}),
     };
 
     // Auto-create Folio with itemized stay charges
@@ -1787,6 +1802,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       gstConfig
     );
 
+    // A booking made from a hold uses the hold up (the server removes it on save)
+    if (bookingData.fromHoldBlockId) {
+      const holdId = bookingData.fromHoldBlockId;
+      setRoomBlocks((prev) => prev.filter((h) => h.id !== holdId));
+    }
+
     // Update state & persistence
     setBookings((prev) => {
       const updated = [newBooking, ...prev];
@@ -1806,16 +1827,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return updated;
     });
 
-    // If reservation is currently active, update physical room tape status
-    setRooms((prev) => {
-      const updated = prev.map((r) => (r.id === room.id ? { ...r, currentStatus: bookingData.status } : r));
-      try {
-        queueSync('physicalRooms', prev, updated);
-      } catch {}
-      return updated;
-    });
+    // Only a guest who is in the room now changes the room's status (occupancy comes from bookings)
+    if (bookingData.status === 'checked_in') {
+      setRooms((prev) => {
+        const updated = prev.map((r) => (r.id === room.id ? { ...r, currentStatus: 'checked_in' as const } : r));
+        try {
+          queueSync('physicalRooms', prev, updated);
+        } catch {}
+        return updated;
+      });
+    }
 
-    showToast(`Manual reservation ${bookingReference} created & assigned to Room ${room.roomNumber}!`);
+    if (!bookingData.silent) showToast(`Manual reservation ${bookingReference} created & assigned to Room ${room.roomNumber}!`);
     return newBooking;
   };
 
@@ -2309,8 +2332,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         cancelBooking,
         recordWebAdvance,
         roomBlocks,
-        addRoomBlock,
-        removeRoomBlock,
+        addRoomHold,
+        extendRoomHold,
+        releaseRoomHold,
+        checkInBooking,
+        checkGroupRooms,
         addExpense,
         approveExpense,
         voidExpense,

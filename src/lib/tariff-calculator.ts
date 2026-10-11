@@ -175,14 +175,14 @@ export function tomorrowInIST(now: Date = new Date()): string {
 export const PHYSICAL_TO_CATEGORY_MAP: Record<string, string> = {
   'room-101': 'room-cat-1',
   'room-102': 'room-cat-1',
-  'room-103': 'room-cat-1',
+  'room-103': 'room-cat-4',
   'room-104': 'room-cat-2',
   'room-201': 'room-cat-3',
   'room-202': 'room-cat-3',
   'room-203': 'room-cat-3',
   '101': 'room-cat-1',
   '102': 'room-cat-1',
-  '103': 'room-cat-1',
+  '103': 'room-cat-4',
   '104': 'room-cat-2',
   '201': 'room-cat-3',
   '202': 'room-cat-3',
@@ -190,7 +190,7 @@ export const PHYSICAL_TO_CATEGORY_MAP: Record<string, string> = {
   // Legacy sequential physical-room IDs
   'room-1': 'room-cat-1',
   'room-2': 'room-cat-1',
-  'room-3': 'room-cat-1',
+  'room-3': 'room-cat-4',
   'room-4': 'room-cat-2',
   'room-5': 'room-cat-3',
   'room-6': 'room-cat-3',
@@ -199,6 +199,7 @@ export const PHYSICAL_TO_CATEGORY_MAP: Record<string, string> = {
   'cat-1': 'room-cat-1',
   'cat-2': 'room-cat-2',
   'cat-3': 'room-cat-3',
+  'cat-4': 'room-cat-4',
 };
 
 /**
@@ -210,9 +211,10 @@ export const CATEGORY_CAPACITIES: Record<string, {
   baseAdults: number;
   totalInventory: number;
 }> = {
-  'room-cat-1': { maxAdults: 3, maxChildren: 2, baseAdults: 2, totalInventory: 3 },
+  'room-cat-1': { maxAdults: 3, maxChildren: 2, baseAdults: 2, totalInventory: 2 },
   'room-cat-2': { maxAdults: 2, maxChildren: 1, baseAdults: 2, totalInventory: 1 },
   'room-cat-3': { maxAdults: 4, maxChildren: 2, baseAdults: 2, totalInventory: 3 },
+  'room-cat-4': { maxAdults: 3, maxChildren: 2, baseAdults: 2, totalInventory: 1 },
 };
 
 /**
@@ -656,6 +658,8 @@ export function suggestBestRoomCombinations(params: {
         fitReason += ' with fireplace & 180° observation balcony';
       } else if (catId === 'room-cat-1') {
         fitReason += ' with private mountain sunrise balcony';
+      } else if (catId === 'room-cat-4') {
+        fitReason += ' with private valley-view balcony';
       } else if (catId === 'room-cat-2') {
         fitReason += ' in peaceful pine canopy';
       }

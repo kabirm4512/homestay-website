@@ -30,6 +30,20 @@ export const INITIAL_ROOM_CATEGORIES: RoomCategory[] = [
     amenities: ['Private Mountain Balcony', 'Sunrise Vista', 'Starlink Wi-Fi', 'En-suite Rain Shower', 'Heated Blanket', 'Artisanal Tea Station'],
   },
   {
+    id: 'cat-4',
+    code: 'deluxe_valley',
+    name: 'Deluxe Valley View with Balcony',
+    description: 'First-floor balcony room looking out over the green valley, king bed and heated blankets.',
+    basePriceWeekday: 4500,
+    basePriceWeekend: 5200,
+    baseAdults: 2,
+    maxAdults: 3,
+    maxChildren: 2,
+    extraAdultCharge: 1200,
+    extraChildCharge: 600,
+    amenities: ['Private Valley-View Balcony', 'Starlink Wi-Fi', 'En-suite Rain Shower', 'Heated Blanket', 'Artisanal Tea Station'],
+  },
+  {
     id: 'cat-2',
     code: 'deluxe_forest',
     name: 'Deluxe Forest View with Balcony',
@@ -89,10 +103,10 @@ export const INITIAL_PHYSICAL_ROOMS: PhysicalRoom[] = [
   {
     id: 'room-103',
     roomNumber: 103,
-    name: 'Room 103 - Himalayan Mist Balcony',
-    categoryId: 'cat-1',
-    categoryCode: 'deluxe_mountain',
-    categoryName: 'Deluxe Mountain View with Balcony',
+    name: 'Room 103 - Valley View Balcony',
+    categoryId: 'cat-4',
+    categoryCode: 'deluxe_valley',
+    categoryName: 'Deluxe Valley View with Balcony',
     floorLevel: 1,
     currentStatus: 'available',
     housekeeping: 'clean',
@@ -1480,6 +1494,14 @@ export const INITIAL_ROOM_SEASONAL_TARIFFS: Record<string, RoomSeasonalTariffs> 
     extraAdultRate: 1200,
     extraChildRate: 600,
   },
+  'room-cat-4': {
+    regular: { EP: 4500, CP: 5200, MAP: 6200, AP: 7200 },
+    season: { EP: 5800, CP: 6600, MAP: 7800, AP: 8900 },
+    offSeason: { EP: 3800, CP: 4300, MAP: 5100, AP: 5900 },
+    weekendSurchargePercent: 10,
+    extraAdultRate: 1200,
+    extraChildRate: 600,
+  },
   'room-cat-2': {
     regular: { EP: 4200, CP: 4800, MAP: 5800, AP: 6800 },
     season: { EP: 5400, CP: 6100, MAP: 7200, AP: 8300 },
@@ -1497,7 +1519,7 @@ export const INITIAL_ROOM_SEASONAL_TARIFFS: Record<string, RoomSeasonalTariffs> 
     extraChildRate: 750,
   },
 
-  // Deluxe Mountain View with Balcony (Rooms 101, 102, 103)
+  // Deluxe Mountain View with Balcony (Rooms 101, 102); room 103 is Valley View (room-cat-4)
   'room-101': {
     regular: { EP: 4500, CP: 5200, MAP: 6200, AP: 7200 },
     season: { EP: 5800, CP: 6600, MAP: 7800, AP: 8900 },
