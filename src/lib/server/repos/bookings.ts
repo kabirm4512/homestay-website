@@ -613,7 +613,9 @@ export async function findActiveBookingForRoom(roomId: string): Promise<CRMBooki
     select * from pms.bookings
     where kind = 'crm' and physical_room_id = ${roomId}
       and (
-        (status = 'checked_in' and check_out >= ${today})
+        -- A checked-in guest is in the room until the desk checks them out, even past their
+        -- check-out date (late departure, or the date was not updated).
+        status = 'checked_in'
         or (status = 'confirmed' and check_in = ${today})
         or (status = 'hold' and check_in = ${today} and (hold_expires_at is null or hold_expires_at > now()))
       )

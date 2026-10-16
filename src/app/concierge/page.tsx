@@ -326,6 +326,8 @@ function ConciergeContent() {
   const [showQRHub, setShowQRHub] = useState(false);
   const [qrHubTab, setQrHubTab] = useState<'rooms' | 'wifi'>('rooms');
   const [showRoomCheckoutModal, setShowRoomCheckoutModal] = useState(false);
+  // Bottom sheet with the dining tray (opened from the fixed checkout bar)
+  const [showTraySheet, setShowTraySheet] = useState(false);
 
   // Travel Add-on Booking State
   const [serviceType, setServiceType] = useState<'point_to_point' | 'rental'>('point_to_point');
@@ -447,6 +449,8 @@ function ConciergeContent() {
     setLastPlacedOrder(newOrder);
     setCart({});
     setCookingInstructions('');
+    setShowTraySheet(false);
+    setTimeout(() => document.getElementById('order-confirmation')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
     if (selectedRoomNumber) void fetchRoomStatusFromServer(selectedRoomNumber);
   };
 
@@ -594,7 +598,7 @@ function ConciergeContent() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#F3F7FF] text-[#0B1733] flex flex-col font-sans w-full max-w-full overflow-x-hidden ${cartItemCount > 0 ? 'pb-28 sm:pb-32' : 'pb-12'}`}>
+    <div className={`min-h-screen bg-[#F3F7FF] text-[#0B1733] flex flex-col font-sans w-full max-w-full overflow-x-hidden ${currentRoom && isCheckedIn ? 'pb-32' : 'pb-12'}`}>
       {/* 1. Global Concierge Top Bar */}
       <header className="sticky top-0 z-40 bg-[#0B1733] text-white border-b border-[#1E2D4A] shadow-md w-full">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
@@ -1067,71 +1071,6 @@ function ConciergeContent() {
                 })}
               </div>
 
-              {/* Sticky / Bottom Order Tray Bar */}
-              {cartItemCount > 0 && (
-                <div id="dining-tray" className="scroll-mt-24 bg-white rounded-3xl p-5 border-2 border-forest-900 shadow-xl space-y-4 animate-in slide-in-from-bottom-2 duration-200">
-                  <div className="flex items-center justify-between border-b border-sand-200 pb-3">
-                    <div className="flex items-center space-x-2">
-                      <ShoppingBag className="w-5 h-5 text-amber-600" />
-                      <h4 className="font-serif font-bold text-sm text-forest-950">
-                        Your In-Room Dining Tray ({cartItemCount} items)
-                      </h4>
-                    </div>
-                    <span className="font-mono font-bold text-base text-forest-950">
-                      ₹{cartSubtotal}
-                    </span>
-                  </div>
-
-                  {/* Tray Items */}
-                  <div className="divide-y divide-sand-100 text-xs">
-                    {cartItemsDetailed.map(({ item, quantity, lineTotal }) => (
-                      <div key={item.id} className="py-2 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-forest-950">
-                            {quantity}x {item.name}
-                          </span>
-                        </div>
-                        <span className="font-mono font-semibold text-forest-800">
-                          ₹{lineTotal}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Special Cooking Instructions */}
-                  <div>
-                    <label className="text-[11px] font-bold text-forest-800 block mb-1">
-                      Chef Cooking Instructions (Dietary / Spice level)
-                    </label>
-                    <input
-                      type="text"
-                      value={cookingInstructions}
-                      onChange={(e) => setCookingInstructions(e.target.value)}
-                      placeholder="e.g., Strict Jain, less salt, extra ginger"
-                      className="w-full text-xs p-2.5 rounded-xl border border-sand-300 bg-sand-50"
-                    />
-                  </div>
-
-                  {/* Checkout Button */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                    <div className="text-xs text-forest-700">
-                      <p className="font-semibold">Billed to Folio: #{activeFolio?.folioNumber}</p>
-                      <p className="text-[11px] text-gray-500">
-                        Charge posts as &quot;Pending&quot; until served
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleCheckoutFoodOrder}
-                      disabled={isSubmittingOrder}
-                      className="min-h-[44px] px-6 py-3 bg-forest-900 hover:bg-forest-800 active:scale-95 text-white font-bold text-xs rounded-2xl shadow-lg transition-all flex items-center justify-center space-x-2"
-                    >
-                      <Send className="w-4 h-4 text-amber-300" />
-                      <span>Confirm Order & Post to Room</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -1559,6 +1498,9 @@ function ConciergeContent() {
 
           {/* FOOD ORDER CONFIRMATION MODAL & WHATSAPP ALERT TRIGGER */}
           {lastPlacedOrder && (
+            <div id="order-confirmation" className="scroll-mt-24" />
+          )}
+          {lastPlacedOrder && (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-sand-200 text-forest-950 animate-in fade-in zoom-in-95 duration-150 text-center space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
@@ -1681,50 +1623,189 @@ function ConciergeContent() {
         </main>
       )}
 
-      {/* 4. Fixed Bottom Dining Checkout Bar: Only shown when items are in cart */}
-      {currentRoom && isCheckedIn && cartItemCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-sand-300 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] py-3 px-4 sm:px-6 safe-area-pb animate-in slide-in-from-bottom duration-200">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-            <div className="flex items-center space-x-3 min-w-0">
-              <div className="relative w-10 h-10 rounded-xl bg-forest-900 text-amber-300 flex items-center justify-center shrink-0 shadow-sm">
-                <ShoppingBag className="w-5 h-5" />
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-400 text-forest-950 font-black text-[10px] flex items-center justify-center shadow-xs">
-                  {cartItemCount}
+      {/* 4. Fixed bottom checkout bar (always visible to an in-house guest).
+             With items in the tray: total + "Review & order" (opens the tray sheet).
+             Empty tray: the running bill + "Check out" (opens the departure sheet). */}
+      {currentRoom && isCheckedIn && !showTraySheet && !showRoomCheckoutModal && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-sand-300 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {cartItemCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowTraySheet(true)}
+              className="max-w-4xl mx-auto w-full flex items-center justify-between gap-3 bg-forest-900 hover:bg-forest-800 active:scale-[0.99] text-white rounded-2xl pl-3 pr-4 py-2.5 shadow-lg transition-all cursor-pointer"
+              aria-label={`Review tray: ${cartItemCount} items, ₹${cartSubtotal}`}
+            >
+              <span className="flex items-center gap-3 min-w-0">
+                <span className="relative w-10 h-10 rounded-xl bg-white/10 text-amber-300 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-5 h-5" />
+                  <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-forest-950 font-black text-[10px] flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
                 </span>
-              </div>
+                <span className="text-left min-w-0">
+                  <span className="block text-base font-bold leading-tight">₹{cartSubtotal.toLocaleString('en-IN')}</span>
+                  <span className="block text-[11px] text-white/70 truncate">
+                    {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} · added to your room bill
+                  </span>
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5 text-sm font-bold shrink-0">
+                Review &amp; order
+                <ArrowRight className="w-4 h-4 text-amber-300" />
+              </span>
+            </button>
+          ) : (
+            <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-base font-serif font-bold text-forest-950 leading-tight">
-                  ₹{cartSubtotal.toLocaleString('en-IN')}
+                <div className="text-[11px] text-forest-600 font-medium">
+                  Room {currentRoom.roomNumber}
+                  {activeBooking?.checkOutDate ? ` · check-out ${activeBooking.checkOutDate}` : ''}
                 </div>
-                <div className="text-[11px] text-forest-700 truncate font-medium">
-                  {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} in Dining Tray
+                <div className="text-base font-bold text-forest-950 leading-tight">
+                  {activeFolio
+                    ? activeFolio.balanceDue > 0
+                      ? `₹${activeFolio.balanceDue.toLocaleString('en-IN')} due`
+                      : 'Bill settled'
+                    : 'Your stay bill'}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowRoomCheckoutModal(true)}
+                className="min-h-[44px] px-5 py-2.5 bg-[#FE6E00] hover:bg-[#EA580C] active:scale-95 text-white text-sm font-bold rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+              >
+                Check out
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4b. Dining tray bottom sheet: edit quantities, add a note and place the order */}
+      {currentRoom && isCheckedIn && showTraySheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <button
+            type="button"
+            aria-label="Close tray"
+            onClick={() => setShowTraySheet(false)}
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px] cursor-default"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your dining tray"
+            className="relative w-full max-w-xl bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[88vh] animate-in slide-in-from-bottom duration-200"
+          >
+            <div className="pt-2.5 pb-1 flex justify-center">
+              <span className="w-10 h-1.5 rounded-full bg-sand-300" />
+            </div>
+            <div className="px-5 pb-3 flex items-center justify-between border-b border-sand-200">
+              <div>
+                <h3 className="font-bold text-lg text-forest-950" style={{ fontFamily: 'var(--font-outfit), sans-serif' }}>
+                  Your dining tray
+                </h3>
+                <p className="text-[11px] text-forest-600">Delivered to Room {currentRoom.roomNumber} · added to your room bill</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTraySheet(false)}
+                className="p-2 rounded-full hover:bg-sand-100 text-gray-500 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                setActiveTab('dining');
-                setTimeout(() => {
-                  const trayEl = document.getElementById('dining-tray');
-                  if (trayEl) {
-                    trayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }, 50);
-              }}
-              className="min-h-[44px] px-5 py-2.5 bg-forest-900 hover:bg-forest-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
-            >
-              <span>Checkout Tray</span>
-              <ArrowRight className="w-4 h-4 text-amber-300" />
-            </button>
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+              {cartItemsDetailed.length === 0 ? (
+                <p className="text-sm text-forest-600 py-8 text-center">Your tray is empty.</p>
+              ) : (
+                <ul className="divide-y divide-sand-100">
+                  {cartItemsDetailed.map(({ item, quantity, lineTotal }) => (
+                    <li key={item.id} className="py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-forest-950 truncate">{item.name}</p>
+                        <p className="text-[11px] text-forest-600">₹{item.price} each</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center bg-sand-100 rounded-xl p-1">
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.id)}
+                            className="w-9 h-9 rounded-lg bg-white text-forest-900 flex items-center justify-center shadow-xs"
+                            aria-label={`One less ${item.name}`}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="w-8 text-center font-bold text-sm font-mono">{quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(item.id)}
+                            className="w-9 h-9 rounded-lg bg-forest-900 text-white flex items-center justify-center shadow-xs"
+                            aria-label={`One more ${item.name}`}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <span className="w-16 text-right font-mono font-semibold text-sm text-forest-900">₹{lineTotal}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div>
+                <label htmlFor="chef-note" className="text-[11px] font-bold text-forest-800 block mb-1">
+                  Note for the chef (optional)
+                </label>
+                <input
+                  id="chef-note"
+                  type="text"
+                  value={cookingInstructions}
+                  onChange={(e) => setCookingInstructions(e.target.value)}
+                  placeholder="e.g. less spicy, no onion, Jain"
+                  className="w-full text-sm p-3 rounded-xl border border-sand-300 bg-sand-50"
+                />
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Your order goes to the manager for a quick confirmation, then to the kitchen. It is added to your room bill
+                {activeFolio?.folioNumber ? ` (#${activeFolio.folioNumber})` : ''} once confirmed.
+              </p>
+            </div>
+
+            <div className="border-t border-sand-200 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white rounded-b-none">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-forest-700">Total</span>
+                <span className="text-xl font-bold text-forest-950 font-mono">₹{cartSubtotal.toLocaleString('en-IN')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckoutFoodOrder}
+                disabled={isSubmittingOrder || cartItemsDetailed.length === 0}
+                className="w-full min-h-[52px] bg-forest-900 hover:bg-forest-800 active:scale-[0.99] disabled:opacity-60 text-white font-bold text-base rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                {isSubmittingOrder ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Placing order…
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 text-amber-300" />
+                    Place order · ₹{cartSubtotal.toLocaleString('en-IN')}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* 5. Express Room Checkout Modal */}
       {currentRoom && showRoomCheckoutModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-sand-200 text-forest-950 relative animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-sand-200 text-forest-950 relative animate-in slide-in-from-bottom sm:fade-in sm:zoom-in-95 duration-200">
             <button
               onClick={() => setShowRoomCheckoutModal(false)}
               className="absolute top-4 right-4 p-2 rounded-full hover:bg-sand-100 text-gray-400 hover:text-gray-700 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"

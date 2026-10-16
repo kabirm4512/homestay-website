@@ -2,7 +2,7 @@
 
 import { useSiteContact, telHref } from '@/lib/contact';
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -78,6 +78,21 @@ function CheckinContent() {
   // Status & Success state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  // Set only by a submission made on this page now: then the guest is taken to their room concierge.
+  const [justSubmitted, setJustSubmitted] = useState(false);
+  const router = useRouter();
+  const conciergeHref =
+    activeBooking && activeBooking.roomNumber > 0 && !activeBooking.id.startsWith('walkin-')
+      ? `/concierge?room=${activeBooking.roomNumber}`
+      : null;
+
+  // After a successful digital check-in, go to the room concierge (the browser is already
+  // signed in to the booking, so it opens without the QR code or mobile number).
+  useEffect(() => {
+    if (!justSubmitted || !conciergeHref || walkInMessage) return;
+    const t = setTimeout(() => router.push(conciergeHref), 2500);
+    return () => clearTimeout(t);
+  }, [justSubmitted, conciergeHref, walkInMessage, router]);
 
   const loadBookingIntoForm = (b: CRMBooking) => {
     setActiveBooking(b);
@@ -347,6 +362,7 @@ function CheckinContent() {
 
     setIsSubmitting(false);
     setIsSubmitted(true);
+    setJustSubmitted(true);
     showToast('Guest registration and documents submitted successfully!');
   };
 
@@ -1058,6 +1074,14 @@ function CheckinContent() {
             {/* Primary Guest Portal CTA (this browser is already signed in to the booking) */}
             {!walkInMessage && (
             <div className="pt-2 max-w-md mx-auto space-y-2">
+              {conciergeHref && (
+                <Link
+                  href={conciergeHref}
+                  className="w-full py-4 px-6 bg-[#0B1733] hover:bg-[#12244F] text-white rounded-2xl font-bold text-sm sm:text-base shadow-lg transition-all flex items-center justify-center space-x-2.5 cursor-pointer"
+                >
+                  <span>{justSubmitted ? 'Opening your Room Concierge…' : `Open Room ${activeBooking.roomNumber} Concierge →`}</span>
+                </Link>
+              )}
               <Link
                 href="/guest-portal"
                 className="w-full py-4 px-6 bg-gradient-to-r from-[#FE6E00] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] active:scale-98 text-white rounded-2xl font-bold text-sm sm:text-base shadow-[0_4px_16px_rgba(254,110,0,0.35)] transition-all flex items-center justify-center space-x-2.5 cursor-pointer"

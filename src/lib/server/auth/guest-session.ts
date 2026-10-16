@@ -33,6 +33,7 @@ export async function getGuestBooking(request: Request): Promise<BookingRow | nu
   const row = await getBookingRow(claims.bid);
   if (!row || row.status === 'cancelled') return null;
   const checkOut = typeof row.check_out === 'string' ? row.check_out.slice(0, 10) : row.check_out.toISOString().slice(0, 10);
-  if (addCalendarDays(checkOut, 2) < todayInIST()) return null;
+  // An in-house guest keeps access until checked out, even past the booked check-out date.
+  if (row.status !== 'checked_in' && addCalendarDays(checkOut, 2) < todayInIST()) return null;
   return row;
 }
