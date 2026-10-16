@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '@/context/CRMContext';
 import { FoodOrderStatus, MenuItem, FoodOrder } from '@/types/crm';
+import { todayInIST } from '@/lib/tariff-calculator';
 
 interface KitchenPortalProps {
   initialTab?: 'approvals' | 'orders' | 'mandate' | 'menu';
@@ -89,9 +90,22 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
     return approvedOrders.filter((o) => ['accepted_kitchen', 'preparing', 'out_for_delivery'].includes(o.status)).length;
   }, [approvedOrders]);
 
-  // Calculate Kitchen Mandate headcount tallies based on active checked-in or arriving bookings
+  // "Today" in IST, following the clock (a kitchen tab left open overnight moves to the new day)
+  const [todayStr, setTodayStr] = useState(() => todayInIST());
+  useEffect(() => {
+    const t = setInterval(() => setTodayStr(todayInIST()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Kitchen Mandate headcount: only guests in residence today. That is guests checked in now,
+  // plus confirmed arrivals whose stay covers today (arriving today or due in earlier but not yet
+  // checked in). Future pre-bookings, holds, cancelled and departed stays are not counted.
   const mandateStats = useMemo(() => {
-    const activeStays = bookings.filter((b) => ['checked_in', 'confirmed'].includes(b.tapeStatus));
+    const activeStays = bookings.filter((b) => {
+      if (b.bookingStatus === 'checked_in') return true;
+      if (b.bookingStatus === 'confirmed') return b.checkInDate <= todayStr && b.checkOutDate > todayStr;
+      return false;
+    });
 
     const counts = {
       CP: 0,
@@ -119,7 +133,7 @@ export default function KitchenPortal({ initialTab = 'orders' }: KitchenPortalPr
     });
 
     return counts;
-  }, [bookings]);
+  }, [bookings, todayStr]);
 
   // Aggregated live dish prep tallies across approved orders in cooking
   const activeDishTallies = useMemo(() => {

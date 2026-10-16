@@ -71,6 +71,20 @@ interface ToastState {
   type: 'success' | 'error' | 'info';
 }
 
+export interface BookingAmendmentInput {
+  reason: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  roomId?: string;
+  mealPlan?: MealPlan;
+  adultsCount?: number;
+  childrenCount?: number;
+  roomRatePerNight?: number;
+  guestName?: string;
+  guestPhone?: string;
+  specialRequests?: string;
+}
+
 interface CRMContextType {
   role: StaffRole;
   setRole: (role: StaffRole) => void;
@@ -198,6 +212,10 @@ interface CRMContextType {
   recordFolioRefund: (folioId: string, refund: { amount: number; paymentMethod: PaymentMethod; notes?: string; signOffConfirmed: boolean }) => void;
   /** Cancel a booking or mark a no-show (server: voids room charges, keeps advances as credit). */
   cancelBooking: (bookingId: string, reason: string, noShow?: boolean) => Promise<boolean>;
+  /** Admin: amend a booking's dates, room, meal plan, guests or rate (server re-checks rooms and updates the bill). */
+  amendBooking: (bookingId: string, changes: BookingAmendmentInput) => Promise<boolean>;
+  /** Admin: delete a booking made by mistake (refused once payments are recorded or the guest is in-house). */
+  deleteBookingAdmin: (bookingId: string, reason: string) => Promise<boolean>;
   /** Website requests: record a signed advance before a room is assigned. */
   recordWebAdvance: (webBookingId: string, payment: { amount: number; paymentMethod: PaymentMethod; transactionReference?: string; signOffConfirmed: boolean }) => Promise<boolean>;
   /** Room holds (rooms kept off sale for some nights; stored as roomBlocks). */
@@ -985,6 +1003,24 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       showToast('You appear to be offline. Nothing was changed.', 'error');
       return { ok: false, json: null };
     }
+  };
+
+  const amendBooking: CRMContextType['amendBooking'] = async (bookingId, changes) => {
+    const { ok, json } = await requestJson('PATCH', `/api/bookings/${encodeURIComponent(bookingId)}`, changes);
+    if (!ok) return false;
+    if (json.booking) applyServerRecord('crmBookings', json.booking.id, json.booking);
+    if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+    showToast('Booking amended. The bill has been updated to match.');
+    return true;
+  };
+
+  const deleteBookingAdmin: CRMContextType['deleteBookingAdmin'] = async (bookingId, reason) => {
+    const { ok, json } = await requestJson('DELETE', `/api/bookings/${encodeURIComponent(bookingId)}`, { reason });
+    if (!ok) return false;
+    applyServerRecord('crmBookings', bookingId, null, true);
+    if (json.folio) applyServerRecord('folios', json.folio.id, json.folio);
+    showToast('Booking deleted. Its bill was voided and the change is in the audit log.');
+    return true;
   };
 
   const addRoomHold: CRMContextType['addRoomHold'] = async (hold) => {
@@ -2352,6 +2388,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         setFolioDiscount,
         recordFolioRefund,
         cancelBooking,
+        amendBooking,
+        deleteBookingAdmin,
         recordWebAdvance,
         roomBlocks,
         addRoomHold,

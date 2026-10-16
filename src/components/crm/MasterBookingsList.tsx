@@ -43,9 +43,45 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
     dispatchRequests,
     checkInRoom,
     cancelBooking,
+    amendBooking,
+    deleteBookingAdmin,
+    rooms,
     currentUser,
     showToast,
   } = useCRM();
+  const isAdmin = currentUser?.role === 'admin';
+  const [editing, setEditing] = useState<{
+    id: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomId: string;
+    mealPlan: CRMBooking['mealPlan'];
+    adultsCount: number;
+    childrenCount: number;
+    roomRatePerNight: number;
+    guestName: string;
+    guestPhone: string;
+    reason: string;
+    saving?: boolean;
+  } | null>(null);
+  const [deleting, setDeleting] = useState<{ id: string; reason: string; saving?: boolean } | null>(null);
+  const startEdit = (b: CRMBooking) => {
+    setCancelling(null);
+    setDeleting(null);
+    setEditing({
+      id: b.id,
+      checkInDate: b.checkInDate,
+      checkOutDate: b.checkOutDate,
+      roomId: b.roomId,
+      mealPlan: b.mealPlan,
+      adultsCount: b.adultsCount,
+      childrenCount: b.childrenCount,
+      roomRatePerNight: b.roomRatePerNight,
+      guestName: b.guest.fullName,
+      guestPhone: b.guest.phone,
+      reason: '',
+    });
+  };
   const [cancelling, setCancelling] = useState<{ id: string; noShow: boolean } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
 
@@ -501,6 +537,27 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
                       </button>
                     )}
 
+                    {isAdmin && ['hold', 'confirmed', 'checked_in'].includes(b.bookingStatus) && (
+                      <button
+                        onClick={() => startEdit(b)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#25479E] bg-blue-50 hover:bg-blue-100 border border-blue-200"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {isAdmin && b.bookingStatus !== 'checked_in' && (
+                      <button
+                        onClick={() => {
+                          setCancelling(null);
+                          setEditing(null);
+                          setDeleting({ id: b.id, reason: '' });
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-800 bg-white hover:bg-rose-50 border border-rose-300"
+                      >
+                        Delete
+                      </button>
+                    )}
+
                     {/* Review Folio & Checkout Action */}
                     {isInHouse && (
                       <button
@@ -522,6 +579,102 @@ export default function MasterBookingsList({ onOpenManualBooking }: MasterBookin
                     </button>
                   </div>
                 </div>
+                {editing?.id === b.id && (
+                  <div className="mt-3 p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs space-y-2">
+                    <p className="font-bold text-forest-950">Amend booking {b.bookingReference} (admin)</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Check-in
+                        <input type="date" value={editing.checkInDate} disabled={b.bookingStatus === 'checked_in'} onChange={(e) => setEditing({ ...editing, checkInDate: e.target.value })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white disabled:bg-sand-100" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Check-out
+                        <input type="date" value={editing.checkOutDate} min={editing.checkInDate} onChange={(e) => setEditing({ ...editing, checkOutDate: e.target.value })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Room
+                        <select value={editing.roomId} onChange={(e) => setEditing({ ...editing, roomId: e.target.value })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white">
+                          {[...rooms].sort((x, y) => x.roomNumber - y.roomNumber).map((r) => (
+                            <option key={r.id} value={r.id}>{r.roomNumber} · {r.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Meal plan
+                        <select value={editing.mealPlan} onChange={(e) => setEditing({ ...editing, mealPlan: e.target.value as CRMBooking['mealPlan'] })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white">
+                          <option value="EP">EP (room only)</option>
+                          <option value="CP">CP (breakfast)</option>
+                          <option value="MAP">MAP (breakfast + dinner)</option>
+                          <option value="AP">AP (all meals)</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Adults
+                        <input type="number" min={1} max={20} value={editing.adultsCount} onChange={(e) => setEditing({ ...editing, adultsCount: Math.max(1, Number(e.target.value) || 1) })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Children
+                        <input type="number" min={0} max={20} value={editing.childrenCount} onChange={(e) => setEditing({ ...editing, childrenCount: Math.max(0, Number(e.target.value) || 0) })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Rate / night (₹)
+                        <input type="number" min={0} value={editing.roomRatePerNight} onChange={(e) => setEditing({ ...editing, roomRatePerNight: Math.max(0, Number(e.target.value) || 0) })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700">Guest phone
+                        <input value={editing.guestPhone} onChange={(e) => setEditing({ ...editing, guestPhone: e.target.value })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700 col-span-2">Guest name
+                        <input value={editing.guestName} onChange={(e) => setEditing({ ...editing, guestName: e.target.value })} className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                      <label className="flex flex-col gap-1 font-semibold text-forest-700 col-span-2">Reason (required)
+                        <input value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder="e.g. guest extended by one night" className="px-2 py-1.5 rounded-lg border border-sand-300 bg-white" />
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        disabled={editing.saving}
+                        onClick={async () => {
+                          if (editing.reason.trim().length < 3) {
+                            showToast('Please give a reason for the change.', 'error');
+                            return;
+                          }
+                          if (editing.checkOutDate <= editing.checkInDate) {
+                            showToast('Check-out must be after check-in.', 'error');
+                            return;
+                          }
+                          setEditing({ ...editing, saving: true });
+                          const { id, saving, ...changes } = editing;
+                          const done = await amendBooking(id, { ...changes, reason: changes.reason.trim() });
+                          if (done) setEditing(null);
+                          else setEditing((e) => (e ? { ...e, saving: false } : e));
+                        }}
+                        className="px-3 py-2 rounded-lg bg-[#25479E] text-white font-bold disabled:opacity-60"
+                      >
+                        {editing.saving ? 'Saving…' : 'Save changes'}
+                      </button>
+                      <button onClick={() => setEditing(null)} className="px-3 py-2 rounded-lg border border-sand-300 font-bold bg-white">Close</button>
+                    </div>
+                    <p className="text-[11px] text-forest-700">Room and date availability is re-checked. If the price changes, the old room lines on the bill are voided with your reason and new ones are posted. Payments are not touched.</p>
+                  </div>
+                )}
+                {deleting?.id === b.id && (
+                  <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs space-y-2">
+                    <p className="font-bold text-rose-900">Delete booking {b.bookingReference} permanently?</p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input autoFocus value={deleting.reason} onChange={(e) => setDeleting({ ...deleting, reason: e.target.value })} placeholder="Reason (required), e.g. duplicate entry" className="flex-1 px-3 py-2 rounded-lg border border-rose-300 bg-white" />
+                      <button
+                        disabled={deleting.saving}
+                        onClick={async () => {
+                          if (deleting.reason.trim().length < 3) {
+                            showToast('Please give a reason.', 'error');
+                            return;
+                          }
+                          setDeleting({ ...deleting, saving: true });
+                          if (await deleteBookingAdmin(b.id, deleting.reason.trim())) setDeleting(null);
+                          else setDeleting((d) => (d ? { ...d, saving: false } : d));
+                        }}
+                        className="px-3 py-2 rounded-lg bg-rose-700 text-white font-bold disabled:opacity-60"
+                      >
+                        {deleting.saving ? 'Deleting…' : 'Delete booking'}
+                      </button>
+                      <button onClick={() => setDeleting(null)} className="px-3 py-2 rounded-lg border border-sand-300 font-bold bg-white">Keep</button>
+                    </div>
+                    <p className="text-[11px] text-rose-800">For mistakes only (duplicates, test entries). Not possible once a payment is recorded: cancel instead so the advance stays as a credit. The bill is voided and the deleted booking is kept in the audit log.</p>
+                  </div>
+                )}
                 {cancelling?.id === b.id && (
                   <div className="mt-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs space-y-2">
                     <label className="flex items-center gap-2 font-semibold text-rose-900">
